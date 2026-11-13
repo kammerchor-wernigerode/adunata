@@ -1,8 +1,11 @@
 mod api;
 mod client;
+mod database;
 mod spike;
 
 use std::net::SocketAddr;
+
+use sqlx::postgres::PgConnectOptions;
 
 const DEFAULT_LISTEN_ADDRESS: &str = "127.0.0.1:8080";
 
@@ -23,14 +26,21 @@ async fn serve() {
         .unwrap_or_else(|_| DEFAULT_LISTEN_ADDRESS.to_owned())
         .parse()
         .expect("ADUNATA_LISTEN_ADDRESS must be a socket address such as 127.0.0.1:8080");
+    let database: PgConnectOptions = std::env::var("ADUNATA_DATABASE_URL")
+        .expect("ADUNATA_DATABASE_URL must be set")
+        .parse()
+        .expect("ADUNATA_DATABASE_URL must be a PostgreSQL URL");
+    let pool = database::connect(database)
+        .await
+        .expect("database must be reachable and migrations must apply");
     let listener = tokio::net::TcpListener::bind(address)
         .await
         .expect("listen address must be free");
-    axum::serve(listener, app())
+    axum::serve(listener, app(pool))
         .await
         .expect("server must keep running");
 }
 
-fn app() -> axum::Router {
-    api::router().merge(client::router())
+fn app(pool: sqlx::PgPool) -> axum::Router {
+    api::router(pool).merge(client::router())
 }

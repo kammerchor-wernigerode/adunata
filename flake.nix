@@ -44,10 +44,26 @@
             installPhase = "cp -r dist $out";
           };
 
-          serverSource = craneLib.cleanCargoSource ./server;
+          serverSource = pkgs.lib.fileset.toSource {
+            root = ./server;
+            fileset = pkgs.lib.fileset.unions [
+              (craneLib.fileset.commonCargoSources ./server)
+              ./server/migrations
+            ];
+          };
           serverArgs = {
             src = serverSource;
             strictDeps = true;
+            nativeCheckInputs = [ pkgs.postgresql_17 ];
+            preCheck = ''
+              export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata PGDATABASE=postgres
+              mkdir -p "$PGHOST"
+              initdb --username="$PGUSER" --auth=trust --no-instructions >/dev/null
+              pg_ctl start --wait --silent --options="-k $PGHOST -c listen_addresses="
+            '';
+            postCheck = ''
+              pg_ctl stop --wait --silent
+            '';
             preBuild = ''
               mkdir -p ../client
               ln -sfn ${client} ../client/dist
@@ -134,6 +150,9 @@
 
           PGHOST = "localhost";
           PGPORT = "5432";
+          PGUSER = "adunata";
+          PGPASSWORD = "adunata";
+          PGDATABASE = "adunata";
           MP_SMTP_BIND_ADDR = "localhost:1025";
           MP_UI_BIND_ADDR = "localhost:8025";
         };

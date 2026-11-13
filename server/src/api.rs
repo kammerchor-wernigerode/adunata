@@ -1,4 +1,5 @@
 use axum::Router;
+use sqlx::PgPool;
 use utoipa::OpenApi;
 use utoipa::openapi::OpenApi as Document;
 use utoipa_axum::router::OpenApiRouter;
@@ -9,16 +10,14 @@ use crate::spike;
 #[openapi(info(title = "Adunata"))]
 struct ApiDoc;
 
-fn split() -> (Router, Document) {
-    OpenApiRouter::with_openapi(ApiDoc::openapi())
-        .merge(spike::router())
-        .split_for_parts()
+fn routes() -> OpenApiRouter<PgPool> {
+    OpenApiRouter::with_openapi(ApiDoc::openapi()).merge(spike::router())
 }
 
-pub fn router() -> Router {
-    split().0
+pub fn router(pool: PgPool) -> Router {
+    routes().split_for_parts().0.with_state(pool)
 }
 
 pub fn document() -> Document {
-    split().1
+    routes().split_for_parts().1
 }
