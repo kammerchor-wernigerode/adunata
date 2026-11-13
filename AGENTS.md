@@ -32,6 +32,7 @@ This file routes. It names where things live and the rules that apply everywhere
 - Documentation is not a changelog. Git records changes. Specs and plans are exempt, because they capture a target state at a point in time. Architecture decision records are exempt too, because they keep superseded decisions next to the ones that replace them.
 - Each fact has one home. Documentation links to it instead of copying it. Links are relative and must resolve.
 - Documentation, issues and pull requests name no maintainer or contributor.
+- Architecture documentation lives in `docs/arc42/` and follows the skill `arc42`.
 - Markdown has no hard line breaks. A paragraph is one line. Tables use minimal padding (`|-|-|`).
 
 ## Local setup
