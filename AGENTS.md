@@ -22,6 +22,16 @@ This file routes. It names where things live and the rules that apply everywhere
 
 - Every file follows `.editorconfig`.
 
+### Rust
+
+Rust code stays plain, so that it is easy to read and to change.
+
+- Write no macros of your own. Derive macros from dependencies are fine.
+- Use a concrete type where it works. Introduce a trait or a generic parameter only when at least two real implementations need it.
+- Prefer owned data. Clone a value rather than add a lifetime parameter to a struct or an enum.
+- Every new dependency needs a reason. The commit that adds it says what the dependency does and why the project cannot do without it.
+- Formatting and lints run in CI. Any warning fails the build.
+
 ## Language
 
 - Code, comments, commit messages, specs, agent files, documentation and domain terms are English.

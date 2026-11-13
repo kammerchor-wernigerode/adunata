@@ -3,7 +3,7 @@
 ## 1. Repository basics
 
 - [x] 1.1 Add `LICENSE` with the text of the AGPL-3.0 and verify that GitHub detects the license on the repository page
-- [ ] 1.2 Add the rules for plain Rust from decision 1 of design.md to `AGENTS.md` and verify that they name macros, generic traits, lifetimes and the reason each dependency needs
+- [x] 1.2 Add the rules for plain Rust from decision 1 of design.md to `AGENTS.md` and verify that they name macros, generic traits, lifetimes and the reason each dependency needs
 - [ ] 1.3 Add a Nix flake with a development shell that provides the Rust toolchain, Node.js, PostgreSQL and Mailpit and verify that `nix develop` offers `cargo`, `node`, `psql` and `mailpit`
 - [ ] 1.4 Add a Compose file that runs PostgreSQL and Mailpit with the same versions and ports as the development shell and verify that `docker compose up` starts both and Mailpit's web interface answers
 - [ ] 1.5 Add a GitHub Actions workflow that runs formatting, lints and tests of the flake on every push to a pull request, cancels a run in progress for the same pull request and fails on any warning. Verify it on a draft pull request
