@@ -14,7 +14,7 @@
 
 - [x] 2.1 Create the server crate and the React client with Vite, serve the built client from the binary on one port and verify that a browser opening the root path shows the client
 - [ ] 2.2 Cache the Nix store between workflow runs with the cache of GitHub Actions and verify that a second run of an unchanged commit takes less than half the time of the first
-- [ ] 2.3 Let the binary write its OpenAPI document to a file on request, generate client code with Orval from that file and verify that Orval accepts the document and that the generated types and zod schemas handle an optional field, an enum, a date and an integer correctly
+- [x] 2.3 Let the binary write its OpenAPI document to a file on request, generate client code with Orval from that file and verify that Orval accepts the document and that the generated types and zod schemas handle an optional field, an enum, a date and an integer correctly
 - [ ] 2.4 Add one form with shadcn/ui, React Hook Form and the generated zod schema that stores a value through the API in PostgreSQL and verify that a server-side validation error appears at the field in the form
 - [ ] 2.5 Add the first migration, apply it on start and verify in CI that it runs against a fresh PostgreSQL
 - [ ] 2.6 Send one mail through an outbox to Mailpit, simulate an outage of the mail server and verify through Mailpit's API that the mail arrives after a retry

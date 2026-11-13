@@ -8,7 +8,12 @@ publish = false
 [dependencies]
 axum = "0.8.9"
 rust-embed = { version = "8.14.0", features = ["mime-guess"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+time = { version = "0.3.55", features = ["serde", "macros"] }
 tokio = { version = "1.54.1", features = ["macros", "net", "rt-multi-thread"] }
+utoipa = { version = "6.0.0", features = ["time", "preserve_order"] }
+utoipa-axum = "0.3.0"
 
 [lints.rust]
 unsafe_code = "forbid"

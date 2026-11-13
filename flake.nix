@@ -70,6 +70,12 @@
 
           rustFormatting = craneLib.cargoFmt { src = serverSource; };
 
+          clientTest = clientPackage {
+            pname = "adunata-client-test";
+            buildPhase = "npm test";
+            installPhase = "touch $out";
+          };
+
           clientLint = clientPackage {
             pname = "adunata-client-lint";
             buildPhase = "npm run lint -- --deny-warnings";
@@ -95,6 +101,7 @@
             clippy
             rustFormatting
             clientLint
+            clientTest
             ;
 
           nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
