@@ -3,3 +3,10 @@ schema: spec-driven
 context: |
   Write all artifacts in English.
   Name no maintainer or contributor.
+
+rules:
+  design:
+    - Name the arc42 sections in docs/arc42/ that this change affects and what changes in each, as the skill arc42 describes.
+    - Draft each architecturally significant decision so that it can become a record in docs/decisions/ following docs/decisions/_decision_template.md. Name the records it supersedes.
+  tasks:
+    - Include tasks that update the affected arc42 sections and that write or supersede the decision records drafted in design.md.
