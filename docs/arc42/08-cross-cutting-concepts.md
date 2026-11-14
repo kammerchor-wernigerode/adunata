@@ -8,7 +8,16 @@ The module `configuration` reads all settings at start-up and checks them togeth
 
 The settings and their defaults are listed in the [configuration reference](../operating/configuration.md).
 
-## Persistence and migrations
+## Localization
+
+Every text that people read comes from a Fluent catalog per language in [`server/locales/`](../../server/locales/). The server formats mail with these catalogs and serves the same files to the client at `/api/catalogs/{language}`, so each text exists once for both. Fluent applies the plural rules of each language.
+
+English is the fallback. When a catalog lacks a text, the English text appears instead of a key. The client loads the English catalog next to the chosen one for this purpose.
+
+The client starts in the language the browser prefers among German and English. A switch next to the title changes it. The choice stays on the device. The document language follows the choice, so screen readers pronounce text correctly.
+
+Mail goes out in the language stored for the recipient. Without one it uses the default language of the instance. The client formats dates with the browser's own date formatting. The server spells out date ranges in mail through the catalog, because Fluent in Rust has no date formatting.
+
 
 PostgreSQL holds all data, see [ADR 0004](../decisions/0004-postgresql-as-database.md). Queries are plain SQL that the server sends at runtime. Builds therefore need no database.
 
@@ -55,7 +64,7 @@ Tests run at several levels. Each level checks what the level below cannot see. 
 |Server slice|An API handler called in process with real routing against a real PostgreSQL. Each test gets its own empty database with all migrations applied. Mail goes to a real Mailpit.|`rejects_a_taken_name_at_the_name_field` in [`server/src/spike.rs`](../../server/src/spike.rs)|
 |Client slice|A component against the API mocks that Orval generates, driven like a user would. Accessibility checks with axe run on rendered components.|[`client/src/spike/SpikeForm.test.tsx`](../../client/src/spike/SpikeForm.test.tsx) and [`client/src/spike/SpikeForm.a11y.test.tsx`](../../client/src/spike/SpikeForm.a11y.test.tsx)|
 |Contract|The committed OpenAPI document matches the server. The generated client code matches the document.|The check `contract` in [`flake.nix`](../../flake.nix)|
-|End to end|A few complete flows in a browser against the real binary, PostgreSQL and Mailpit.|Planned|
+|End to end|A few complete flows in a browser against the real binary, PostgreSQL and Mailpit, with accessibility checks by axe. Runs on Linux.|[`client/e2e/language.e2e.ts`](../../client/e2e/language.e2e.ts)|
 |NixOS VM|The NixOS module starts, migrates the database and reports healthy.|Planned|
 
 The check `memory` in [`flake.nix`](../../flake.nix) measures peak memory of the release build under load on Linux and fails above 150 MB.

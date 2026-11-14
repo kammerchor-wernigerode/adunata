@@ -31,9 +31,13 @@ pub struct Localizer {
 
 impl Localizer {
     fn new() -> Self {
-        let bundles = CATALOGS
-            .into_iter()
-            .map(|(locale, source)| (locale, bundle(locale, source)))
+        Self::from_catalogs(&CATALOGS)
+    }
+
+    fn from_catalogs(catalogs: &[(&'static str, &str)]) -> Self {
+        let bundles = catalogs
+            .iter()
+            .map(|(locale, source)| (*locale, bundle(locale, source)))
             .collect();
         Self { bundles }
     }
@@ -55,6 +59,17 @@ impl Localizer {
         args.set("month", self.message(locale, &month_id, &FluentArgs::new()));
         self.message(locale, "date-span-same-month", &args)
     }
+}
+
+/// Picks the language of a mail: the recipient's stored language if Adunata supports it, otherwise the default of the instance.
+pub fn mail_language<'a>(stored: Option<&'a str>, default: &'a str) -> &'a str {
+    stored
+        .filter(|language| is_supported(language))
+        .unwrap_or(default)
+}
+
+pub fn is_supported(language: &str) -> bool {
+    CATALOGS.iter().any(|(locale, _)| *locale == language)
 }
 
 fn bundle(locale: &str, source: &str) -> FluentBundle<FluentResource> {
@@ -175,6 +190,31 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(french.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn missing_translation() {
+        let localizer = Localizer::from_catalogs(&[
+            ("en", "greeting = Hello\nonly-english = Only in English\n"),
+            ("de", "greeting = Hallo\n"),
+        ]);
+        let args = FluentArgs::new();
+        assert_eq!(localizer.message("de", "greeting", &args), "Hallo");
+        assert_eq!(
+            localizer.message("de", "only-english", &args),
+            "Only in English"
+        );
+    }
+
+    #[test]
+    fn recipient_with_a_stored_language() {
+        assert_eq!(mail_language(Some("en"), "de"), "en");
+    }
+
+    #[test]
+    fn recipient_without_a_stored_language() {
+        assert_eq!(mail_language(None, "de"), "de");
+        assert_eq!(mail_language(Some("fr"), "de"), "de");
     }
 
     #[test]

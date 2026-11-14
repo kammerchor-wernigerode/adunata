@@ -1,7 +1,15 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, type ReactNode } from 'react'
-import { createBundle, formatMessage, negotiateLocale, type Locale } from './bundle'
-import { TranslateContext, type Translate } from './translate'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  createBundle,
+  fallbackLocale,
+  formatMessage,
+  negotiateLocale,
+  readStoredLocale,
+  storeLocale,
+  type Locale,
+} from './bundle'
+import { LocalizationContext, type Localization } from './translate'
 
 async function fetchCatalog(locale: Locale): Promise<string> {
   const response = await fetch(`/api/catalogs/${locale}`)
@@ -9,19 +17,33 @@ async function fetchCatalog(locale: Locale): Promise<string> {
   return response.text()
 }
 
+function useCatalog(locale: Locale) {
+  return useQuery({ queryKey: ['catalog', locale], queryFn: () => fetchCatalog(locale), staleTime: Infinity })
+}
+
 export function LocalizationProvider({ children }: { children: ReactNode }) {
-  const locale = negotiateLocale(navigator.languages)
-  const catalog = useQuery({ queryKey: ['catalog', locale], queryFn: () => fetchCatalog(locale), staleTime: Infinity })
+  const [locale, setLocaleState] = useState<Locale>(() => readStoredLocale() ?? negotiateLocale(navigator.languages))
+  const catalog = useCatalog(locale)
+  const fallback = useCatalog(fallbackLocale)
   useEffect(() => {
     document.documentElement.lang = locale
   }, [locale])
-  const bundle = useMemo(() => (catalog.data ? createBundle(locale, catalog.data) : null), [locale, catalog.data])
-
-  if (!bundle) return null
-  const translate: Translate = (id, args) => formatMessage(bundle, id, args)
-  return (
-    <TranslateContext.Provider value={translate}>
-      {children}
-    </TranslateContext.Provider>
+  const bundles = useMemo(
+    () =>
+      catalog.data && fallback.data
+        ? [createBundle(locale, catalog.data), createBundle(fallbackLocale, fallback.data)]
+        : null,
+    [locale, catalog.data, fallback.data],
   )
+
+  if (!bundles) return null
+  const value: Localization = {
+    locale,
+    translate: (id, args) => formatMessage(bundles, id, args),
+    setLocale: (next) => {
+      storeLocale(next)
+      setLocaleState(next)
+    },
+  }
+  return <LocalizationContext.Provider value={value}>{children}</LocalizationContext.Provider>
 }

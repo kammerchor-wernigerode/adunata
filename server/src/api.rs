@@ -11,6 +11,7 @@ use crate::{health, localization, spike};
 pub struct AppState {
     pub pool: PgPool,
     pub public_url: PublicUrl,
+    pub default_language: String,
 }
 
 #[derive(OpenApi)]
@@ -45,6 +46,7 @@ pub mod testing {
         AppState {
             pool,
             public_url: PublicUrl::parse(PUBLIC_URL).expect("test URL must be valid"),
+            default_language: "de".to_owned(),
         }
     }
 }

@@ -20,7 +20,6 @@ const MAX_NAME_LENGTH: usize = 100;
 time::serde::format_description!(iso_date, Date, "[year]-[month]-[day]");
 const MAX_BEDS: u8 = 20;
 const SPIKE_RECIPIENT: &str = "Organizer <organizer@example.org>";
-const ORGANIZER_LOCALE: &str = "de";
 const GATHERING_START: Date = time::macros::date!(2027 - 03 - 14);
 const GATHERING_END: Date = time::macros::date!(2027 - 03 - 16);
 
@@ -129,24 +128,29 @@ async fn insert(state: &AppState, response: &SpikeResponse) -> Result<(), sqlx::
     .bind(i16::from(response.beds))
     .execute(&mut *transaction)
     .await?;
-    mail::enqueue(&mut transaction, &confirmation(response, &state.public_url)).await?;
+    mail::enqueue(
+        &mut transaction,
+        &confirmation(response, &state.public_url, &state.default_language),
+    )
+    .await?;
     transaction.commit().await
 }
 
-fn confirmation(response: &SpikeResponse, public_url: &PublicUrl) -> Mail {
+fn confirmation(response: &SpikeResponse, public_url: &PublicUrl, default_language: &str) -> Mail {
     let localizer = localization::localizer();
+    let language = localization::mail_language(None, default_language);
     let name = response.name.trim();
     let mut args = FluentArgs::new();
     args.set("name", name);
     args.set("attendance", response.attendance.as_str());
     args.set(
         "span",
-        localizer.date_span(ORGANIZER_LOCALE, GATHERING_START, GATHERING_END),
+        localizer.date_span(language, GATHERING_START, GATHERING_END),
     );
     args.set("beds", response.beds);
-    let subject = localizer.message(ORGANIZER_LOCALE, "response-mail-subject", &args);
-    let body = localizer.message(ORGANIZER_LOCALE, "response-mail-body", &args);
-    let beds = localizer.message(ORGANIZER_LOCALE, "beds-needed", &args);
+    let subject = localizer.message(language, "response-mail-subject", &args);
+    let body = localizer.message(language, "response-mail-body", &args);
+    let beds = localizer.message(language, "beds-needed", &args);
     let link = public_url.link("/");
     Mail {
         recipient: SPIKE_RECIPIENT.to_owned(),
@@ -310,7 +314,7 @@ mod tests {
             beds: 2,
         };
         let public_url = PublicUrl::parse(crate::api::testing::PUBLIC_URL).unwrap();
-        let mail = super::confirmation(&response, &public_url);
+        let mail = super::confirmation(&response, &public_url, "de");
         assert_eq!(mail.subject, "Rückmeldung von Ada <b>");
         assert_eq!(
             mail.text,
@@ -328,7 +332,7 @@ mod tests {
             beds: 0,
         };
         let public_url = PublicUrl::parse("https://choir.example.org/adunata/").unwrap();
-        let mail = super::confirmation(&response, &public_url);
+        let mail = super::confirmation(&response, &public_url, "de");
         assert!(mail.text.contains("https://choir.example.org/adunata/"));
         assert!(
             mail.html
