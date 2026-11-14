@@ -2,6 +2,8 @@
 
 This repository uses the workflows `propose`, `explore`, `apply`, `update`, `sync`, `verify` and `archive`. The skills for them live in `.agents/skills/` and `.claude/skills/`.
 
+The skill `openspec-verify-change` is available. Agents run it only when asked, and whether it runs in the implementing session or in a new one is decided each time.
+
 ## Profile
 
 The profile is global to the machine. The default profile `core` has no `verify`. `openspec update` deletes every skill that the active profile does not include, so running it with `core` silently removes `openspec-verify-change`.

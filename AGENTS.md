@@ -9,7 +9,7 @@ This file routes. It names where things live and the rules that apply everywhere
 |`openspec/specs/`|Current behavior as requirements|
 |`openspec/changes/`|Proposed and in-progress changes|
 |`openspec/config.yaml`|Rules for OpenSpec artifacts|
-|`openspec/README.md`|OpenSpec profile that this repository needs, read before running `openspec update`|
+|`openspec/README.md`|OpenSpec skills in use and the profile they need, read before running `openspec update`|
 |`docs/decisions/`|Architecture decision records, as described in [ADR 0001](docs/decisions/0001-record-architecture-decisions.md)|
 |`docs/arc42/`|Architecture documentation, see the [entry page](docs/arc42/README.md)|
 |`docs/operating/`|Documentation for operators who install and run an instance|
@@ -17,8 +17,6 @@ This file routes. It names where things live and the rules that apply everywhere
 ## Workflow
 
 - New features start with `/openspec-propose <name>`. Open ideas start with `/openspec-explore`.
-- Before archiving a change, verify it with `/openspec-verify-change`. Fix every critical issue first.
-- Code review happens on the pull request, after the change is verified and the pull request is marked ready for review. Archive after the review.
 - Small fixes need no change proposal.
 - An architecturally significant decision gets a record in `docs/decisions/`.
 - When an agent repeats a mistake, add a rule here.
