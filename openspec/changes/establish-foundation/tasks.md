@@ -30,7 +30,7 @@
 - [x] 3.2 Set up TanStack Router, TanStack Query and the shadcn/ui base components in the client and verify with a client slice test that runs against the mocks Orval generates
 - [x] 3.3 Add a CI check that regenerates the OpenAPI document and the Orval output and fails when they differ from the committed files. Verify it with a deliberate change to the API
 - [x] 3.4 Write records 0004 (PostgreSQL as database), 0007 (modular monolith) and 0008 (client libraries) as Accepted, update arc42 sections 4, 5 and 9 and verify that every link resolves
-- [ ] 3.5 Describe the testing levels from design.md in arc42 section 8 and verify that each level names a test in the repository as its example
+- [x] 3.5 Describe the testing levels from design.md in arc42 section 8 and verify that each level names a test in the repository as its example
 
 ## 4. Instance configuration
 
@@ -63,13 +63,13 @@
 - [ ] 7.3 Choose the client language from the browser, let a person switch it and remember the choice on the device. Verify with client tests for the scenarios "German browser", "Unsupported browser language" and "Switch language"
 - [ ] 7.4 Write mail in the recipient's stored language or the default language of the instance and verify with tests for the scenarios "Recipient with a stored language" and "Recipient without a stored language"
 - [ ] 7.5 Format dates, times and ranges per language in the time zone of the instance and verify with a test for the scenario "Date range in German"
-- [ ] 7.6 Add an end-to-end test with Playwright that opens the client, switches the language and runs axe. Verify that it passes against the binary, PostgreSQL and Mailpit
+- [ ] 7.6 Add an end-to-end test with Playwright that opens the client, switches the language and runs axe. Verify that it passes against the binary, PostgreSQL and Mailpit. Name it as the end-to-end example in arc42 section 8
 - [ ] 7.7 Describe localization in arc42 section 8, add the quality scenario for plural forms to arc42 section 10 and verify that every link resolves
 
 ## 8. Packaging and deployment
 
 - [ ] 8.1 Build the package, the OCI image and the release binary from the flake and verify that the image and the binary both start with a valid configuration and serve the client
-- [ ] 8.2 Add the NixOS module with a hardened systemd service and secrets read from files. Verify with a NixOS VM test for the scenario "Install on NixOS" that the service starts with PostgreSQL and Mailpit, migrates the database and reports healthy
+- [ ] 8.2 Add the NixOS module with a hardened systemd service and secrets read from files. Verify with a NixOS VM test for the scenario "Install on NixOS" that the service starts with PostgreSQL and Mailpit, migrates the database and reports healthy. Name it as the NixOS VM example in arc42 section 8
 - [ ] 8.3 Add the example systemd unit for the release binary and verify with a test for the scenario "Install from release binary"
 - [ ] 8.4 Extend the workflow so that pull requests ready for review and pushes to `main` also run the end-to-end tests and the NixOS VM test. Release tags build and publish the OCI image and the release binary. Verify each stage once
 - [ ] 8.5 Add the rules for pull requests by coding agents from decision 8 of design.md to `AGENTS.md` and verify that they cover drafts, local checks before a push, one push per round of feedback, marking ready and asking after an approval
