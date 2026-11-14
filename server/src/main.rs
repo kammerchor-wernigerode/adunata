@@ -2,6 +2,7 @@ mod api;
 mod client;
 mod configuration;
 mod database;
+mod health;
 mod localization;
 mod mail;
 mod spike;

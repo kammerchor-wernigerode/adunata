@@ -13,6 +13,12 @@ export const CatalogParams = zod.object({
 export const CatalogResponse = zod.string()
 
 
+export const HealthResponse = zod.object({
+  "status": zod.enum(['ready', 'unavailable']),
+  "cause": zod.union([zod.enum(['database']),zod.null()]).optional()
+}).describe('Whether the instance can serve requests. It holds no personal data and no configuration values.')
+
+
 export const createResponseBodyNameMax = 100;
 
 export const createResponseBodyBedsMin = 0;

@@ -24,6 +24,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  Health,
   SpikeResponse,
   ValidationErrors
 } from './model';
@@ -151,6 +152,126 @@ export function useCatalog<TData = Awaited<ReturnType<typeof catalog>>, TError =
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getCatalogQueryOptions(locale,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type healthResponse200 = {
+  data: Health
+  status: 200
+}
+
+export type healthResponse503 = {
+  data: Health
+  status: 503
+}
+
+export type healthResponseSuccess = (healthResponse200) & {
+  headers: Headers;
+};
+export type healthResponseError = (healthResponse503) & {
+  headers: Headers;
+};
+
+export type healthResponse = (healthResponseSuccess | healthResponseError)
+
+export const getHealthUrl = () => {
+
+
+
+
+  return `/api/health`
+}
+
+export const health = async ( options?: RequestInit): Promise<healthResponse> => {
+
+  const res = await fetch(getHealthUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: healthResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as healthResponse
+}
+
+
+
+
+
+export const getHealthQueryKey = () => {
+    return [
+    `/api/health`
+    ] as const;
+    }
+
+
+export const getHealthQueryOptions = <TData = Awaited<ReturnType<typeof health>>, TError = Health>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof health>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getHealthQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof health>>> = ({ signal }) => health({ signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof health>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type HealthQueryResult = NonNullable<Awaited<ReturnType<typeof health>>>
+export type HealthQueryError = Health
+
+
+export function useHealth<TData = Awaited<ReturnType<typeof health>>, TError = Health>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof health>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof health>>,
+          TError,
+          Awaited<ReturnType<typeof health>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useHealth<TData = Awaited<ReturnType<typeof health>>, TError = Health>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof health>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof health>>,
+          TError,
+          Awaited<ReturnType<typeof health>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useHealth<TData = Awaited<ReturnType<typeof health>>, TError = Health>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof health>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useHealth<TData = Awaited<ReturnType<typeof health>>, TError = Health>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof health>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getHealthQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

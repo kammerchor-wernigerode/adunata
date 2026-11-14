@@ -1,10 +1,12 @@
 use std::fmt;
+use std::time::Duration;
 
 use sqlx::PgPool;
 use sqlx::migrate::Migrator;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 
 static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
+const ACQUIRE_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug)]
 pub enum StartupError {
@@ -33,6 +35,7 @@ impl fmt::Display for StartupError {
 pub async fn connect(options: PgConnectOptions) -> Result<PgPool, StartupError> {
     let pool = PgPoolOptions::new()
         .max_connections(5)
+        .acquire_timeout(ACQUIRE_TIMEOUT)
         .connect_with(options)
         .await
         .map_err(StartupError::Unreachable)?;
