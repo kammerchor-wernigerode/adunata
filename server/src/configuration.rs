@@ -9,6 +9,7 @@ const DEFAULT_LISTEN_ADDRESS: &str = "127.0.0.1:8080";
 const DEFAULT_SMTP_PORT: &str = "587";
 const DEFAULT_SMTP_ENCRYPTION: &str = "starttls";
 const DEFAULT_MAIL_MAX_ATTEMPTS: &str = "8";
+const DEFAULT_LANGUAGE: &str = "en";
 
 pub struct Configuration {
     pub listen_address: SocketAddr,
@@ -17,6 +18,7 @@ pub struct Configuration {
     pub smtp: Smtp,
     pub mail_sender: Mailbox,
     pub mail_max_attempts: i32,
+    pub default_language: String,
 }
 
 pub struct Smtp {
@@ -148,6 +150,14 @@ impl Configuration {
             },
         );
 
+        let default_language = parse(
+            &mut problems,
+            "ADUNATA_DEFAULT_LANGUAGE",
+            "a supported language: de or en",
+            Some(with_default(variable, "ADUNATA_DEFAULT_LANGUAGE", DEFAULT_LANGUAGE).as_str()),
+            |value| crate::localization::is_supported(value).then(|| value.to_owned()),
+        );
+
         match (
             listen_address,
             public_url,
@@ -155,6 +165,7 @@ impl Configuration {
             smtp,
             mail_sender,
             mail_max_attempts,
+            default_language,
         ) {
             (
                 Some(listen_address),
@@ -163,6 +174,7 @@ impl Configuration {
                 Some(smtp),
                 Some(mail_sender),
                 Some(mail_max_attempts),
+                Some(default_language),
             ) if problems.is_empty() => Ok(Self {
                 listen_address,
                 public_url,
@@ -170,6 +182,7 @@ impl Configuration {
                 smtp,
                 mail_sender,
                 mail_max_attempts,
+                default_language,
             }),
             _ => Err(problems),
         }

@@ -53,6 +53,7 @@ async fn serve() {
     let state = api::AppState {
         pool,
         public_url: configuration.public_url,
+        default_language: configuration.default_language,
     };
     tracing::info!(address = %listener.local_addr().expect("listener must have an address"), "accepting requests");
     serving::serve_until(listener, app(state), serving::termination_signal())
