@@ -34,7 +34,7 @@ None. The change affects only the development environment and the test setup, no
 ## Impact
 
 - New tracked files: `.envrc` and the plugin for git-worktree-init.
-- `.gitignore` and `.worktreeinclude` gain `.envrc.local` and the direnv cache.
+- `.gitignore` gains `.envrc.local` and the direnv cache. `.worktreeinclude` stays as it is, because the plugin writes `.envrc.local` for each worktree and a copy would carry the ports and the database of the main checkout.
 - `client/vite.config.ts` reads its port and its proxy target from the environment.
 - `flake.nix` adds sccache to the development shell. sccache is a new development dependency. It caches compiler output across worktrees, which Cargo cannot do without locking a shared target directory.
 - The test helpers in `server/src/database.rs` drop each test database after use.
