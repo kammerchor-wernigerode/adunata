@@ -9,6 +9,7 @@ This file routes. It names where things live and the rules that apply everywhere
 |`openspec/specs/`|Current behavior as requirements|
 |`openspec/changes/`|Proposed and in-progress changes|
 |`openspec/config.yaml`|Rules for OpenSpec artifacts|
+|`openspec/README.md`|OpenSpec skills in use and the profile they need, read before running `openspec update`|
 |`docs/decisions/`|Architecture decision records, as described in [ADR 0001](docs/decisions/0001-record-architecture-decisions.md)|
 |`docs/arc42/`|Architecture documentation, see the [entry page](docs/arc42/README.md)|
 |`docs/operating/`|Documentation for operators who install and run an instance|
