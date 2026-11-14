@@ -8,6 +8,35 @@ The module `configuration` reads all settings at start-up and checks them togeth
 
 The settings and their defaults are listed in the [configuration reference](../operating/configuration.md).
 
+## Persistence and migrations
+
+PostgreSQL holds all data, see [ADR 0004](../decisions/0004-postgresql-as-database.md). Queries are plain SQL that the server sends at runtime. Builds therefore need no database.
+
+The binary embeds its migrations. On start, the module `database` compares the newest migration applied to the database with the newest one the binary knows. If the database is ahead, a newer release has already migrated it. Adunata then refuses to start without changing anything. Otherwise it applies the pending migrations before it accepts requests. Migrations only move forward. Going back to an older release means restoring a backup.
+
+Waiting for a database connection is capped at five seconds, so a lost database shows up quickly in the health status.
+
+## Logging
+
+Adunata writes one JSON object per line to standard output and leaves collecting and storing logs to the platform, such as the journal or a container runtime.
+
+Logs carry no personal data and no secrets. In particular they never contain:
+
+- secrets or values of the configuration, which therefore never go to a log as a whole
+- invitation links or other links that grant access
+- recipients, subjects or bodies of mail
+- the text of a mail server's reply, which often repeats the recipient
+
+An event instead names what happened and the identifiers an operator needs to look further, such as the id of an outbox entry. Requests are not logged, because their paths will carry personal links.
+
+## Health
+
+The endpoint `/api/health` reports whether the instance can serve requests and, if not, which dependency is unavailable. It carries no personal data and no configuration values, so monitors may call it without authentication.
+
+## Shutdown
+
+On SIGTERM, Adunata stops accepting connections, lets requests in progress finish and exits with status zero. Mail that the background task has not yet sent stays in the outbox and goes out after the next start.
+
 ## Testing
 
 Tests run at several levels. Each level checks what the level below cannot see. Every check runs through `nix flake check`, locally and in CI, so both use the same entry point.
