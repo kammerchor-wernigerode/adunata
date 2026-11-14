@@ -33,7 +33,16 @@
               {
                 pname = "adunata-client";
                 version = "0.1.0";
-                src = ./client;
+                src = pkgs.lib.fileset.toSource {
+                  root = ./.;
+                  fileset = pkgs.lib.fileset.intersection (pkgs.lib.fileset.gitTracked ./.) (
+                    pkgs.lib.fileset.unions [
+                      ./client
+                      ./server/locales
+                    ]
+                  );
+                };
+                sourceRoot = "source/client";
                 inherit npmDeps;
                 npmConfigHook = pkgs.importNpmLock.npmConfigHook;
               }
@@ -49,6 +58,7 @@
             fileset = pkgs.lib.fileset.unions [
               (craneLib.fileset.commonCargoSources ./server)
               ./server/migrations
+              ./server/locales
             ];
           };
           serverArgs = {

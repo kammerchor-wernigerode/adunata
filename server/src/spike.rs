@@ -9,6 +9,9 @@ use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
+use fluent_bundle::FluentArgs;
+
+use crate::localization;
 use crate::mail::{self, Mail};
 
 const MAX_NAME_LENGTH: usize = 100;
@@ -16,6 +19,9 @@ const MAX_NAME_LENGTH: usize = 100;
 time::serde::format_description!(iso_date, Date, "[year]-[month]-[day]");
 const MAX_BEDS: u8 = 20;
 const SPIKE_RECIPIENT: &str = "Organizer <organizer@example.org>";
+const ORGANIZER_LOCALE: &str = "de";
+const GATHERING_START: Date = time::macros::date!(2027 - 03 - 14);
+const GATHERING_END: Date = time::macros::date!(2027 - 03 - 16);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
@@ -127,14 +133,32 @@ async fn insert(pool: &PgPool, response: &SpikeResponse) -> Result<(), sqlx::Err
 }
 
 fn confirmation(response: &SpikeResponse) -> Mail {
+    let localizer = localization::localizer();
     let name = response.name.trim();
-    let attendance = response.attendance.as_str();
+    let mut args = FluentArgs::new();
+    args.set("name", name);
+    args.set("attendance", response.attendance.as_str());
+    args.set(
+        "span",
+        localizer.date_span(ORGANIZER_LOCALE, GATHERING_START, GATHERING_END),
+    );
+    args.set("beds", response.beds);
+    let subject = localizer.message(ORGANIZER_LOCALE, "response-mail-subject", &args);
+    let body = localizer.message(ORGANIZER_LOCALE, "response-mail-body", &args);
+    let beds = localizer.message(ORGANIZER_LOCALE, "beds-needed", &args);
     Mail {
         recipient: SPIKE_RECIPIENT.to_owned(),
-        subject: format!("Response from {name}"),
-        text: format!("{name} answered {attendance}."),
-        html: format!("<p>{name} answered {attendance}.</p>"),
+        subject,
+        text: format!("{body}\n{beds}"),
+        html: format!("<p>{}</p><p>{}</p>", escape_html(&body), escape_html(&beds)),
     }
+}
+
+fn escape_html(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 fn is_unique_violation(error: &sqlx::Error) -> bool {
@@ -215,6 +239,23 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(mails, 1, "a rejected response must not leave a mail behind");
+    }
+
+    #[test]
+    fn confirmation_is_localized_and_escaped() {
+        let response = super::SpikeResponse {
+            name: "Ada <b>".to_owned(),
+            attendance: super::Attendance::Tentative,
+            arrival: None,
+            beds: 2,
+        };
+        let mail = super::confirmation(&response);
+        assert_eq!(mail.subject, "Rückmeldung von Ada <b>");
+        assert_eq!(
+            mail.text,
+            "Ada <b> hat die Einladung zur Zusammenkunft vom 14.–16. März 2027 vorläufig zugesagt.\n2 Betten benötigt."
+        );
+        assert!(mail.html.contains("Ada &lt;b&gt;"));
     }
 
     #[tokio::test]

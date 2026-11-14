@@ -1,6 +1,7 @@
 mod api;
 mod client;
 mod database;
+mod localization;
 mod mail;
 mod spike;
 

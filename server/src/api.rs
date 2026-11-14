@@ -4,14 +4,16 @@ use utoipa::OpenApi;
 use utoipa::openapi::OpenApi as Document;
 use utoipa_axum::router::OpenApiRouter;
 
-use crate::spike;
+use crate::{localization, spike};
 
 #[derive(OpenApi)]
 #[openapi(info(title = "Adunata"))]
 struct ApiDoc;
 
 fn routes() -> OpenApiRouter<PgPool> {
-    OpenApiRouter::with_openapi(ApiDoc::openapi()).merge(spike::router())
+    OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .merge(spike::router())
+        .merge(localization::router())
 }
 
 pub fn router(pool: PgPool) -> Router {

@@ -16,5 +16,7 @@ import type {
 } from './model';
 
 
+export const getCatalogResponseMock = (): string => (faker.word.sample())
+
 export const getCreateResponseResponseMock = (overrideResponse: Partial<Extract<SpikeResponse, object>> = {}): SpikeResponse => ({name: faker.string.alpha({length: {min: 1, max: 100}}), attendance: faker.helpers.arrayElement(Object.values(Attendance)), arrival: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 10), null]), beds: faker.number.int({min: 0, max: 20}), ...overrideResponse})
 

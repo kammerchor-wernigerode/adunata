@@ -10,6 +10,37 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/catalogs/{locale}": {
+      "get": {
+        "operationId": "catalog",
+        "parameters": [
+          {
+            "name": "locale",
+            "in": "path",
+            "description": "Language of the catalog, such as de or en",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fluent catalog",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No catalog for this language"
+          }
+        }
+      }
+    },
     "/api/spike-responses": {
       "post": {
         "operationId": "create_response",

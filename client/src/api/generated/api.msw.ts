@@ -26,8 +26,23 @@ import type {
 } from './model';
 
 
+export const getCatalogResponseMock = (): string => (faker.word.sample())
+
 export const getCreateResponseResponseMock = (overrideResponse: Partial<Extract<SpikeResponse, object>> = {}): SpikeResponse => ({name: faker.string.alpha({length: {min: 1, max: 100}}), attendance: faker.helpers.arrayElement(Object.values(Attendance)), arrival: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 10), null]), beds: faker.number.int({min: 0, max: 20}), ...overrideResponse})
 
+
+export const getCatalogMockHandler = (overrideResponse?: string | ((info: Parameters<HttpResponseResolver<{ locale: string }>>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+  return http.get<{ locale: string }>('*/api/catalogs/:locale', async (info: Parameters<HttpResponseResolver<{ locale: string }>>[0]) => {
+
+  const resolvedBody = overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getCatalogResponseMock();
+    const textBody = typeof resolvedBody === 'string' ? resolvedBody : JSON.stringify(resolvedBody ?? null);
+    return HttpResponse.text(textBody,
+      { status: 200
+      })
+  }, options)
+}
 
 export const getCreateResponseMockHandler = (overrideResponse?: SpikeResponse | ((info: Parameters<HttpResponseResolver<PathParams, SpikeResponse>>[0]) => Promise<SpikeResponse> | SpikeResponse), options?: RequestHandlerOptions) => {
   return http.post<PathParams, SpikeResponse>('*/api/spike-responses', async (info: Parameters<HttpResponseResolver<PathParams, SpikeResponse>>[0]) => {
@@ -41,5 +56,6 @@ export const getCreateResponseMockHandler = (overrideResponse?: SpikeResponse | 
   }, options)
 }
 export const getAdunataMock = () => [
+  getCatalogMockHandler(),
   getCreateResponseMockHandler()
 ]

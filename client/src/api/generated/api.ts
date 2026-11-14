@@ -5,19 +5,163 @@
  * OpenAPI spec version: 0.1.0
  */
 import {
-  useMutation
+  useMutation,
+  useQuery
 } from '@tanstack/react-query';
 import type {
+  DataTag,
+  DefinedInitialDataOptions,
+  DefinedUseQueryResult,
   MutationFunction,
   QueryClient,
+  QueryFunction,
+  QueryKey,
+  UndefinedInitialDataOptions,
   UseMutationOptions,
-  UseMutationResult
+  UseMutationResult,
+  UseQueryOptions,
+  UseQueryResult
 } from '@tanstack/react-query';
 
 import type {
   SpikeResponse,
   ValidationErrors
 } from './model';
+
+const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKey: K } => {
+  const result = { queryKey } as T & { queryKey: K };
+  for (const key of Object.keys(query)) {
+    // The explicit queryKey always wins, matching the previous
+    // `{ ...query, queryKey }` spread where it was set last.
+    if (key === 'queryKey') continue;
+    Object.defineProperty(result, key, {
+      enumerable: true,
+      configurable: true,
+      get: () => (query as Record<string, unknown>)[key],
+    });
+  }
+  return result;
+};
+
+export type catalogResponse200 = {
+  data: string
+  status: 200
+}
+
+export type catalogResponse404 = {
+  data: void
+  status: 404
+}
+
+export type catalogResponseSuccess = (catalogResponse200) & {
+  headers: Headers;
+};
+export type catalogResponseError = (catalogResponse404) & {
+  headers: Headers;
+};
+
+export type catalogResponse = (catalogResponseSuccess | catalogResponseError)
+
+export const getCatalogUrl = (locale: string,) => {
+
+
+
+
+  return `/api/catalogs/${locale}`
+}
+
+export const catalog = async (locale: string, options?: RequestInit): Promise<catalogResponse> => {
+
+  const res = await fetch(getCatalogUrl(locale),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+  const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: catalogResponse['data'] = body ? (contentType.includes('json') ? JSON.parse(body) : body) : {}
+  return { data, status: res.status, headers: res.headers } as catalogResponse
+}
+
+
+
+
+
+export const getCatalogQueryKey = (locale: string,) => {
+    return [
+    `/api/catalogs/${locale}`
+    ] as const;
+    }
+
+
+export const getCatalogQueryOptions = <TData = Awaited<ReturnType<typeof catalog>>, TError = void>(locale: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof catalog>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCatalogQueryKey(locale);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof catalog>>> = ({ signal }) => catalog(locale, { signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: locale !== null && locale !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof catalog>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type CatalogQueryResult = NonNullable<Awaited<ReturnType<typeof catalog>>>
+export type CatalogQueryError = void
+
+
+export function useCatalog<TData = Awaited<ReturnType<typeof catalog>>, TError = void>(
+ locale: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof catalog>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof catalog>>,
+          TError,
+          Awaited<ReturnType<typeof catalog>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCatalog<TData = Awaited<ReturnType<typeof catalog>>, TError = void>(
+ locale: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof catalog>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof catalog>>,
+          TError,
+          Awaited<ReturnType<typeof catalog>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCatalog<TData = Awaited<ReturnType<typeof catalog>>, TError = void>(
+ locale: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof catalog>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCatalog<TData = Awaited<ReturnType<typeof catalog>>, TError = void>(
+ locale: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof catalog>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getCatalogQueryOptions(locale,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export type createResponseResponse201 = {
   data: SpikeResponse

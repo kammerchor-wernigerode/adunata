@@ -6,6 +6,13 @@
  */
 import * as zod from 'zod';
 
+export const CatalogParams = zod.object({
+  "locale": zod.string().describe('Language of the catalog, such as de or en')
+})
+
+export const CatalogResponse = zod.string()
+
+
 export const createResponseBodyNameMax = 100;
 
 export const createResponseBodyBedsMin = 0;

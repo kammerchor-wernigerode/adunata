@@ -1,13 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useId, useState } from 'react'
-import { Controller, useForm, type FieldPath } from 'react-hook-form'
+import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import { useCreateResponse } from '@/api/generated/api'
 import { CreateResponseBody } from '@/api/generated/api.zod'
 import type { ErrorCode, SpikeResponse } from '@/api/generated/model'
 import { Button } from '@/components/ui/button'
-import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { useTranslate } from '@/l10n/translate'
 
 const errorMessages: Record<ErrorCode, string> = {
   required: 'Enter a name.',
@@ -24,6 +25,7 @@ const attendanceOptions = [
 
 export function SpikeForm() {
   const id = useId()
+  const translate = useTranslate()
   const [stored, setStored] = useState<SpikeResponse | null>(null)
   const mutation = useCreateResponse()
   const form = useForm<SpikeResponse>({
@@ -31,6 +33,7 @@ export function SpikeForm() {
     defaultValues: { name: '', attendance: 'accepted', arrival: null, beds: 0 },
   })
   const { errors, isSubmitting } = form.formState
+  const beds = useWatch({ control: form.control, name: 'beds' })
 
   async function submit(values: SpikeResponse) {
     const result = await mutation.mutateAsync({ data: values })
@@ -99,6 +102,9 @@ export function SpikeForm() {
             aria-describedby={errors.beds ? `${id}-beds-error` : undefined}
             {...form.register('beds', { valueAsNumber: true })}
           />
+          <FieldDescription aria-live="polite">
+            {Number.isInteger(beds) ? translate('beds-needed', { beds }) : ''}
+          </FieldDescription>
           <FieldError id={`${id}-beds-error`} errors={[errors.beds]} />
         </Field>
 
