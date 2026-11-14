@@ -6,6 +6,7 @@ import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { getCreateResponseMockHandler } from '@/api/generated/api.msw'
+import { EnglishLocalization } from '@/l10n/testing'
 import { SpikeForm } from './SpikeForm'
 
 const server = setupServer()
@@ -26,7 +27,9 @@ globalThis.ResizeObserver ??= class {
 function renderForm() {
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <SpikeForm />
+      <EnglishLocalization>
+        <SpikeForm />
+      </EnglishLocalization>
     </QueryClientProvider>,
   )
 }
@@ -37,6 +40,12 @@ async function submit(name: string) {
 }
 
 describe('spike form against the API mocks', () => {
+  it('shows client-side validation errors from the catalog', async () => {
+    renderForm()
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Enter a name.')).toBeTruthy()
+  })
+
   it('confirms a stored response', async () => {
     server.use(getCreateResponseMockHandler((info) => info.request.json()))
     renderForm()

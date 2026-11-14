@@ -4,6 +4,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
 import { afterEach, describe, expect, it } from 'vitest'
+import { EnglishLocalization } from '@/l10n/testing'
 import { SpikeForm } from './SpikeForm'
 
 afterEach(cleanup)
@@ -17,7 +18,9 @@ globalThis.ResizeObserver ??= class {
 function renderForm() {
   return render(
     <QueryClientProvider client={new QueryClient()}>
-      <SpikeForm />
+      <EnglishLocalization>
+        <SpikeForm />
+      </EnglishLocalization>
     </QueryClientProvider>,
   )
 }
