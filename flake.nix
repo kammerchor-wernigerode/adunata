@@ -89,6 +89,7 @@
           };
           cargoArtifacts = craneLib.buildDepsOnly serverArgs;
           server = craneLib.buildPackage (serverArgs // { inherit cargoArtifacts; });
+          openapi = pkgs.runCommand "adunata-openapi" { } "${server}/bin/adunata openapi > $out";
         in
         {
           inherit client server;
@@ -102,6 +103,23 @@
           );
 
           rustFormatting = craneLib.cargoFmt { src = serverSource; };
+
+          contract = clientPackage {
+            pname = "adunata-contract";
+            buildPhase = ''
+              if ! diff -u openapi.json ${openapi}; then
+                echo "client/openapi.json differs from the server. Run: cargo run -- openapi > ../client/openapi.json"
+                exit 1
+              fi
+              cp -r src/api/generated "$TMPDIR/committed"
+              npx orval
+              if ! diff -ru "$TMPDIR/committed" src/api/generated; then
+                echo "Generated client code is out of date. Run: npm run generate"
+                exit 1
+              fi
+            '';
+            installPhase = "touch $out";
+          };
 
           clientTest = clientPackage {
             pname = "adunata-client-test";
@@ -174,6 +192,7 @@
             rustFormatting
             clientLint
             clientTest
+            contract
             ;
 
           nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''

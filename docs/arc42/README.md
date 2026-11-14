@@ -5,6 +5,8 @@ This documentation follows the [arc42](https://arc42.org) template. Decisions wi
 - [Introduction and goals](01-introduction-and-goals.md)
 - [Architecture constraints](02-architecture-constraints.md)
 - [Solution strategy](04-solution-strategy.md)
+- [Building block view](05-building-block-view.md)
+- [Cross-cutting concepts](08-cross-cutting-concepts.md)
 - [Architecture decisions](09-architecture-decisions.md)
 - [Risks and technical debt](11-risks-and-technical-debt.md)
 - [Glossary](12-glossary.md)
