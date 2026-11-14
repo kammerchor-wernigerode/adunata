@@ -5,7 +5,7 @@ use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use sqlx::{PgConnection, PgPool};
 
-use crate::configuration::Smtp;
+use crate::configuration::{Encryption, Smtp};
 
 const BATCH_SIZE: i64 = 10;
 
@@ -34,14 +34,20 @@ struct PendingMail {
     attempts: i32,
 }
 
-pub fn unencrypted_transport(smtp: &Smtp) -> Transport {
-    let builder = Transport::builder_dangerous(&smtp.host).port(smtp.port);
-    match (&smtp.username, &smtp.password) {
-        (Some(username), Some(password)) => builder
-            .credentials(Credentials::new(username.clone(), password.clone()))
-            .build(),
-        _ => builder.build(),
+pub fn transport(smtp: &Smtp) -> Result<Transport, lettre::transport::smtp::Error> {
+    let builder = match smtp.encryption {
+        Encryption::StartTls => Transport::starttls_relay(&smtp.host)?,
+        Encryption::Tls => Transport::relay(&smtp.host)?,
+        Encryption::None => Transport::builder_dangerous(&smtp.host),
     }
+    .port(smtp.port);
+    let builder = match (&smtp.username, &smtp.password) {
+        (Some(username), Some(password)) => {
+            builder.credentials(Credentials::new(username.clone(), password.clone()))
+        }
+        _ => builder,
+    };
+    Ok(builder.build())
 }
 
 pub async fn enqueue(connection: &mut PgConnection, mail: &Mail) -> Result<(), sqlx::Error> {
@@ -79,7 +85,7 @@ async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Err
             tracing::warn!(
                 outbox_id = mail.id,
                 attempt = mail.attempts + 1,
-                failure,
+                %failure,
                 "mail delivery failed"
             );
             schedule_retry(&mut transaction, &mail, delivery.max_attempts).await?;
@@ -91,11 +97,11 @@ async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Err
 }
 
 /// Sends one mail. A failure names only its kind, because messages from mail servers often repeat the recipient.
-async fn send(delivery: &Delivery, mail: &PendingMail) -> Result<(), &'static str> {
+async fn send(delivery: &Delivery, mail: &PendingMail) -> Result<(), String> {
     let recipient = mail
         .recipient
         .parse::<Mailbox>()
-        .map_err(|_| "invalid recipient")?;
+        .map_err(|_| "invalid recipient".to_owned())?;
     let message = Message::builder()
         .from(delivery.sender.clone())
         .to(recipient)
@@ -104,7 +110,7 @@ async fn send(delivery: &Delivery, mail: &PendingMail) -> Result<(), &'static st
             mail.text_body.clone(),
             mail.html_body.clone(),
         ))
-        .map_err(|_| "invalid message")?;
+        .map_err(|_| "invalid message".to_owned())?;
     delivery
         .transport
         .send(message)
@@ -113,15 +119,20 @@ async fn send(delivery: &Delivery, mail: &PendingMail) -> Result<(), &'static st
         .map_err(|error| failure_kind(&error))
 }
 
-fn failure_kind(error: &lettre::transport::smtp::Error) -> &'static str {
-    if error.is_permanent() {
-        "permanent rejection"
+/// Describes a failed delivery without data from the mail server. Client errors are fixed texts of lettre and therefore safe to log.
+fn failure_kind(error: &lettre::transport::smtp::Error) -> String {
+    if error.is_client() {
+        error.to_string()
+    } else if error.is_permanent() {
+        "permanent rejection".to_owned()
     } else if error.is_transient() {
-        "temporary rejection"
+        "temporary rejection".to_owned()
+    } else if error.is_tls() {
+        "encryption".to_owned()
     } else if error.is_timeout() {
-        "timeout"
+        "timeout".to_owned()
     } else {
-        "connection"
+        "connection".to_owned()
     }
 }
 
@@ -171,14 +182,19 @@ mod tests {
             .unwrap_or(default)
     }
 
+    fn smtp(port: u16, encryption: Encryption) -> Smtp {
+        Smtp {
+            host: "127.0.0.1".to_owned(),
+            port,
+            encryption,
+            username: None,
+            password: None,
+        }
+    }
+
     fn delivery(port: u16) -> Delivery {
         Delivery {
-            transport: unencrypted_transport(&Smtp {
-                host: "127.0.0.1".to_owned(),
-                port,
-                username: None,
-                password: None,
-            }),
+            transport: transport(&smtp(port, Encryption::None)).unwrap(),
             sender: "Adunata <adunata@example.org>".parse().unwrap(),
             max_attempts: 3,
         }
@@ -228,7 +244,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn delivers_after_the_mail_server_comes_back() {
+    async fn mail_server_comes_back() {
         let pool = fresh_database().await;
         let token = unique_token();
         enqueue_test_mail(&pool, &token).await;
@@ -317,8 +333,155 @@ mod tests {
         assert!(!output.contains(&token), "{output}");
     }
 
+    async fn mailpit_message(token: &str) -> serde_json::Value {
+        let port = env_port("ADUNATA_TEST_MAILPIT_HTTP_PORT", 8025);
+        let search = mailpit_get(port, &format!("/api/v1/search?query={token}")).await;
+        let id = search["messages"][0]["ID"].as_str().unwrap().to_owned();
+        mailpit_get(port, &format!("/api/v1/message/{id}")).await
+    }
+
+    async fn mailpit_get(port: u16, path: &str) -> serde_json::Value {
+        let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+            .await
+            .unwrap();
+        let request = format!("GET {path} HTTP/1.0\r\nHost: localhost\r\n\r\n");
+        stream.write_all(request.as_bytes()).await.unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).await.unwrap();
+        serde_json::from_str(response.split("\r\n\r\n").nth(1).unwrap_or_default()).unwrap()
+    }
+
     #[tokio::test]
-    async fn gives_up_after_the_last_attempt() {
+    async fn send_through_the_configured_server() {
+        let pool = fresh_database().await;
+        let token = unique_token();
+        enqueue_test_mail(&pool, &token).await;
+        deliver_due(
+            &pool,
+            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
+        )
+        .await
+        .unwrap();
+        let message = mailpit_message(&token).await;
+        assert_eq!(message["From"]["Address"], "adunata@example.org");
+        assert_eq!(message["To"][0]["Address"], "organizer@example.org");
+    }
+
+    #[tokio::test]
+    async fn server_offers_no_encryption() {
+        let pool = fresh_database().await;
+        let token = unique_token();
+        enqueue_test_mail(&pool, &token).await;
+        let port = env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025);
+        let encrypted = Delivery {
+            transport: transport(&smtp(port, Encryption::StartTls)).unwrap(),
+            ..delivery(port)
+        };
+        let logs = captured_logs();
+        deliver_due(&pool, &encrypted).await.unwrap();
+        assert_eq!(state(&pool).await, (1, false, false));
+        assert_eq!(mailpit_count(&token).await, 0);
+        let output = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+        let reasons: Vec<String> = output
+            .lines()
+            .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
+            .filter(|entry| entry["fields"]["message"] == "mail delivery failed")
+            .filter_map(|entry| entry["fields"]["failure"].as_str().map(str::to_owned))
+            .collect();
+        assert!(
+            reasons.iter().any(|reason| reason.contains("STARTTLS")),
+            "the log must name the missing encryption: {reasons:?}"
+        );
+    }
+
+    async fn retry_delay_seconds(pool: &PgPool) -> f64 {
+        sqlx::query_scalar(
+            "SELECT EXTRACT(EPOCH FROM next_attempt_at - now())::float8 FROM mail_outbox",
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+
+    async fn make_due(pool: &PgPool) {
+        sqlx::query("UPDATE mail_outbox SET next_attempt_at = now()")
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn retry_delays_grow() {
+        let pool = fresh_database().await;
+        enqueue_test_mail(&pool, &unique_token()).await;
+        deliver_due(&pool, &delivery(1)).await.unwrap();
+        let first = retry_delay_seconds(&pool).await;
+        make_due(&pool).await;
+        deliver_due(&pool, &delivery(1)).await.unwrap();
+        let second = retry_delay_seconds(&pool).await;
+        assert!((9.0..=10.0).contains(&first), "first delay was {first}");
+        assert!((19.0..=20.0).contains(&second), "second delay was {second}");
+    }
+
+    #[tokio::test]
+    async fn restart_with_pending_mail() {
+        let pool = fresh_database().await;
+        let token = unique_token();
+        enqueue_test_mail(&pool, &token).await;
+        let options = pool.connect_options().as_ref().clone();
+        pool.close().await;
+
+        let restarted = PgPool::connect_with(options).await.unwrap();
+        deliver_due(
+            &restarted,
+            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
+        )
+        .await
+        .unwrap();
+        assert_eq!(state(&restarted).await, (1, true, false));
+        assert_eq!(mailpit_count(&token).await, 1);
+    }
+
+    #[tokio::test]
+    async fn accepted_mail() {
+        let pool = fresh_database().await;
+        let token = unique_token();
+        enqueue_test_mail(&pool, &token).await;
+        let mailpit = delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025));
+        deliver_due(&pool, &mailpit).await.unwrap();
+        make_due(&pool).await;
+        deliver_due(&pool, &mailpit).await.unwrap();
+        assert_eq!(state(&pool).await, (1, true, false));
+        assert_eq!(mailpit_count(&token).await, 1);
+    }
+
+    #[tokio::test]
+    async fn both_parts_hold_every_link() {
+        let pool = fresh_database().await;
+        let token = unique_token();
+        let link = format!("https://adunata.example.org/invitations/{token}");
+        let mut connection = pool.acquire().await.unwrap();
+        let mail = Mail {
+            recipient: "Organizer <organizer@example.org>".to_owned(),
+            subject: format!("Links {token}"),
+            text: format!("Answer here: {link}"),
+            html: format!("<p>Answer <a href=\"{link}\">here</a>.</p>"),
+        };
+        enqueue(&mut connection, &mail).await.unwrap();
+        drop(connection);
+        deliver_due(
+            &pool,
+            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
+        )
+        .await
+        .unwrap();
+        let message = mailpit_message(&token).await;
+        assert!(message["Text"].as_str().unwrap().contains(&link));
+        assert!(message["HTML"].as_str().unwrap().contains(&link));
+    }
+
+    #[tokio::test]
+    async fn permanent_failure() {
         let pool = fresh_database().await;
         enqueue_test_mail(&pool, &unique_token()).await;
         for _ in 0..3 {

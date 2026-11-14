@@ -260,6 +260,47 @@ mod tests {
         assert_eq!(mails, 1, "a rejected response must not leave a mail behind");
     }
 
+    async fn outbox(pool: &sqlx::PgPool) -> (i64, i64) {
+        sqlx::query_as("SELECT count(*), count(*) FILTER (WHERE sent_at IS NULL) FROM mail_outbox")
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn action_fails() {
+        let pool = fresh_database().await;
+        post(
+            api::router(crate::api::testing::state(pool.clone())),
+            &ada(),
+        )
+        .await;
+        let before = outbox(&pool).await;
+        let (status, _) = post(
+            api::router(crate::api::testing::state(pool.clone())),
+            &ada(),
+        )
+        .await;
+        assert_eq!(status, 422);
+        assert_eq!(
+            outbox(&pool).await,
+            before,
+            "a rolled back action must leave no mail"
+        );
+    }
+
+    #[tokio::test]
+    async fn action_succeeds_while_the_mail_server_is_down() {
+        let pool = fresh_database().await;
+        let (status, _) = post(
+            api::router(crate::api::testing::state(pool.clone())),
+            &ada(),
+        )
+        .await;
+        assert_eq!(status, 201);
+        assert_eq!(outbox(&pool).await, (1, 1), "the mail waits in the outbox");
+    }
+
     #[test]
     fn confirmation_is_localized_and_escaped() {
         let response = super::SpikeResponse {

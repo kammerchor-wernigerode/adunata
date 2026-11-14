@@ -6,7 +6,9 @@ use lettre::message::Mailbox;
 use sqlx::postgres::PgConnectOptions;
 
 const DEFAULT_LISTEN_ADDRESS: &str = "127.0.0.1:8080";
-const DEFAULT_SMTP_PORT: u16 = 587;
+const DEFAULT_SMTP_PORT: &str = "587";
+const DEFAULT_SMTP_ENCRYPTION: &str = "starttls";
+const DEFAULT_MAIL_MAX_ATTEMPTS: &str = "8";
 
 pub struct Configuration {
     pub listen_address: SocketAddr,
@@ -14,13 +16,37 @@ pub struct Configuration {
     pub database: PgConnectOptions,
     pub smtp: Smtp,
     pub mail_sender: Mailbox,
+    pub mail_max_attempts: i32,
 }
 
 pub struct Smtp {
     pub host: String,
     pub port: u16,
+    pub encryption: Encryption,
     pub username: Option<String>,
     pub password: Option<String>,
+}
+
+/// How Adunata protects the connection to the mail server.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Encryption {
+    /// Starts unencrypted and upgrades with STARTTLS. The mail is not sent if the server cannot upgrade.
+    StartTls,
+    /// Encrypts from the first byte, usually on port 465.
+    Tls,
+    /// Sends without encryption. Only an explicit setting allows this.
+    None,
+}
+
+impl Encryption {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "starttls" => Some(Self::StartTls),
+            "tls" => Some(Self::Tls),
+            "none" => Some(Self::None),
+            _ => None,
+        }
+    }
 }
 
 /// The address under which people reach the instance. Every link in a mail starts with it.
@@ -83,9 +109,7 @@ impl Configuration {
             &mut problems,
             "ADUNATA_LISTEN_ADDRESS",
             "a socket address such as 127.0.0.1:8080",
-            variable("ADUNATA_LISTEN_ADDRESS")
-                .as_deref()
-                .or(Some(DEFAULT_LISTEN_ADDRESS)),
+            Some(with_default(variable, "ADUNATA_LISTEN_ADDRESS", DEFAULT_LISTEN_ADDRESS).as_str()),
             |value| value.parse().ok(),
         );
         let public_url = parse(
@@ -95,30 +119,8 @@ impl Configuration {
             variable("ADUNATA_PUBLIC_URL").as_deref(),
             parse_public_url,
         );
-        let database = parse(
-            &mut problems,
-            "ADUNATA_DATABASE_URL",
-            "a PostgreSQL URL such as postgres://adunata@localhost/adunata",
-            variable("ADUNATA_DATABASE_URL").as_deref(),
-            |value| value.parse::<PgConnectOptions>().ok(),
-        );
-        let database_password = secret(&mut problems, "ADUNATA_DATABASE_PASSWORD_FILE", variable);
-        let smtp_host = parse(
-            &mut problems,
-            "ADUNATA_SMTP_HOST",
-            "a host name",
-            variable("ADUNATA_SMTP_HOST").as_deref(),
-            |value| Some(value.to_owned()),
-        );
-        let smtp_port = parse(
-            &mut problems,
-            "ADUNATA_SMTP_PORT",
-            "a port number",
-            Some(variable("ADUNATA_SMTP_PORT").unwrap_or_else(|| DEFAULT_SMTP_PORT.to_string()))
-                .as_deref(),
-            |value| value.parse().ok(),
-        );
-        let smtp_password = secret(&mut problems, "ADUNATA_SMTP_PASSWORD_FILE", variable);
+        let database = load_database(&mut problems, variable);
+        let smtp = load_smtp(&mut problems, variable);
         let mail_sender = parse(
             &mut problems,
             "ADUNATA_MAIL_SENDER",
@@ -126,43 +128,109 @@ impl Configuration {
             variable("ADUNATA_MAIL_SENDER").as_deref(),
             |value| value.parse::<Mailbox>().ok(),
         );
+        let mail_max_attempts = parse(
+            &mut problems,
+            "ADUNATA_MAIL_MAX_ATTEMPTS",
+            "a whole number from 1 to 100",
+            Some(
+                with_default(
+                    variable,
+                    "ADUNATA_MAIL_MAX_ATTEMPTS",
+                    DEFAULT_MAIL_MAX_ATTEMPTS,
+                )
+                .as_str(),
+            ),
+            |value| {
+                value
+                    .parse::<i32>()
+                    .ok()
+                    .filter(|attempts| (1..=100).contains(attempts))
+            },
+        );
 
         match (
             listen_address,
             public_url,
             database,
-            smtp_host,
-            smtp_port,
+            smtp,
             mail_sender,
+            mail_max_attempts,
         ) {
             (
                 Some(listen_address),
                 Some(public_url),
                 Some(database),
-                Some(host),
-                Some(port),
+                Some(smtp),
                 Some(mail_sender),
-            ) if problems.is_empty() => {
-                let database = match database_password {
-                    Some(password) => database.password(&password),
-                    None => database,
-                };
-                Ok(Self {
-                    listen_address,
-                    public_url,
-                    database,
-                    smtp: Smtp {
-                        host,
-                        port,
-                        username: variable("ADUNATA_SMTP_USERNAME"),
-                        password: smtp_password,
-                    },
-                    mail_sender,
-                })
-            }
+                Some(mail_max_attempts),
+            ) if problems.is_empty() => Ok(Self {
+                listen_address,
+                public_url,
+                database,
+                smtp,
+                mail_sender,
+                mail_max_attempts,
+            }),
             _ => Err(problems),
         }
     }
+}
+
+fn load_database(
+    problems: &mut Vec<Problem>,
+    variable: &dyn Fn(&str) -> Option<String>,
+) -> Option<PgConnectOptions> {
+    let database = parse(
+        problems,
+        "ADUNATA_DATABASE_URL",
+        "a PostgreSQL URL such as postgres://adunata@localhost/adunata",
+        variable("ADUNATA_DATABASE_URL").as_deref(),
+        |value| value.parse::<PgConnectOptions>().ok(),
+    );
+    let password = secret(problems, "ADUNATA_DATABASE_PASSWORD_FILE", variable);
+    match password {
+        Some(password) => database.map(|database| database.password(&password)),
+        None => database,
+    }
+}
+
+fn load_smtp(
+    problems: &mut Vec<Problem>,
+    variable: &dyn Fn(&str) -> Option<String>,
+) -> Option<Smtp> {
+    let host = parse(
+        problems,
+        "ADUNATA_SMTP_HOST",
+        "a host name",
+        variable("ADUNATA_SMTP_HOST").as_deref(),
+        |value| Some(value.to_owned()),
+    );
+    let port = parse(
+        problems,
+        "ADUNATA_SMTP_PORT",
+        "a port number",
+        Some(with_default(variable, "ADUNATA_SMTP_PORT", DEFAULT_SMTP_PORT).as_str()),
+        |value| value.parse().ok(),
+    );
+    let encryption = parse(
+        problems,
+        "ADUNATA_SMTP_ENCRYPTION",
+        "one of starttls, tls or none",
+        Some(with_default(variable, "ADUNATA_SMTP_ENCRYPTION", DEFAULT_SMTP_ENCRYPTION).as_str()),
+        Encryption::parse,
+    );
+    let password = secret(problems, "ADUNATA_SMTP_PASSWORD_FILE", variable);
+    Some(Smtp {
+        host: host?,
+        port: port?,
+        encryption: encryption?,
+        username: variable("ADUNATA_SMTP_USERNAME"),
+        password,
+    })
+}
+
+fn with_default(variable: &dyn Fn(&str) -> Option<String>, setting: &str, default: &str) -> String {
+    variable(setting).unwrap_or_else(|| default.to_owned())
 }
 
 fn parse<T>(
@@ -265,7 +333,9 @@ mod tests {
             DEFAULT_LISTEN_ADDRESS
         );
         assert_eq!(configuration.smtp.host, "mail.example.org");
-        assert_eq!(configuration.smtp.port, DEFAULT_SMTP_PORT);
+        assert_eq!(configuration.smtp.port, 587);
+        assert_eq!(configuration.smtp.encryption, Encryption::StartTls);
+        assert_eq!(configuration.mail_max_attempts, 8);
         assert_eq!(
             configuration.mail_sender.email.to_string(),
             "adunata@example.org"
