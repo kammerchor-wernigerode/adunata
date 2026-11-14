@@ -1,18 +1,10 @@
-use std::net::TcpListener;
 use std::process::Command;
-use std::time::Duration;
 
-/// Starts the binary without the public URL and the mail server host. The database URL points to a server that does not exist, so a start that touched it would report the database instead.
+/// Starts the binary without the public URL and the mail server host. The database URL points to a server that does not exist, so a start that touched the database would report it instead.
 #[test]
 fn several_settings_missing_stops_before_anything_opens() {
-    let port = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
     let output = Command::new(env!("CARGO_BIN_EXE_adunata"))
         .env_clear()
-        .env("ADUNATA_LISTEN_ADDRESS", format!("127.0.0.1:{port}"))
         .env(
             "ADUNATA_DATABASE_URL",
             "postgres://adunata@127.0.0.1:1/adunata",
@@ -26,14 +18,7 @@ fn several_settings_missing_stops_before_anything_opens() {
     assert!(log.contains("ADUNATA_PUBLIC_URL"), "{log}");
     assert!(log.contains("ADUNATA_SMTP_HOST"), "{log}");
     assert!(!log.contains("database is not ready"), "{log}");
-    assert!(
-        std::net::TcpStream::connect_timeout(
-            &([127, 0, 0, 1], port).into(),
-            Duration::from_millis(200)
-        )
-        .is_err(),
-        "the port must stay closed"
-    );
+    assert!(!log.contains("accepting requests"), "{log}");
 }
 
 #[test]
