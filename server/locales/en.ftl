@@ -28,3 +28,5 @@ month-9 = September
 month-10 = October
 month-11 = November
 month-12 = December
+
+language-label = Language
