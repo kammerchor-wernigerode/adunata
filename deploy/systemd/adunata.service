@@ -17,6 +17,7 @@ LoadCredential=smtp-password:/etc/adunata/smtp-password
 Environment=ADUNATA_DATABASE_PASSWORD_FILE=%d/database-password
 Environment=ADUNATA_SMTP_PASSWORD_FILE=%d/smtp-password
 Restart=on-failure
+RestartSec=5
 DynamicUser=yes
 UMask=0077
 NoNewPrivileges=yes

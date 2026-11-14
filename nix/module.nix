@@ -7,7 +7,7 @@ package:
 }:
 let
   cfg = config.services.adunata;
-  localDatabaseUrl = "postgres:///adunata?host=/run/postgresql";
+  localDatabaseUrl = "postgres:///adunata?host=/run/postgresql&user=adunata";
 in
 {
   options.services.adunata = {
@@ -152,6 +152,7 @@ in
       serviceConfig = {
         ExecStart = lib.getExe cfg.package;
         Restart = "on-failure";
+        RestartSec = 5;
         DynamicUser = true;
         User = "adunata";
         LoadCredential =
