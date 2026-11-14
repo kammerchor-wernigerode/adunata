@@ -16,6 +16,8 @@ This file routes. It names where things live and the rules that apply everywhere
 ## Workflow
 
 - New features start with `/openspec-propose <name>`. Open ideas start with `/openspec-explore`.
+- Before archiving a change, verify it with `/openspec-verify-change`. Fix every critical issue first.
+- Code review happens on the pull request, after the change is verified and the pull request is marked ready for review. Archive after the review.
 - Small fixes need no change proposal.
 - An architecturally significant decision gets a record in `docs/decisions/`.
 - When an agent repeats a mistake, add a rule here.
