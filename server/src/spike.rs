@@ -9,10 +9,13 @@ use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
+use crate::mail::{self, Mail};
+
 const MAX_NAME_LENGTH: usize = 100;
 
 time::serde::format_description!(iso_date, Date, "[year]-[month]-[day]");
 const MAX_BEDS: u8 = 20;
+const SPIKE_RECIPIENT: &str = "Organizer <organizer@example.org>";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
@@ -109,6 +112,7 @@ fn validate(response: &SpikeResponse) -> Vec<FieldError> {
 }
 
 async fn insert(pool: &PgPool, response: &SpikeResponse) -> Result<(), sqlx::Error> {
+    let mut transaction = pool.begin().await?;
     sqlx::query(
         "INSERT INTO spike_responses (name, attendance, arrival, beds) VALUES ($1, $2, $3, $4)",
     )
@@ -116,9 +120,21 @@ async fn insert(pool: &PgPool, response: &SpikeResponse) -> Result<(), sqlx::Err
     .bind(response.attendance.as_str())
     .bind(response.arrival)
     .bind(i16::from(response.beds))
-    .execute(pool)
-    .await
-    .map(|_| ())
+    .execute(&mut *transaction)
+    .await?;
+    mail::enqueue(&mut transaction, &confirmation(response)).await?;
+    transaction.commit().await
+}
+
+fn confirmation(response: &SpikeResponse) -> Mail {
+    let name = response.name.trim();
+    let attendance = response.attendance.as_str();
+    Mail {
+        recipient: SPIKE_RECIPIENT.to_owned(),
+        subject: format!("Response from {name}"),
+        text: format!("{name} answered {attendance}."),
+        html: format!("<p>{name} answered {attendance}.</p>"),
+    }
 }
 
 fn is_unique_violation(error: &sqlx::Error) -> bool {
@@ -175,23 +191,30 @@ mod tests {
         let pool = fresh_database().await;
         let (status, _) = post(api::router(pool.clone()), &ada()).await;
         assert_eq!(status, 201);
-        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM spike_responses")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-        assert_eq!(count, 1);
+        let counts: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM spike_responses), (SELECT count(*) FROM mail_outbox)",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(counts, (1, 1));
     }
 
     #[tokio::test]
     async fn rejects_a_taken_name_at_the_name_field() {
         let pool = fresh_database().await;
         post(api::router(pool.clone()), &ada()).await;
-        let (status, body) = post(api::router(pool), &ada()).await;
+        let (status, body) = post(api::router(pool.clone()), &ada()).await;
         assert_eq!(status, 422);
         assert_eq!(
             body,
             json!({ "errors": [{ "field": "name", "code": "taken" }] })
         );
+        let mails: i64 = sqlx::query_scalar("SELECT count(*) FROM mail_outbox")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(mails, 1, "a rejected response must not leave a mail behind");
     }
 
     #[tokio::test]

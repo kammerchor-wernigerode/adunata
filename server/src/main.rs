@@ -1,9 +1,11 @@
 mod api;
 mod client;
 mod database;
+mod mail;
 mod spike;
 
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use sqlx::postgres::PgConnectOptions;
 
@@ -33,6 +35,20 @@ async fn serve() {
     let pool = database::connect(database)
         .await
         .expect("database must be reachable and migrations must apply");
+    let delivery = mail::Delivery {
+        transport: mail::unencrypted_transport(
+            &std::env::var("ADUNATA_SMTP_HOST").unwrap_or_else(|_| "localhost".to_owned()),
+            std::env::var("ADUNATA_SMTP_PORT")
+                .ok()
+                .and_then(|port| port.parse().ok())
+                .unwrap_or(1025),
+        ),
+        sender: "Adunata <adunata@example.org>"
+            .parse()
+            .expect("sender must be a mailbox"),
+        max_attempts: 8,
+    };
+    tokio::spawn(mail::run(pool.clone(), delivery, Duration::from_secs(2)));
     let listener = tokio::net::TcpListener::bind(address)
         .await
         .expect("listen address must be free");

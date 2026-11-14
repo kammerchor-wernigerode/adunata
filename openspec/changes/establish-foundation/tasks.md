@@ -17,7 +17,7 @@
 - [x] 2.3 Let the binary write its OpenAPI document to a file on request, generate client code with Orval from that file and verify that Orval accepts the document and that the generated types and zod schemas handle an optional field, an enum, a date and an integer correctly
 - [x] 2.4 Add one form with shadcn/ui, React Hook Form and the generated zod schema that stores a value through the API in PostgreSQL and verify that a server-side validation error appears at the field in the form
 - [x] 2.5 Add the first migration, apply it on start and verify in CI that it runs against a fresh PostgreSQL
-- [ ] 2.6 Send one mail through an outbox to Mailpit, simulate an outage of the mail server and verify through Mailpit's API that the mail arrives after a retry
+- [x] 2.6 Send one mail through an outbox to Mailpit, simulate an outage of the mail server and verify through Mailpit's API that the mail arrives after a retry
 - [ ] 2.7 Show one text with a plural form in German and English in the client and in the mail, add a localized date range to the mail and verify the correct plural form for the counts 0, 1 and 2 and the date format in both languages
 - [ ] 2.8 Try one translation catalog that the server delivers to the client and verify whether the client and the mail render from it, otherwise record why two catalogs are needed
 - [ ] 2.9 Add an automated accessibility check of the form with axe and verify that it reports no violation

@@ -54,14 +54,22 @@
           serverArgs = {
             src = serverSource;
             strictDeps = true;
-            nativeCheckInputs = [ pkgs.postgresql_17 ];
+            nativeCheckInputs = [
+              pkgs.postgresql_17
+              pkgs.mailpit
+            ];
             preCheck = ''
               export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata PGDATABASE=postgres
               mkdir -p "$PGHOST"
               initdb --username="$PGUSER" --auth=trust --no-instructions >/dev/null
               pg_ctl start --wait --silent --options="-k $PGHOST -c listen_addresses="
+              export ADUNATA_TEST_MAILPIT_SMTP_PORT=11025 ADUNATA_TEST_MAILPIT_HTTP_PORT=18025
+              mailpit --smtp "127.0.0.1:$ADUNATA_TEST_MAILPIT_SMTP_PORT" --listen "127.0.0.1:$ADUNATA_TEST_MAILPIT_HTTP_PORT" --quiet &
+              mailpitPid=$!
+              for _ in $(seq 50); do (echo > "/dev/tcp/127.0.0.1/$ADUNATA_TEST_MAILPIT_HTTP_PORT") 2>/dev/null && break; sleep 0.1; done
             '';
             postCheck = ''
+              kill "$mailpitPid"
               pg_ctl stop --wait --silent
             '';
             preBuild = ''
