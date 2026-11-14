@@ -13,7 +13,7 @@ The quality goals in [Introduction and goals](01-introduction-and-goals.md) name
 
 |Scenario|Context|Stimulus|Response|Verified by|
 |-|-|-|-|-|
-|Memory under load|The release build runs on Linux next to PostgreSQL and Mailpit.|10 connections send the form and load the client for 30 seconds.|Peak resident memory of Adunata stays below 150 MB. The latest measurement was 9 MB.|The check `memory` in [`flake.nix`](../../flake.nix)|
+|Memory under load|The statically linked release binary runs on Linux next to PostgreSQL and Mailpit.|10 connections send the form and load the client for 30 seconds.|Peak resident memory of Adunata stays below 150 MB. The latest measurement was 5 MB.|The check `memory` in [`flake.nix`](../../flake.nix)|
 
 ## Localization
 
