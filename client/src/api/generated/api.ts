@@ -15,7 +15,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  SpikeResponse
+  SpikeResponse,
+  ValidationErrors
 } from './model';
 
 export type createResponseResponse201 = {
@@ -23,12 +24,19 @@ export type createResponseResponse201 = {
   status: 201
 }
 
+export type createResponseResponse422 = {
+  data: ValidationErrors
+  status: 422
+}
+
 export type createResponseResponseSuccess = (createResponseResponse201) & {
   headers: Headers;
 };
-;
+export type createResponseResponseError = (createResponseResponse422) & {
+  headers: Headers;
+};
 
-export type createResponseResponse = (createResponseResponseSuccess)
+export type createResponseResponse = (createResponseResponseSuccess | createResponseResponseError)
 
 export const getCreateResponseUrl = () => {
 
@@ -76,7 +84,7 @@ const res = await fetch(getCreateResponseUrl(),
 
 export const getCreateResponseMutationKey = () => ['createResponse'] as const;
 
-export const getCreateResponseMutationOptions = <TError = unknown,
+export const getCreateResponseMutationOptions = <TError = ValidationErrors,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createResponse>>, TError,CreateResponseMutationVariables, TContext>, fetch?: RequestInit}
 ): UseMutationOptions<Awaited<ReturnType<typeof createResponse>>, TError,CreateResponseMutationVariables, TContext> => {
 
@@ -105,10 +113,10 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
 
     export type CreateResponseMutationResult = NonNullable<Awaited<ReturnType<typeof createResponse>>>
     export type CreateResponseMutationBody = SpikeResponse
-    export type CreateResponseMutationError = unknown
+    export type CreateResponseMutationError = ValidationErrors
     export type CreateResponseMutationVariables = {data: SpikeResponse}
 
-    export const useCreateResponse = <TError = unknown,
+    export const useCreateResponse = <TError = ValidationErrors,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createResponse>>, TError,CreateResponseMutationVariables, TContext>, fetch?: RequestInit}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof createResponse>>,

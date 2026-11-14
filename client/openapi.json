@@ -33,6 +33,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Response invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
           }
         }
       }
@@ -47,6 +57,30 @@
           "tentative",
           "declined"
         ]
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "required",
+          "tooLong",
+          "tooLarge",
+          "taken"
+        ]
+      },
+      "FieldError": {
+        "type": "object",
+        "required": [
+          "field",
+          "code"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          }
+        }
       },
       "SpikeResponse": {
         "type": "object",
@@ -76,6 +110,20 @@
             "format": "int32",
             "maximum": 20,
             "minimum": 0
+          }
+        }
+      },
+      "ValidationErrors": {
+        "type": "object",
+        "required": [
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
           }
         }
       }

@@ -6,4 +6,7 @@
  */
 
 export * from './attendance';
+export * from './errorCode';
+export * from './fieldError';
 export * from './spikeResponse';
+export * from './validationErrors';
