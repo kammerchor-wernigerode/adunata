@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', 'flake.lock', 'server/Cargo.lock', 'client/package-lock.json') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 8G
+      - name: Build release binary and image
+        run: |
+          nix build --print-build-logs --out-link release .#packages.x86_64-linux.release
+          nix build --print-build-logs --out-link image .#packages.x86_64-linux.image
+          tar --create --gzip --dereference --file adunata-x86_64-linux.tar.gz --directory release .
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: adunata-x86_64-linux
+          path: adunata-x86_64-linux.tar.gz
+      - name: Publish image and release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          nix run nixpkgs#skopeo -- copy \
+            --dest-creds "${GITHUB_ACTOR}:${GH_TOKEN}" \
+            docker-archive:image "docker://${image}:${TAG}"
+          nix run nixpkgs#skopeo -- copy \
+            --dest-creds "${GITHUB_ACTOR}:${GH_TOKEN}" \
+            docker-archive:image "docker://${image}:latest"
+          gh release create "$TAG" adunata-x86_64-linux.tar.gz --generate-notes
