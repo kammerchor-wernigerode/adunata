@@ -58,7 +58,7 @@ pub async fn enqueue(connection: &mut PgConnection, mail: &Mail) -> Result<(), s
 pub async fn run(pool: PgPool, delivery: Delivery, interval: Duration) {
     loop {
         if let Err(error) = deliver_due(&pool, &delivery).await {
-            eprintln!("mail delivery failed: {error}");
+            tracing::error!(error = %error, "mail outbox could not be processed");
         }
         tokio::time::sleep(interval).await;
     }
@@ -75,19 +75,27 @@ async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Err
     .fetch_all(&mut *transaction)
     .await?;
     for mail in pending {
-        if send(delivery, &mail).await {
-            mark_sent(&mut transaction, mail.id).await?;
-        } else {
+        if let Err(failure) = send(delivery, &mail).await {
+            tracing::warn!(
+                outbox_id = mail.id,
+                attempt = mail.attempts + 1,
+                failure,
+                "mail delivery failed"
+            );
             schedule_retry(&mut transaction, &mail, delivery.max_attempts).await?;
+        } else {
+            mark_sent(&mut transaction, mail.id).await?;
         }
     }
     transaction.commit().await
 }
 
-async fn send(delivery: &Delivery, mail: &PendingMail) -> bool {
-    let Ok(recipient) = mail.recipient.parse::<Mailbox>() else {
-        return false;
-    };
+/// Sends one mail. A failure names only its kind, because messages from mail servers often repeat the recipient.
+async fn send(delivery: &Delivery, mail: &PendingMail) -> Result<(), &'static str> {
+    let recipient = mail
+        .recipient
+        .parse::<Mailbox>()
+        .map_err(|_| "invalid recipient")?;
     let message = Message::builder()
         .from(delivery.sender.clone())
         .to(recipient)
@@ -95,10 +103,25 @@ async fn send(delivery: &Delivery, mail: &PendingMail) -> bool {
         .multipart(MultiPart::alternative_plain_html(
             mail.text_body.clone(),
             mail.html_body.clone(),
-        ));
-    match message {
-        Ok(message) => delivery.transport.send(message).await.is_ok(),
-        Err(_) => false,
+        ))
+        .map_err(|_| "invalid message")?;
+    delivery
+        .transport
+        .send(message)
+        .await
+        .map(|_| ())
+        .map_err(|error| failure_kind(&error))
+}
+
+fn failure_kind(error: &lettre::transport::smtp::Error) -> &'static str {
+    if error.is_permanent() {
+        "permanent rejection"
+    } else if error.is_transient() {
+        "temporary rejection"
+    } else if error.is_timeout() {
+        "timeout"
+    } else {
+        "connection"
     }
 }
 
@@ -226,6 +249,72 @@ mod tests {
         .unwrap();
         assert_eq!(state(&pool).await, (2, true, false));
         assert_eq!(mailpit_count(&token).await, 1);
+    }
+
+    #[derive(Clone, Default)]
+    struct CapturedLogs(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+    impl std::io::Write for CapturedLogs {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Captures the logs of every test in this binary. A thread-local subscriber would miss events whose callsites other test threads registered first.
+    fn captured_logs() -> &'static CapturedLogs {
+        static LOGS: std::sync::OnceLock<CapturedLogs> = std::sync::OnceLock::new();
+        LOGS.get_or_init(|| {
+            let logs = CapturedLogs::default();
+            let writer = logs.clone();
+            let subscriber = tracing_subscriber::fmt()
+                .json()
+                .with_writer(move || writer.clone())
+                .finish();
+            tracing::subscriber::set_global_default(subscriber)
+                .expect("no other test may set a global subscriber");
+            logs
+        })
+    }
+
+    #[tokio::test]
+    async fn log_a_failed_mail_delivery() {
+        let logs = captured_logs();
+        let pool = fresh_database().await;
+        let token = unique_token();
+        enqueue_test_mail(&pool, &token).await;
+        let outbox_id: i64 = sqlx::query_scalar("SELECT id FROM mail_outbox")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        deliver_due(&pool, &delivery(1)).await.unwrap();
+
+        let output = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+        let entries: Vec<serde_json::Value> = output
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .filter(|entry: &serde_json::Value| {
+                entry["fields"]["message"] == "mail delivery failed"
+            })
+            .collect();
+        assert!(!entries.is_empty(), "a failed delivery must be logged");
+        assert!(
+            entries
+                .iter()
+                .all(|entry| entry["fields"]["failure"].is_string())
+        );
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry["fields"]["outbox_id"] == outbox_id),
+            "{output}"
+        );
+        assert!(!output.contains("organizer@example.org"), "{output}");
+        assert!(!output.contains(&token), "{output}");
     }
 
     #[tokio::test]

@@ -25,17 +25,17 @@ async fn main() {
 }
 
 async fn serve() {
+    tracing_subscriber::fmt().json().init();
     let configuration = Configuration::from_environment().unwrap_or_else(|problems| {
-        eprintln!("Adunata cannot start because its configuration is invalid:");
         for problem in problems {
-            eprintln!("- {problem}");
+            tracing::error!(%problem, "configuration is invalid");
         }
         std::process::exit(1);
     });
     let pool = database::connect(configuration.database)
         .await
         .unwrap_or_else(|error| {
-            eprintln!("Adunata cannot start because {error}");
+            tracing::error!(%error, "database is not ready");
             std::process::exit(1);
         });
     let delivery = mail::Delivery {
@@ -51,6 +51,7 @@ async fn serve() {
         pool,
         public_url: configuration.public_url,
     };
+    tracing::info!(address = %listener.local_addr().expect("listener must have an address"), "accepting requests");
     serving::serve_until(listener, app(state), serving::termination_signal())
         .await
         .expect("server must keep running until it is asked to stop");
