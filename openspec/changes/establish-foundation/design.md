@@ -74,7 +74,7 @@ Alternatives considered:
 
 Record: `0005-nix-flake-as-build-definition.md`
 
-One Nix flake builds everything. It produces the package, the NixOS module, the OCI image and the development shell. The release binary and the example systemd unit come from the same package. A NixOS VM test starts the module with PostgreSQL and Mailpit and checks the health endpoint. Contributors without Nix get a Compose file that runs PostgreSQL and Mailpit, the same services the development shell starts.
+One Nix flake builds everything from the same source. It produces the package, the NixOS module, a statically linked binary and the development shell. The OCI image and the release archive with the example systemd unit both carry that static binary. A NixOS VM test starts the module with PostgreSQL and Mailpit and checks the health endpoint. Contributors without Nix get a Compose file that runs PostgreSQL and Mailpit, the same services the development shell starts.
 
 Alternatives considered:
 
