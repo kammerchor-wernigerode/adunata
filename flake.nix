@@ -156,7 +156,7 @@
               ADUNATA_LISTEN_ADDRESS=127.0.0.1:18080 ADUNATA_PUBLIC_URL=http://localhost:18080 \
               ADUNATA_SMTP_HOST=127.0.0.1 ADUNATA_SMTP_PORT=11025 ADUNATA_SMTP_ENCRYPTION=none \
               ADUNATA_MAIL_SENDER="Adunata <adunata@example.org>" \
-              ${server}/bin/adunata &
+              ${staticServer}/bin/adunata &
             adunataPid=$!
             for _ in $(seq 100); do (echo > /dev/tcp/127.0.0.1/18080) 2>/dev/null && break; sleep 0.1; done
           '';
