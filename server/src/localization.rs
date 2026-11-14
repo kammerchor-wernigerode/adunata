@@ -29,7 +29,7 @@ pub struct Localizer {
 }
 
 impl Localizer {
-    pub fn new() -> Self {
+    fn new() -> Self {
         let bundles = CATALOGS
             .into_iter()
             .map(|(locale, source)| (locale, bundle(locale, source)))

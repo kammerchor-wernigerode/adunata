@@ -26,7 +26,7 @@
 
 ## 3. Server structure and client foundation
 
-- [ ] 3.1 Split the server into modules for configuration, health, mail and localization, add a check that fails CI when a module uses another one past its public interface and verify the check with a deliberate violation
+- [x] 3.1 Split the server into modules for configuration, health, mail and localization, add a check that fails CI when a module uses another one past its public interface and verify the check with a deliberate violation
 - [ ] 3.2 Set up TanStack Router, TanStack Query and the shadcn/ui base components in the client and verify with a client slice test that runs against the mocks Orval generates
 - [ ] 3.3 Add a CI check that regenerates the OpenAPI document and the Orval output and fails when they differ from the committed files. Verify it with a deliberate change to the API
 - [ ] 3.4 Write records 0007 (modular monolith) and 0008 (client libraries) as Accepted, update arc42 sections 4, 5 and 9 and verify that every link resolves

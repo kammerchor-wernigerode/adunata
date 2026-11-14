@@ -55,7 +55,7 @@ pub async fn run(pool: PgPool, delivery: Delivery, interval: Duration) {
     }
 }
 
-pub async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Error> {
+async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Error> {
     let mut transaction = pool.begin().await?;
     let pending: Vec<PendingMail> = sqlx::query_as(
         "SELECT id, recipient, subject, text_body, html_body, attempts FROM mail_outbox \

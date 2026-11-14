@@ -31,6 +31,7 @@ Rust code stays plain, so that it is easy to read and to change.
 - Prefer owned data. Clone a value rather than add a lifetime parameter to a struct or an enum.
 - Every new dependency needs a reason. The commit that adds it says what the dependency does and why the project cannot do without it.
 - Formatting and lints run in CI. Any warning fails the build.
+- Each module of the server is one domain or technical concern. Other modules use only what it marks `pub`. Never widen visibility, for example with `pub(crate)`, to reach into another module. The compiler then rejects every use past a module's interface.
 
 ## Language
 
