@@ -244,7 +244,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn delivers_after_the_mail_server_comes_back() {
+    async fn mail_server_comes_back() {
         let pool = fresh_database().await;
         let token = unique_token();
         enqueue_test_mail(&pool, &token).await;
@@ -394,8 +394,94 @@ mod tests {
         );
     }
 
+    async fn retry_delay_seconds(pool: &PgPool) -> f64 {
+        sqlx::query_scalar(
+            "SELECT EXTRACT(EPOCH FROM next_attempt_at - now())::float8 FROM mail_outbox",
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+
+    async fn make_due(pool: &PgPool) {
+        sqlx::query("UPDATE mail_outbox SET next_attempt_at = now()")
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
     #[tokio::test]
-    async fn gives_up_after_the_last_attempt() {
+    async fn retry_delays_grow() {
+        let pool = fresh_database().await;
+        enqueue_test_mail(&pool, &unique_token()).await;
+        deliver_due(&pool, &delivery(1)).await.unwrap();
+        let first = retry_delay_seconds(&pool).await;
+        make_due(&pool).await;
+        deliver_due(&pool, &delivery(1)).await.unwrap();
+        let second = retry_delay_seconds(&pool).await;
+        assert!((9.0..=10.0).contains(&first), "first delay was {first}");
+        assert!((19.0..=20.0).contains(&second), "second delay was {second}");
+    }
+
+    #[tokio::test]
+    async fn restart_with_pending_mail() {
+        let pool = fresh_database().await;
+        let token = unique_token();
+        enqueue_test_mail(&pool, &token).await;
+        let options = pool.connect_options().as_ref().clone();
+        pool.close().await;
+
+        let restarted = PgPool::connect_with(options).await.unwrap();
+        deliver_due(
+            &restarted,
+            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
+        )
+        .await
+        .unwrap();
+        assert_eq!(state(&restarted).await, (1, true, false));
+        assert_eq!(mailpit_count(&token).await, 1);
+    }
+
+    #[tokio::test]
+    async fn accepted_mail() {
+        let pool = fresh_database().await;
+        let token = unique_token();
+        enqueue_test_mail(&pool, &token).await;
+        let mailpit = delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025));
+        deliver_due(&pool, &mailpit).await.unwrap();
+        make_due(&pool).await;
+        deliver_due(&pool, &mailpit).await.unwrap();
+        assert_eq!(state(&pool).await, (1, true, false));
+        assert_eq!(mailpit_count(&token).await, 1);
+    }
+
+    #[tokio::test]
+    async fn both_parts_hold_every_link() {
+        let pool = fresh_database().await;
+        let token = unique_token();
+        let link = format!("https://adunata.example.org/invitations/{token}");
+        let mut connection = pool.acquire().await.unwrap();
+        let mail = Mail {
+            recipient: "Organizer <organizer@example.org>".to_owned(),
+            subject: format!("Links {token}"),
+            text: format!("Answer here: {link}"),
+            html: format!("<p>Answer <a href=\"{link}\">here</a>.</p>"),
+        };
+        enqueue(&mut connection, &mail).await.unwrap();
+        drop(connection);
+        deliver_due(
+            &pool,
+            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
+        )
+        .await
+        .unwrap();
+        let message = mailpit_message(&token).await;
+        assert!(message["Text"].as_str().unwrap().contains(&link));
+        assert!(message["HTML"].as_str().unwrap().contains(&link));
+    }
+
+    #[tokio::test]
+    async fn permanent_failure() {
         let pool = fresh_database().await;
         enqueue_test_mail(&pool, &unique_token()).await;
         for _ in 0..3 {
