@@ -46,8 +46,8 @@ Adunata SHALL write each mail in the language stored for its recipient. Without 
 - **WHEN** Adunata sends a mail to a recipient without a stored language
 - **THEN** the mail uses the configured default language of the instance
 
-### Requirement: Localized dates and times
-Adunata SHALL format dates, times and date ranges according to the shown language. It SHALL show times in the time zone of the instance.
+### Requirement: Localized dates
+Adunata SHALL format dates and date ranges according to the shown language.
 
 #### Scenario: Date range in German
 - **WHEN** the client shows a gathering from 14 to 16 March 2027 in German

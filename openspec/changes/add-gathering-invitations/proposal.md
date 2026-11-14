@@ -14,6 +14,7 @@ Ensembles meet every four to six weeks to rehearse and give concerts. Such a gat
 - Organizers enter and change responses on a member's behalf, also after the gathering has started.
 - Members who open their link see who has accepted or accepted tentatively. They see no other member's period, beds or comment.
 - Organizers see every response and the totals per status, along with the beds needed and offered.
+- Times of arrival and departure appear in the time zone of the instance, which operators set with a new setting.
 - Operators can configure how long Adunata keeps responses and comments after a gathering ends. By default it keeps them. Deleting a member deletes the member's invitations and responses.
 
 Out of scope for this change are shared activities such as a dinner, reminders, response deadlines, travel by car, mail that covers several gatherings, exports, calendar links, voices or sections and sign-in through an external identity provider. Shared activities belong to the core and follow in a later change. Taking over data from the predecessor application also follows in its own change. Adunata works without it and starts empty.

@@ -62,7 +62,7 @@
 - [x] 7.2 Render plural forms from the catalogs in client and mail and verify with tests for the scenario "Plural form"
 - [x] 7.3 Choose the client language from the browser, let a person switch it and remember the choice on the device. Verify with client tests for the scenarios "German browser", "Unsupported browser language" and "Switch language"
 - [x] 7.4 Write mail in the recipient's stored language or the default language of the instance and verify with tests for the scenarios "Recipient with a stored language" and "Recipient without a stored language"
-- [x] 7.5 Format dates, times and ranges per language in the time zone of the instance and verify with a test for the scenario "Date range in German"
+- [x] 7.5 Format dates and ranges per language and verify with a test for the scenario "Date range in German"
 - [x] 7.6 Add an end-to-end test with Playwright that opens the client, switches the language and runs axe. Verify that it passes against the binary, PostgreSQL and Mailpit. Name it as the end-to-end example in arc42 section 8
 - [x] 7.7 Describe localization in arc42 section 8, add the quality scenario for plural forms to arc42 section 10 and verify that every link resolves
 
