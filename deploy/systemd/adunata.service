@@ -1,0 +1,44 @@
+# Example unit for the release binary. Install the binary as /usr/local/bin/adunata,
+# put the settings into /etc/adunata/adunata.env and the passwords into the two files
+# below, then run: systemctl daemon-reload && systemctl enable --now adunata
+
+[Unit]
+Description=Adunata
+Documentation=https://github.com/kammerchor-wernigerode/adunata
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/adunata
+EnvironmentFile=/etc/adunata/adunata.env
+LoadCredential=database-password:/etc/adunata/database-password
+LoadCredential=smtp-password:/etc/adunata/smtp-password
+Environment=ADUNATA_DATABASE_PASSWORD_FILE=%d/database-password
+Environment=ADUNATA_SMTP_PASSWORD_FILE=%d/smtp-password
+Restart=on-failure
+DynamicUser=yes
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
