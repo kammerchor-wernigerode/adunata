@@ -34,9 +34,9 @@
 
 ## 4. Instance configuration
 
-- [ ] 4.1 Read every setting from environment variables and each secret from a file named by its variable. Verify with tests for the scenarios "Start with all required settings", "Read a secret from a file" and "Secret file unreadable"
-- [ ] 4.2 Validate the whole configuration before opening a port or the database and report every invalid setting at once. Verify with tests for the scenarios "Several settings missing" and "Malformed value"
-- [ ] 4.3 Require an HTTPS public base URL unless its host is localhost and build mail links from it. Verify with a test for the scenario "Link in a mail"
+- [x] 4.1 Read every setting from environment variables and each secret from a file named by its variable. Verify with tests for the scenarios "Start with all required settings", "Read a secret from a file" and "Secret file unreadable"
+- [x] 4.2 Validate the whole configuration before opening a port or the database and report every invalid setting at once. Verify with tests for the scenarios "Several settings missing" and "Malformed value"
+- [x] 4.3 Require an HTTPS public base URL unless its host is localhost and build mail links from it. Verify with a test for the scenario "Link in a mail"
 - [ ] 4.4 Write the configuration reference for operators in `docs/operating/configuration.md`, describe configuration in arc42 section 8 and verify that every setting the server reads appears in the reference
 
 ## 5. Service operation

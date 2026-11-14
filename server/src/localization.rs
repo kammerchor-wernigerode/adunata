@@ -6,11 +6,12 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use fluent_bundle::concurrent::FluentBundle;
 use fluent_bundle::{FluentArgs, FluentResource};
-use sqlx::PgPool;
 use time::Date;
 use unic_langid::LanguageIdentifier;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
+
+use crate::api::AppState;
 
 const FALLBACK: &str = "en";
 const CATALOGS: [(&str, &str); 2] = [
@@ -77,7 +78,7 @@ fn format(bundle: &FluentBundle<FluentResource>, id: &str, args: &FluentArgs) ->
     )
 }
 
-pub fn router() -> OpenApiRouter<PgPool> {
+pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new().routes(routes!(catalog))
 }
 
@@ -148,8 +149,11 @@ mod tests {
         use axum::http::Request;
         use tower::ServiceExt;
 
-        let pool = PgPool::connect_lazy("postgres://localhost").unwrap();
-        let app: axum::Router = router().split_for_parts().0.with_state(pool);
+        let pool = sqlx::PgPool::connect_lazy("postgres://localhost").unwrap();
+        let app: axum::Router = router()
+            .split_for_parts()
+            .0
+            .with_state(crate::api::testing::state(pool));
         let german = app
             .clone()
             .oneshot(

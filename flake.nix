@@ -144,7 +144,9 @@
                 pg_ctl start --wait --silent --options="-k $PGHOST -c listen_addresses="
                 mailpit --smtp 127.0.0.1:11025 --listen 127.0.0.1:18025 --quiet &
                 ADUNATA_DATABASE_URL="postgres:///postgres?host=$PGHOST&user=$PGUSER" \
-                  ADUNATA_LISTEN_ADDRESS=127.0.0.1:18080 ADUNATA_SMTP_PORT=11025 \
+                  ADUNATA_LISTEN_ADDRESS=127.0.0.1:18080 ADUNATA_PUBLIC_URL=http://localhost:18080 \
+                  ADUNATA_SMTP_HOST=127.0.0.1 ADUNATA_SMTP_PORT=11025 \
+                  ADUNATA_MAIL_SENDER="Adunata <adunata@example.org>" \
                   ${server}/bin/adunata &
                 adunataPid=$!
                 for _ in $(seq 100); do (echo > /dev/tcp/127.0.0.1/18080) 2>/dev/null && break; sleep 0.1; done
@@ -231,6 +233,12 @@
           PGDATABASE = "adunata";
           MP_SMTP_BIND_ADDR = "localhost:1025";
           MP_UI_BIND_ADDR = "localhost:8025";
+
+          ADUNATA_PUBLIC_URL = "http://localhost:8080";
+          ADUNATA_DATABASE_URL = "postgres://adunata:adunata@localhost/adunata";
+          ADUNATA_SMTP_HOST = "localhost";
+          ADUNATA_SMTP_PORT = "1025";
+          ADUNATA_MAIL_SENDER = "Adunata <adunata@localhost>";
         };
       });
     };

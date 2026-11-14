@@ -1,8 +1,11 @@
 use std::time::Duration;
 
 use lettre::message::{Mailbox, MultiPart};
+use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use sqlx::{PgConnection, PgPool};
+
+use crate::configuration::Smtp;
 
 const BATCH_SIZE: i64 = 10;
 
@@ -31,8 +34,14 @@ struct PendingMail {
     attempts: i32,
 }
 
-pub fn unencrypted_transport(host: &str, port: u16) -> Transport {
-    Transport::builder_dangerous(host).port(port).build()
+pub fn unencrypted_transport(smtp: &Smtp) -> Transport {
+    let builder = Transport::builder_dangerous(&smtp.host).port(smtp.port);
+    match (&smtp.username, &smtp.password) {
+        (Some(username), Some(password)) => builder
+            .credentials(Credentials::new(username.clone(), password.clone()))
+            .build(),
+        _ => builder.build(),
+    }
 }
 
 pub async fn enqueue(connection: &mut PgConnection, mail: &Mail) -> Result<(), sqlx::Error> {
@@ -141,7 +150,12 @@ mod tests {
 
     fn delivery(port: u16) -> Delivery {
         Delivery {
-            transport: unencrypted_transport("127.0.0.1", port),
+            transport: unencrypted_transport(&Smtp {
+                host: "127.0.0.1".to_owned(),
+                port,
+                username: None,
+                password: None,
+            }),
             sender: "Adunata <adunata@example.org>".parse().unwrap(),
             max_attempts: 3,
         }

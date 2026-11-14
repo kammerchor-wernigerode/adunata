@@ -3,7 +3,6 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use time::Date;
 use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
@@ -11,6 +10,8 @@ use utoipa_axum::routes;
 
 use fluent_bundle::FluentArgs;
 
+use crate::api::AppState;
+use crate::configuration::PublicUrl;
 use crate::localization;
 use crate::mail::{self, Mail};
 
@@ -73,7 +74,7 @@ pub struct ValidationErrors {
     pub errors: Vec<FieldError>,
 }
 
-pub fn router() -> OpenApiRouter<PgPool> {
+pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new().routes(routes!(create_response))
 }
 
@@ -87,14 +88,14 @@ pub fn router() -> OpenApiRouter<PgPool> {
     )
 )]
 async fn create_response(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Json(response): Json<SpikeResponse>,
 ) -> Response {
     let errors = validate(&response);
     if !errors.is_empty() {
         return invalid(errors);
     }
-    match insert(&pool, &response).await {
+    match insert(&state, &response).await {
         Ok(()) => (StatusCode::CREATED, Json(response)).into_response(),
         Err(error) if is_unique_violation(&error) => {
             invalid(vec![field_error("name", ErrorCode::Taken)])
@@ -117,8 +118,8 @@ fn validate(response: &SpikeResponse) -> Vec<FieldError> {
     errors
 }
 
-async fn insert(pool: &PgPool, response: &SpikeResponse) -> Result<(), sqlx::Error> {
-    let mut transaction = pool.begin().await?;
+async fn insert(state: &AppState, response: &SpikeResponse) -> Result<(), sqlx::Error> {
+    let mut transaction = state.pool.begin().await?;
     sqlx::query(
         "INSERT INTO spike_responses (name, attendance, arrival, beds) VALUES ($1, $2, $3, $4)",
     )
@@ -128,11 +129,11 @@ async fn insert(pool: &PgPool, response: &SpikeResponse) -> Result<(), sqlx::Err
     .bind(i16::from(response.beds))
     .execute(&mut *transaction)
     .await?;
-    mail::enqueue(&mut transaction, &confirmation(response)).await?;
+    mail::enqueue(&mut transaction, &confirmation(response, &state.public_url)).await?;
     transaction.commit().await
 }
 
-fn confirmation(response: &SpikeResponse) -> Mail {
+fn confirmation(response: &SpikeResponse, public_url: &PublicUrl) -> Mail {
     let localizer = localization::localizer();
     let name = response.name.trim();
     let mut args = FluentArgs::new();
@@ -146,11 +147,16 @@ fn confirmation(response: &SpikeResponse) -> Mail {
     let subject = localizer.message(ORGANIZER_LOCALE, "response-mail-subject", &args);
     let body = localizer.message(ORGANIZER_LOCALE, "response-mail-body", &args);
     let beds = localizer.message(ORGANIZER_LOCALE, "beds-needed", &args);
+    let link = public_url.link("/");
     Mail {
         recipient: SPIKE_RECIPIENT.to_owned(),
         subject,
-        text: format!("{body}\n{beds}"),
-        html: format!("<p>{}</p><p>{}</p>", escape_html(&body), escape_html(&beds)),
+        text: format!("{body}\n{beds}\n{link}"),
+        html: format!(
+            "<p>{}</p><p>{}</p><p><a href=\"{link}\">{link}</a></p>",
+            escape_html(&body),
+            escape_html(&beds)
+        ),
     }
 }
 
@@ -184,6 +190,7 @@ fn invalid(errors: Vec<FieldError>) -> Response {
 
 #[cfg(test)]
 mod tests {
+    use crate::configuration::PublicUrl;
     use axum::body::{Body, to_bytes};
     use axum::http::{Request, header};
     use serde_json::{Value, json};
@@ -213,7 +220,11 @@ mod tests {
     #[tokio::test]
     async fn stores_a_valid_response() {
         let pool = fresh_database().await;
-        let (status, _) = post(api::router(pool.clone()), &ada()).await;
+        let (status, _) = post(
+            api::router(crate::api::testing::state(pool.clone())),
+            &ada(),
+        )
+        .await;
         assert_eq!(status, 201);
         let counts: (i64, i64) = sqlx::query_as(
             "SELECT (SELECT count(*) FROM spike_responses), (SELECT count(*) FROM mail_outbox)",
@@ -227,8 +238,16 @@ mod tests {
     #[tokio::test]
     async fn rejects_a_taken_name_at_the_name_field() {
         let pool = fresh_database().await;
-        post(api::router(pool.clone()), &ada()).await;
-        let (status, body) = post(api::router(pool.clone()), &ada()).await;
+        post(
+            api::router(crate::api::testing::state(pool.clone())),
+            &ada(),
+        )
+        .await;
+        let (status, body) = post(
+            api::router(crate::api::testing::state(pool.clone())),
+            &ada(),
+        )
+        .await;
         assert_eq!(status, 422);
         assert_eq!(
             body,
@@ -249,20 +268,38 @@ mod tests {
             arrival: None,
             beds: 2,
         };
-        let mail = super::confirmation(&response);
+        let public_url = PublicUrl::parse(crate::api::testing::PUBLIC_URL).unwrap();
+        let mail = super::confirmation(&response, &public_url);
         assert_eq!(mail.subject, "Rückmeldung von Ada <b>");
         assert_eq!(
             mail.text,
-            "Ada <b> hat die Einladung zur Zusammenkunft vom 14.–16. März 2027 vorläufig zugesagt.\n2 Betten benötigt."
+            "Ada <b> hat die Einladung zur Zusammenkunft vom 14.–16. März 2027 vorläufig zugesagt.\n2 Betten benötigt.\nhttps://adunata.example.org/"
         );
         assert!(mail.html.contains("Ada &lt;b&gt;"));
+    }
+
+    #[test]
+    fn link_in_a_mail() {
+        let response = super::SpikeResponse {
+            name: "Ada".to_owned(),
+            attendance: super::Attendance::Accepted,
+            arrival: None,
+            beds: 0,
+        };
+        let public_url = PublicUrl::parse("https://choir.example.org/adunata/").unwrap();
+        let mail = super::confirmation(&response, &public_url);
+        assert!(mail.text.contains("https://choir.example.org/adunata/"));
+        assert!(
+            mail.html
+                .contains("href=\"https://choir.example.org/adunata/\"")
+        );
     }
 
     #[tokio::test]
     async fn rejects_a_blank_name() {
         let pool = fresh_database().await;
         let (status, body) = post(
-            api::router(pool),
+            api::router(crate::api::testing::state(pool)),
             &json!({ "name": "  ", "attendance": "declined", "beds": 0 }),
         )
         .await;
