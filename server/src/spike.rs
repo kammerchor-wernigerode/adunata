@@ -321,6 +321,31 @@ mod tests {
             "Ada <b> hat die Einladung zur Zusammenkunft vom 14.–16. März 2027 vorläufig zugesagt.\n2 Betten benötigt.\nhttps://adunata.example.org/"
         );
         assert!(mail.html.contains("Ada &lt;b&gt;"));
+        let html_text = mail.html.replace("&lt;", "<").replace("&gt;", ">");
+        for line in mail.text.lines() {
+            assert!(html_text.contains(line), "the HTML part lacks: {line}");
+        }
+    }
+
+    #[test]
+    fn recipient_with_a_stored_language() {
+        let response = super::SpikeResponse {
+            name: "Ada".to_owned(),
+            attendance: super::Attendance::Accepted,
+            arrival: None,
+            beds: 1,
+        };
+        let public_url = PublicUrl::parse(crate::api::testing::PUBLIC_URL).unwrap();
+        let mail = super::confirmation(&response, &public_url, "en");
+        assert_eq!(mail.subject, "Response from Ada");
+        assert!(
+            mail.text.starts_with(
+                "Ada accepted the invitation to the gathering from March 14–16, 2027."
+            ),
+            "{}",
+            mail.text
+        );
+        assert!(mail.text.contains("One bed needed."));
     }
 
     #[test]

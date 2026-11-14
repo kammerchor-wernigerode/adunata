@@ -480,6 +480,25 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn action_fails_after_its_mail_was_added() {
+        let pool = fresh_database().await;
+        let mut transaction = pool.begin().await.unwrap();
+        let mail = Mail {
+            recipient: "Organizer <organizer@example.org>".to_owned(),
+            subject: "Rolled back".to_owned(),
+            text: "Rolled back".to_owned(),
+            html: "<p>Rolled back</p>".to_owned(),
+        };
+        enqueue(&mut transaction, &mail).await.unwrap();
+        transaction.rollback().await.unwrap();
+        let mails: i64 = sqlx::query_scalar("SELECT count(*) FROM mail_outbox")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(mails, 0, "a rolled back action must take its mail with it");
+    }
+
+    #[tokio::test]
     async fn permanent_failure() {
         let pool = fresh_database().await;
         enqueue_test_mail(&pool, &unique_token()).await;
