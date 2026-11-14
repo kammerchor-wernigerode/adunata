@@ -71,14 +71,14 @@
 - [x] 8.1 Build the package, the OCI image and the release binary from the flake and verify that the image and the binary both start with a valid configuration and serve the client
 - [x] 8.2 Add the NixOS module with a hardened systemd service and secrets read from files. Verify with a NixOS VM test for the scenario "Install on NixOS" that the service starts with PostgreSQL and Mailpit, migrates the database and reports healthy. Name it as the NixOS VM example in arc42 section 8
 - [x] 8.3 Add the example systemd unit for the release binary and verify with a test for the scenario "Install from release binary"
-- [ ] 8.4 Extend the workflow so that pull requests ready for review and pushes to `main` also run the end-to-end tests and the NixOS VM test. Release tags build and publish the OCI image and the release binary. Verify each stage once
+- [x] 8.4 Extend the workflow so that pull requests ready for review and pushes to `main` also run the end-to-end tests and the NixOS VM test. Release tags build and publish the OCI image and the release binary. Verify each stage once
 - [x] 8.5 Add the rules for pull requests by coding agents from decision 8 of design.md to `AGENTS.md` and verify that they cover drafts, local checks before a push, one push per round of feedback, marking ready and asking after an approval
 - [x] 8.6 Write the installation guide for each supported method in `docs/operating/installation.md`, write record 0005 (Nix flake as build definition) as Accepted, write arc42 section 7 and verify that each documented installation runs as written
 
 ## 9. Integration
 
-- [ ] 9.1 Measure the resident memory of the packaged binary with 10 simulated users and verify that it stays below 150 MB, then record the result in the quality scenario in arc42 section 10
-- [ ] 9.2 Run `openspec validate establish-foundation --strict` and check every relative link in `docs/` and verify that both pass
+- [x] 9.1 Measure the resident memory of the packaged binary with 10 simulated users and verify that it stays below 150 MB, then record the result in the quality scenario in arc42 section 10
+- [x] 9.2 Run `openspec validate establish-foundation --strict` and check every relative link in `docs/` and verify that both pass
 
 ## Workflow follow-up
 

@@ -9,6 +9,12 @@ The quality goals in [Introduction and goals](01-introduction-and-goals.md) name
 |Invalid configuration|An operator starts a new instance.|Two required settings are missing and one has the wrong format.|Adunata exits with status 1 before it opens a port or touches the database. One message lists all three settings and no secret value.|`several_settings_missing` and `malformed_value` in [`server/src/configuration.rs`](../../server/src/configuration.rs)|
 |Mail server outage|The mail server of the ensemble is unreachable for a few minutes.|An organizer triggers a mail during the outage.|The action succeeds. The mail waits in the outbox and arrives once the server is reachable again.|`action_succeeds_while_the_mail_server_is_down` in [`server/src/spike.rs`](../../server/src/spike.rs) and `mail_server_comes_back` in [`server/src/mail.rs`](../../server/src/mail.rs)|
 
+## Efficiency
+
+|Scenario|Context|Stimulus|Response|Verified by|
+|-|-|-|-|-|
+|Memory under load|The release build runs on Linux next to PostgreSQL and Mailpit.|10 connections send the form and load the client for 30 seconds.|Peak resident memory of Adunata stays below 150 MB. The latest measurement was 9 MB.|The check `memory` in [`flake.nix`](../../flake.nix)|
+
 ## Localization
 
 |Scenario|Context|Stimulus|Response|Verified by|
