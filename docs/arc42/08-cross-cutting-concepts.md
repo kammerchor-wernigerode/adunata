@@ -29,6 +29,14 @@ Logs carry no personal data and no secrets. In particular they never contain:
 
 An event instead names what happened and the identifiers an operator needs to look further, such as the id of an outbox entry. Requests are not logged, because their paths will carry personal links.
 
+## Mail delivery
+
+Every mail goes through the outbox, see [ADR 0006](../decisions/0006-outbox-for-mail.md). A module that causes a mail adds it to the outbox within its own transaction and never talks to the mail server itself. Each mail has a plain text part and an HTML part with the same content and the same links, so it reads completely in any mail client.
+
+The connection to the mail server is encrypted with STARTTLS unless the operator chooses implicit TLS or, explicitly, no encryption. Adunata checks the server certificate against the Mozilla root certificates.
+
+A failed delivery is logged with the outbox entry and the kind of failure, as described under logging. Mail that failed for good stays in the outbox with its failure time.
+
 ## Health
 
 The endpoint `/api/health` reports whether the instance can serve requests and, if not, which dependency is unavailable. It carries no personal data and no configuration values, so monitors may call it without authentication.

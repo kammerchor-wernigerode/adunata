@@ -54,7 +54,7 @@
 - [x] 6.3 Retry failed deliveries with increasing delays up to the configured number of attempts and resume after a restart. Verify with tests for the scenarios "Mail server comes back", "Permanent failure" and "Restart with pending mail"
 - [x] 6.4 Mark a mail as sent once the server accepts it and never resend it. Verify with a test for the scenario "Accepted mail"
 - [x] 6.5 Send every mail with a plain text part and an HTML part and verify through Mailpit's API that both parts hold every link
-- [ ] 6.6 Write record 0006 (outbox for mail) as Accepted, describe mail delivery in arc42 section 8, add the quality scenario for a mail server outage to arc42 section 10 and verify that every link resolves
+- [x] 6.6 Write record 0006 (outbox for mail) as Accepted, describe mail delivery in arc42 section 8, add the quality scenario for a mail server outage to arc42 section 10 and verify that every link resolves
 
 ## 7. Localization
 
