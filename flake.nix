@@ -1,10 +1,17 @@
 {
   description = "Adunata, a web application for choirs and instrumental ensembles to organize gatherings";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    crane.url = "github:ipetkov/crane/v0.24.0";
+  };
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      crane,
+    }:
     let
       systems = [
         "x86_64-linux"
@@ -13,24 +20,177 @@
         "aarch64-darwin"
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
+
+      build =
+        pkgs:
+        let
+          craneLib = crane.mkLib pkgs;
+          npmDeps = pkgs.importNpmLock { npmRoot = ./client; };
+
+          clientPackage =
+            args:
+            pkgs.buildNpmPackage (
+              {
+                pname = "adunata-client";
+                version = "0.1.0";
+                src = pkgs.lib.fileset.toSource {
+                  root = ./.;
+                  fileset = pkgs.lib.fileset.intersection (pkgs.lib.fileset.gitTracked ./.) (
+                    pkgs.lib.fileset.unions [
+                      ./client
+                      ./server/locales
+                    ]
+                  );
+                };
+                sourceRoot = "source/client";
+                inherit npmDeps;
+                npmConfigHook = pkgs.importNpmLock.npmConfigHook;
+              }
+              // args
+            );
+
+          client = clientPackage {
+            installPhase = "cp -r dist $out";
+          };
+
+          serverSource = pkgs.lib.fileset.toSource {
+            root = ./server;
+            fileset = pkgs.lib.fileset.unions [
+              (craneLib.fileset.commonCargoSources ./server)
+              ./server/migrations
+              ./server/locales
+            ];
+          };
+          serverArgs = {
+            src = serverSource;
+            strictDeps = true;
+            nativeCheckInputs = [
+              pkgs.postgresql_17
+              pkgs.mailpit
+            ];
+            preCheck = ''
+              export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata PGDATABASE=postgres
+              mkdir -p "$PGHOST"
+              initdb --username="$PGUSER" --auth=trust --no-instructions >/dev/null
+              pg_ctl start --wait --silent --options="-k $PGHOST -c listen_addresses="
+              export ADUNATA_TEST_MAILPIT_SMTP_PORT=11025 ADUNATA_TEST_MAILPIT_HTTP_PORT=18025
+              mailpit --smtp "127.0.0.1:$ADUNATA_TEST_MAILPIT_SMTP_PORT" --listen "127.0.0.1:$ADUNATA_TEST_MAILPIT_HTTP_PORT" --quiet &
+              mailpitPid=$!
+              for _ in $(seq 50); do (echo > "/dev/tcp/127.0.0.1/$ADUNATA_TEST_MAILPIT_HTTP_PORT") 2>/dev/null && break; sleep 0.1; done
+            '';
+            postCheck = ''
+              kill "$mailpitPid"
+              pg_ctl stop --wait --silent
+            '';
+            preBuild = ''
+              mkdir -p ../client
+              ln -sfn ${client} ../client/dist
+            '';
+          };
+          cargoArtifacts = craneLib.buildDepsOnly serverArgs;
+          server = craneLib.buildPackage (serverArgs // { inherit cargoArtifacts; });
+        in
+        {
+          inherit client server;
+
+          clippy = craneLib.cargoClippy (
+            serverArgs
+            // {
+              inherit cargoArtifacts;
+              cargoClippyExtraArgs = "--all-targets -- --deny warnings";
+            }
+          );
+
+          rustFormatting = craneLib.cargoFmt { src = serverSource; };
+
+          clientTest = clientPackage {
+            pname = "adunata-client-test";
+            buildPhase = "npm test";
+            installPhase = "touch $out";
+          };
+
+          memory =
+            pkgs.runCommand "check-memory"
+              {
+                nativeBuildInputs = [
+                  pkgs.postgresql_17
+                  pkgs.mailpit
+                  pkgs.oha
+                ];
+                SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+              }
+              ''
+                export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata
+                mkdir -p "$PGHOST"
+                initdb --username="$PGUSER" --auth=trust --no-instructions >/dev/null
+                pg_ctl start --wait --silent --options="-k $PGHOST -c listen_addresses="
+                mailpit --smtp 127.0.0.1:11025 --listen 127.0.0.1:18025 --quiet &
+                ADUNATA_DATABASE_URL="postgres:///postgres?host=$PGHOST&user=$PGUSER" \
+                  ADUNATA_LISTEN_ADDRESS=127.0.0.1:18080 ADUNATA_SMTP_PORT=11025 \
+                  ${server}/bin/adunata &
+                adunataPid=$!
+                for _ in $(seq 100); do (echo > /dev/tcp/127.0.0.1/18080) 2>/dev/null && break; sleep 0.1; done
+
+                oha --no-tui -z 30s -c 5 -m POST \
+                  -H 'content-type: application/json' \
+                  -d '{"name":"Load","attendance":"accepted","beds":1}' \
+                  http://127.0.0.1:18080/api/spike-responses > post.txt &
+                postPid=$!
+                oha --no-tui -z 30s -c 5 http://127.0.0.1:18080/ > get.txt
+                wait "$postPid"
+
+                peak=$(awk '/VmHWM/ { print $2 }' "/proc/$adunataPid/status")
+                echo "Peak resident memory: $((peak / 1024)) MB"
+                grep -E 'Requests/sec|Success rate' post.txt get.txt
+                kill "$adunataPid"
+                pg_ctl stop --wait --silent
+                test "$peak" -lt $((150 * 1024))
+                echo "$peak" > $out
+              '';
+
+          clientLint = clientPackage {
+            pname = "adunata-client-lint";
+            buildPhase = "npm run lint -- --deny-warnings";
+            installPhase = "touch $out";
+          };
+        };
     in
     {
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
 
-      checks = forAllSystems (pkgs: {
-        formatting = pkgs.runCommand "check-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
-          find ${self} -name '*.nix' -exec nixfmt --check {} +
-          touch $out
-        '';
-
-        editorconfig =
-          pkgs.runCommand "check-editorconfig" { nativeBuildInputs = [ pkgs.editorconfig-checker ]; }
-            ''
-              cd ${self}
-              editorconfig-checker
-              touch $out
-            '';
+      packages = forAllSystems (pkgs: {
+        default = (build pkgs).server;
       });
+
+      checks = forAllSystems (
+        pkgs:
+        let
+          built = build pkgs;
+        in
+        {
+          inherit (built)
+            server
+            clippy
+            rustFormatting
+            clientLint
+            clientTest
+            ;
+
+          nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
+            find ${self} -name '*.nix' -exec nixfmt --check {} +
+            touch $out
+          '';
+
+          editorconfig =
+            pkgs.runCommand "check-editorconfig" { nativeBuildInputs = [ pkgs.editorconfig-checker ]; }
+              ''
+                cd ${self}
+                editorconfig-checker
+                touch $out
+              '';
+        }
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux { inherit (built) memory; }
+      );
 
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
@@ -47,6 +207,9 @@
 
           PGHOST = "localhost";
           PGPORT = "5432";
+          PGUSER = "adunata";
+          PGPASSWORD = "adunata";
+          PGDATABASE = "adunata";
           MP_SMTP_BIND_ADDR = "localhost:1025";
           MP_UI_BIND_ADDR = "localhost:8025";
         };

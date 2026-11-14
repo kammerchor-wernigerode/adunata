@@ -1,0 +1,163 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Adunata",
+    "description": "",
+    "license": {
+      "name": "AGPL-3.0-only",
+      "identifier": "AGPL-3.0-only"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/catalogs/{locale}": {
+      "get": {
+        "operationId": "catalog",
+        "parameters": [
+          {
+            "name": "locale",
+            "in": "path",
+            "description": "Language of the catalog, such as de or en",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fluent catalog",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No catalog for this language"
+          }
+        }
+      }
+    },
+    "/api/spike-responses": {
+      "post": {
+        "operationId": "create_response",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpikeResponse"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Response stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpikeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Response invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Attendance": {
+        "type": "string",
+        "enum": [
+          "accepted",
+          "tentative",
+          "declined"
+        ]
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "required",
+          "tooLong",
+          "tooLarge",
+          "taken"
+        ]
+      },
+      "FieldError": {
+        "type": "object",
+        "required": [
+          "field",
+          "code"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          }
+        }
+      },
+      "SpikeResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "attendance",
+          "beds"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1
+          },
+          "attendance": {
+            "$ref": "#/components/schemas/Attendance"
+          },
+          "arrival": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "beds": {
+            "type": "integer",
+            "format": "int32",
+            "maximum": 20,
+            "minimum": 0
+          }
+        }
+      },
+      "ValidationErrors": {
+        "type": "object",
+        "required": [
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          }
+        }
+      }
+    }
+  }
+}
