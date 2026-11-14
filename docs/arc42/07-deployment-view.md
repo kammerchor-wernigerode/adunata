@@ -28,4 +28,4 @@ flowchart LR
 |Container|The OCI image `ghcr.io/kammerchor-wernigerode/adunata`|An unprivileged process listening on port 8080, configured through environment variables and secret files.|
 |Other Linux distributions|The release archive with a statically linked binary|The example systemd unit with the same sandbox as on NixOS. Settings come from `/etc/adunata/adunata.env` and passwords from credential files.|
 
-The flake builds all three from the same package, see [ADR 0005](../decisions/0005-nix-flake-as-build-definition.md).
+The flake builds all three from the same source, see [ADR 0005](../decisions/0005-nix-flake-as-build-definition.md). The image and the release archive carry the same statically linked binary. The NixOS module runs a build against the libraries of nixpkgs.

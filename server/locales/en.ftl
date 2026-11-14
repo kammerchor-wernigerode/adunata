@@ -30,3 +30,21 @@ month-11 = November
 month-12 = December
 
 language-label = Language
+
+spike-name = Name
+spike-attendance = Attendance
+spike-attendance-accepted = Accepted
+spike-attendance-tentative = Tentative
+spike-attendance-declined = Declined
+spike-arrival = Arrival
+spike-beds = Beds
+spike-save = Save
+spike-saved = Saved response of { $name }.
+
+error-required = Enter a name.
+error-too-long = The name is too long.
+error-too-large = The number is too large.
+error-taken = This name is already taken.
+error-number = Enter a whole number.
+error-date = Enter a valid date.
+error-invalid = This value is not valid.

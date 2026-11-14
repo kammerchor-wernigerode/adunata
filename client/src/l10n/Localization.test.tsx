@@ -18,7 +18,10 @@ const server = setupServer(
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 beforeEach(() => localStorage.clear())
-afterEach(() => cleanup())
+afterEach(() => {
+  server.resetHandlers()
+  cleanup()
+})
 afterAll(() => server.close())
 
 function preferLanguages(languages: string[]) {
@@ -36,6 +39,20 @@ function openClient() {
 }
 
 describe('language of the client', () => {
+  it('shows a notice when the catalogs cannot be loaded', async () => {
+    server.use(http.get('*/api/catalogs/:locale', () => new HttpResponse(null, { status: 503 })))
+    preferLanguages(['de-DE'])
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <LocalizationProvider>
+          <LanguageSwitcher />
+        </LocalizationProvider>
+      </QueryClientProvider>,
+    )
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.getByText(/cannot load its texts/)).toBeTruthy()
+  })
+
   it('shows German text in a browser that prefers German', async () => {
     preferLanguages(['de-DE', 'en'])
     openClient()

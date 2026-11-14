@@ -10,7 +10,7 @@ No ensemble of the target size runs Kubernetes.
 
 ## Decision
 
-We will describe every build in one Nix flake. It produces the server with the embedded client, the NixOS module, the OCI image, a statically linked release binary with an example systemd unit and the development shell. Its checks cover formatting, lints, unit, slice, contract and end-to-end tests, the memory measurement and a NixOS test that installs Adunata in each supported way. CI runs the checks of the flake and nothing else.
+We will describe every build in one Nix flake. It produces the server with the embedded client, the NixOS module, a statically linked binary and the development shell. The OCI image and the release archive with an example systemd unit both carry that static binary. Its checks cover formatting, lints, unit, slice, contract and end-to-end tests, the memory measurement and a NixOS test that installs Adunata in each supported way. CI runs the checks of the flake and nothing else.
 
 Contributors without Nix get a Compose file with PostgreSQL and Mailpit in the same versions as the development shell.
 

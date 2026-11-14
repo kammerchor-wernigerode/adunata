@@ -18,7 +18,11 @@ An invitation SHALL have one of the statuses pending, accepted, tentative or dec
 - **THEN** Adunata stores the status declined and clears the period and the beds of that response
 
 ### Requirement: Period of presence
-A member who accepts or accepts tentatively SHALL be able to state when they arrive and when they leave, in steps of 30 minutes within the span of the gathering. Without a stated period Adunata SHALL treat the member as present for the whole gathering.
+A member who accepts or accepts tentatively SHALL be able to state when they arrive and when they leave, in steps of 30 minutes within the span of the gathering. Without a stated period Adunata SHALL treat the member as present for the whole gathering. Adunata SHALL show these times in the time zone of the instance, which the operator configures.
+
+#### Scenario: Times in the time zone of the instance
+- **WHEN** the instance runs in the time zone Europe/Berlin and a member arrives on 14 March 2027 at 18:00 local time
+- **THEN** the form, the overview and every mail show 18:00, whatever time zone the browser or the server uses
 
 #### Scenario: No period stated
 - **WHEN** a member accepts without stating a period

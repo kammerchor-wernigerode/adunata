@@ -19,6 +19,8 @@ The client starts in the language the browser prefers among German and English. 
 Mail goes out in the language stored for the recipient. Without one it uses the default language of the instance. The client formats dates with the browser's own date formatting. The server spells out date ranges in mail through the catalog, because Fluent in Rust has no date formatting.
 
 
+## Persistence and migrations
+
 PostgreSQL holds all data, see [ADR 0004](../decisions/0004-postgresql-as-database.md). Queries are plain SQL that the server sends at runtime. Builds therefore need no database.
 
 The binary embeds its migrations. On start, the module `database` compares the newest migration applied to the database with the newest one the binary knows. If the database is ahead, a newer release has already migrated it. Adunata then refuses to start without changing anything. Otherwise it applies the pending migrations before it accepts requests. Migrations only move forward. Going back to an older release means restoring a backup.

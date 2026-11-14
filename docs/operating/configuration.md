@@ -23,7 +23,7 @@ An empty variable counts as not set.
 
 ## Secrets
 
-Adunata reads each secret from a file whose path a variable names. Secrets therefore never appear in a command line or in the list of processes. Adunata removes trailing line breaks from the file content.
+Adunata reads each secret from a file whose path a variable names. Secrets therefore never appear in a command line or in the list of processes. Adunata removes trailing line breaks from the file content. A file that is empty after that counts as not set, so Adunata then signs in neither to the database nor to the mail server with a password.
 
 If Adunata cannot read a secret file, it names the variable and the path in its message. It never prints a secret value.
 

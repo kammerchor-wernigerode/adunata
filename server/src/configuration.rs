@@ -274,7 +274,8 @@ fn secret(
         problems.push(Problem::Unreadable { setting, path });
         return None;
     };
-    Some(content.trim_end_matches(['\r', '\n']).to_owned())
+    let secret = content.trim_end_matches(['\r', '\n']);
+    (!secret.is_empty()).then(|| secret.to_owned())
 }
 
 fn parse_public_url(value: &str) -> Option<PublicUrl> {
@@ -367,6 +368,15 @@ mod tests {
             debug.contains("s3cret"),
             "database password must come from the file"
         );
+    }
+
+    #[test]
+    fn empty_secret_file_counts_as_unset() {
+        let mut variables = required();
+        variables.insert("ADUNATA_SMTP_USERNAME", "adunata@example.org".to_owned());
+        variables.insert("ADUNATA_SMTP_PASSWORD_FILE", secret_file("\n"));
+        let configuration = load(&variables).expect("configuration must be accepted");
+        assert_eq!(configuration.smtp.password, None);
     }
 
     #[test]
