@@ -5,6 +5,7 @@ mod database;
 mod health;
 mod localization;
 mod mail;
+mod serving;
 mod spike;
 
 use std::time::Duration;
@@ -50,9 +51,9 @@ async fn serve() {
         pool,
         public_url: configuration.public_url,
     };
-    axum::serve(listener, app(state))
+    serving::serve_until(listener, app(state), serving::termination_signal())
         .await
-        .expect("server must keep running");
+        .expect("server must keep running until it is asked to stop");
 }
 
 fn app(state: api::AppState) -> axum::Router {

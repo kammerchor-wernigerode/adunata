@@ -43,7 +43,7 @@
 
 - [x] 5.1 Apply pending migrations on start and refuse to start against a newer schema. Verify with tests for the scenarios "Start against an empty database", "Start after an update" and "Start after a downgrade"
 - [x] 5.2 Add the health endpoint without personal data or configuration values and verify with tests for the scenarios "Healthy instance" and "Database unreachable"
-- [ ] 5.3 Finish requests in progress on a termination signal and verify with a test for the scenario "Stop during a request"
+- [x] 5.3 Finish requests in progress on a termination signal and verify with a test for the scenario "Stop during a request"
 - [ ] 5.4 Write structured logs to standard output without secrets, links or message bodies and verify with a test for the scenario "Log a failed mail delivery"
 - [ ] 5.5 Describe persistence, migrations and logging in arc42 section 8, add the context with operators, browser users, PostgreSQL and the mail server to arc42 section 3 and verify that every link resolves
 
