@@ -2,8 +2,10 @@ mod api;
 mod client;
 mod configuration;
 mod database;
+mod health;
 mod localization;
 mod mail;
+mod serving;
 mod spike;
 
 use std::time::Duration;
@@ -23,16 +25,19 @@ async fn main() {
 }
 
 async fn serve() {
+    tracing_subscriber::fmt().json().init();
     let configuration = Configuration::from_environment().unwrap_or_else(|problems| {
-        eprintln!("Adunata cannot start because its configuration is invalid:");
         for problem in problems {
-            eprintln!("- {problem}");
+            tracing::error!(%problem, "configuration is invalid");
         }
         std::process::exit(1);
     });
     let pool = database::connect(configuration.database)
         .await
-        .expect("database must be reachable and migrations must apply");
+        .unwrap_or_else(|error| {
+            tracing::error!(%error, "database is not ready");
+            std::process::exit(1);
+        });
     let delivery = mail::Delivery {
         transport: mail::unencrypted_transport(&configuration.smtp),
         sender: configuration.mail_sender,
@@ -46,9 +51,10 @@ async fn serve() {
         pool,
         public_url: configuration.public_url,
     };
-    axum::serve(listener, app(state))
+    tracing::info!(address = %listener.local_addr().expect("listener must have an address"), "accepting requests");
+    serving::serve_until(listener, app(state), serving::termination_signal())
         .await
-        .expect("server must keep running");
+        .expect("server must keep running until it is asked to stop");
 }
 
 fn app(state: api::AppState) -> axum::Router {
