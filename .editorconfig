@@ -14,3 +14,6 @@ trim_trailing_whitespace = false
 [{LICENSE,.agents/skills/openspec-*/**,client/src/api/generated/**}]
 indent_style = unset
 indent_size = unset
+
+[*.py]
+indent_size = 4

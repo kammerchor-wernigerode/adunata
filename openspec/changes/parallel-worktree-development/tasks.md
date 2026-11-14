@@ -20,17 +20,17 @@ Each group is one commit that passes `nix build .#checks.<system>.fast`.
 
 ## 4. Plugin for git-worktree-init
 
-- [ ] 4.1 Add a `[*.py]` section with `indent_size = 4` to `.editorconfig`. Verify that the check `editorconfig` passes.
-- [ ] 4.2 Write `dev/worktree_plugin.py` with the options `port_base` (default 18000) and `clone_db` (default off), `SANITIZE_ENV`, `slot_of`, `apply`, `next_steps` and `teardown` as design.md describes. Verify with `python3 -m py_compile dev/worktree_plugin.py`.
-- [ ] 4.3 Write the decision record `docs/decisions/0009-optional-worktree-tooling.md` from the draft in design.md. The record carries its own definition of reference `[1]`. Add its row to [section 09](../../../docs/arc42/09-architecture-decisions.md). Verify that the relative links resolve.
-- [ ] 4.4 Add a section on parallel worktrees to `README.md`. It covers installing git-worktree-init, `git config worktree-init.plugin dev/worktree_plugin.py`, the options and the port layout. It explains how to include Claude Code worktrees by clearing `worktree-init.ignorePaths` and that their databases go away at the next `git wt prune`. It says that `git wt remove` fails while PostgreSQL is down. Verify that each documented command runs as written.
+- [x] 4.1 Add a `[*.py]` section with `indent_size = 4` to `.editorconfig`. Verify that the check `editorconfig` passes.
+- [x] 4.2 Write `dev/worktree_plugin.py` with the options `port_base` (default 18000) and `clone_db` (default off), `SANITIZE_ENV`, `slot_of`, `apply`, `next_steps` and `teardown` as design.md describes. Verify with `python3 -m py_compile dev/worktree_plugin.py`.
+- [x] 4.3 Write the decision record `docs/decisions/0009-optional-worktree-tooling.md` from the draft in design.md. The record carries its own definition of reference `[1]`. Add its row to [section 09](../../../docs/arc42/09-architecture-decisions.md). Verify that the relative links resolve.
+- [x] 4.4 Add a section on parallel worktrees to `README.md`. It covers installing git-worktree-init, `git config worktree-init.plugin dev/worktree_plugin.py`, the options and the port layout. It explains how to include Claude Code worktrees by clearing `worktree-init.ignorePaths` and that their databases go away at the next `git wt prune`. It says that `git wt remove` fails while PostgreSQL is down. Verify that each documented command runs as written.
 
 ## 5. Acceptance
 
-- [ ] 5.1 Create two worktrees with `git wt add`. Verify that each gets `.envrc.local`, its own database and a built client. Verify that server and Vite of both run at the same time next to the main checkout.
-- [ ] 5.2 Create a worktree with `--clone-db` while the main checkout's server runs. Verify that the clone holds the main checkout's rows.
-- [ ] 5.3 Run `git wt refresh` on a worktree. Verify that it keeps its slot and its data.
-- [ ] 5.4 Remove one worktree with `git wt remove` and the other with `git worktree remove` followed by `git wt prune`. Verify that both databases are gone.
-- [ ] 5.5 Create a worktree from a branch older than this change. Verify that creation succeeds without `direnv allow`.
-- [ ] 5.6 Create a Claude Code worktree after clearing `ignorePaths`. Verify that the hook prepares it. Run `env | grep ADUNATA_DATABASE_URL` through the Bash tool of Claude Code in that worktree and record whether it shows the slot's database or needs `direnv exec .`.
-- [ ] 5.7 Build the server in the second worktree. Verify that `sccache --show-stats` reports cache hits.
+- [x] 5.1 Create two worktrees with `git wt add`. Verify that each gets `.envrc.local`, its own database and a built client. Verify that server and Vite of both run at the same time next to the main checkout.
+- [x] 5.2 Create a worktree with `--clone-db` while the main checkout's server runs. Verify that the clone holds the main checkout's rows.
+- [x] 5.3 Run `git wt refresh` on a worktree. Verify that it keeps its slot and its data.
+- [x] 5.4 Remove one worktree with `git wt remove` and the other with `git worktree remove` followed by `git wt prune`. Verify that both databases are gone.
+- [x] 5.5 Create a worktree from a branch older than this change. Verify that creation succeeds without `direnv allow`.
+- [x] 5.6 Create a Claude Code worktree after clearing `ignorePaths`. Verify that the hook prepares it. Run `env | grep ADUNATA_DATABASE_URL` through the Bash tool of Claude Code in that worktree and record whether it shows the slot's database or needs `direnv exec .`.
+- [x] 5.7 Build the server in the second worktree. Verify that `sccache --show-stats` reports cache hits.

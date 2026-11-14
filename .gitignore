@@ -2,4 +2,6 @@ CLAUDE.local.md
 /server/target
 /result*
 .envrc.local
+.envrc.local.bak
 /.direnv
+__pycache__/

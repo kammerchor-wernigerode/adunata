@@ -148,6 +148,43 @@ CI runs the checks of the flake. Run the fast ones locally before each push. Rep
 nix build .#checks.x86_64-linux.fast
 ```
 
+### Parallel worktrees
+
+Several worktrees run side by side when each one has its own ports and database. The plugin [`dev/worktree_plugin.py`](dev/worktree_plugin.py) for [git-worktree-init](https://github.com/V1ncNet/git-worktree-init) sets them up for every new linked worktree and again on `git wt refresh`. It needs Nix and direnv as described in [With Nix](#with-nix). Install git-worktree-init as its README describes, then enable the plugin once in the main checkout:
+
+```sh
+git config worktree-init.plugin dev/worktree_plugin.py
+```
+
+Each worktree gets a slot `n`. Slot 0 belongs to the main checkout, which keeps ports 8080 and 5173 and the database `adunata`. For a new worktree, the plugin:
+
+- writes `.envrc.local` with the variables of its slot, keeps the previous file as `.envrc.local.bak` and runs `direnv allow` if direnv is installed
+- creates the database `adunata_wt<n>` on the shared PostgreSQL server, which migrations fill on the first start
+- installs and builds the client, so the server compiles right away
+
+The server listens on `port_base + 10n` and Vite on `port_base + 10n + 1`. Mail of every worktree goes to the same Mailpit. The database name depends only on the slot, so only one clone of Adunata per PostgreSQL server can use the plugin.
+
+|Option|Default|Meaning|
+|-|-|-|
+|`port_base`|`18000`|Port from which the ports of the slots count. Change it per repository if another project uses the same range.|
+|`clone_db`|off|Copies the database of the main checkout instead of starting empty.|
+
+Set an option per repository with `git config worktree-init.port-base 19000` or for one worktree with a flag:
+
+```sh
+git wt add --clone-db -- -b feature/foo ../adunata.foo
+```
+
+Remove a worktree with `git wt remove`, which drops its database first. It fails while PostgreSQL is down. A worktree removed with plain `git worktree remove` keeps its database until the next sweep. `git wt prune`, `git wt add` and `git wt refresh` each run one.
+
+git-worktree-init skips the worktrees of Claude Code under `.claude/worktrees/` by default. Include them by clearing that pattern:
+
+```sh
+git config worktree-init.ignorePaths ""
+```
+
+Claude Code removes its worktrees with plain `git worktree remove`, so their databases go away at the next sweep. Its shell has no direnv hook, so it runs commands through `direnv exec . <command>`.
+
 ## Contributing
 
 [`AGENTS.md`](AGENTS.md) holds the rules for workflow, pull requests and code style. New features start as a change proposal in [`openspec/changes/`](openspec/changes/).
