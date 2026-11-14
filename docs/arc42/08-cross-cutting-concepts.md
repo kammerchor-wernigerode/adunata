@@ -1,5 +1,13 @@
 # Cross-cutting concepts
 
+## Configuration
+
+An instance takes its configuration from environment variables only. There is no configuration file. Secrets come from files that a variable names, which fits secret handling in NixOS, Docker and systemd alike.
+
+The module `configuration` reads all settings at start-up and checks them together. It collects every problem before Adunata touches the database or opens a port, so an operator fixes all mistakes in one round. Each message names the setting and never a secret value. Other modules receive typed settings, such as the public base URL, and never read the environment themselves.
+
+The settings and their defaults are listed in the [configuration reference](../operating/configuration.md).
+
 ## Testing
 
 Tests run at several levels. Each level checks what the level below cannot see. Every check runs through `nix flake check`, locally and in CI, so both use the same entry point.
