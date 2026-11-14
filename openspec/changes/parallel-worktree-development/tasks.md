@@ -10,7 +10,7 @@ Each group is one commit that passes `nix build .#checks.<system>.fast`.
 
 ## 2. Share compiler output across worktrees
 
-- [ ] 2.1 Add `pkgs.sccache` to the development shell in `flake.nix` and set `RUSTC_WRAPPER` to it. The commit message says what sccache does and why the project needs it. Verify that `sccache --show-stats` counts compile requests after `cargo build` in the shell.
+- [x] 2.1 Add `pkgs.sccache` to the development shell in `flake.nix` and set `RUSTC_WRAPPER` to it. The commit message says what sccache does and why the project needs it. Verify that `sccache --show-stats` counts compile requests after `cargo build` in the shell.
 
 ## 3. Load the development shell through direnv
 

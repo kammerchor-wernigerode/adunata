@@ -33,7 +33,7 @@ Development needs PostgreSQL to store data and Mailpit to catch outgoing mail. M
 
 ### With Nix
 
-Install [Nix](https://nixos.org/download/) and enable flakes. The development shell provides Rust, Node.js 24, PostgreSQL 17 and Mailpit. It also sets every variable that the server and the tests read.
+Install [Nix](https://nixos.org/download/) and enable flakes. The development shell provides Rust, Node.js 24, PostgreSQL 17 and Mailpit. It also sets every variable that the server and the tests read. It compiles Rust through sccache, which shares compiled dependencies between checkouts.
 
 ```sh
 nix develop
