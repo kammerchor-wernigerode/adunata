@@ -65,6 +65,6 @@ Tests run at several levels. Each level checks what the level below cannot see. 
 |Client slice|A component against the API mocks that Orval generates, driven like a user would. Accessibility checks with axe run on rendered components.|[`client/src/spike/SpikeForm.test.tsx`](../../client/src/spike/SpikeForm.test.tsx) and [`client/src/spike/SpikeForm.a11y.test.tsx`](../../client/src/spike/SpikeForm.a11y.test.tsx)|
 |Contract|The committed OpenAPI document matches the server. The generated client code matches the document.|The check `contract` in [`flake.nix`](../../flake.nix)|
 |End to end|A few complete flows in a browser against the real binary, PostgreSQL and Mailpit, with accessibility checks by axe. Runs on Linux.|[`client/e2e/language.e2e.ts`](../../client/e2e/language.e2e.ts)|
-|NixOS VM|The NixOS module starts, migrates the database and reports healthy.|Planned|
+|NixOS VM|Each supported installation, meaning the NixOS module, the OCI image and the release binary with its example unit, starts in a virtual machine, migrates the database, reports healthy and serves the client. Runs on Linux with KVM.|[`nix/test.nix`](../../nix/test.nix)|
 
 The check `memory` in [`flake.nix`](../../flake.nix) measures peak memory of the release build under load on Linux and fails above 150 MB.

@@ -4,6 +4,10 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     crane.url = "github:ipetkov/crane/v0.24.0";
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -11,6 +15,7 @@
       self,
       nixpkgs,
       crane,
+      fenix,
     }:
     let
       systems = [
@@ -64,6 +69,7 @@
           serverArgs = {
             src = serverSource;
             strictDeps = true;
+            meta.mainProgram = "adunata";
             nativeCheckInputs = [
               pkgs.postgresql_17
               pkgs.mailpit
@@ -91,6 +97,53 @@
           server = craneLib.buildPackage (serverArgs // { inherit cargoArtifacts; });
           openapi = pkgs.runCommand "adunata-openapi" { } "${server}/bin/adunata openapi > $out";
 
+          muslTargets = {
+            x86_64-linux = "x86_64-unknown-linux-musl";
+            aarch64-linux = "aarch64-unknown-linux-musl";
+          };
+          system = pkgs.stdenv.hostPlatform.system;
+
+          # A statically linked binary that runs on any Linux distribution, packed with the example systemd unit.
+          release =
+            let
+              target = muslTargets.${system};
+              targetVariable = pkgs.lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] target);
+              staticCc = pkgs.pkgsStatic.stdenv.cc;
+              toolchain = fenix.packages.${system}.combine [
+                fenix.packages.${system}.stable.cargo
+                fenix.packages.${system}.stable.rustc
+                fenix.packages.${system}.targets.${target}.stable.rust-std
+              ];
+              muslCrane = (crane.mkLib pkgs).overrideToolchain toolchain;
+              args = serverArgs // {
+                CARGO_BUILD_TARGET = target;
+                "CARGO_TARGET_${targetVariable}_LINKER" = "${staticCc}/bin/${staticCc.targetPrefix}cc";
+                "CC_${builtins.replaceStrings [ "-" ] [ "_" ] target}" =
+                  "${staticCc}/bin/${staticCc.targetPrefix}cc";
+                HOST_CC = "${pkgs.stdenv.cc}/bin/cc";
+                doCheck = false;
+              };
+              binary = muslCrane.buildPackage (args // { cargoArtifacts = muslCrane.buildDepsOnly args; });
+            in
+            pkgs.runCommand "adunata-release-${target}" { } ''
+              mkdir $out
+              cp ${binary}/bin/adunata $out/adunata
+              cp ${./deploy/systemd/adunata.service} $out/adunata.service
+              cp ${./deploy/systemd/adunata.env.example} $out/adunata.env.example
+              cp ${./LICENSE} $out/LICENSE
+            '';
+
+          image = pkgs.dockerTools.buildLayeredImage {
+            name = "adunata";
+            tag = "latest";
+            config = {
+              Cmd = [ (pkgs.lib.getExe server) ];
+              Env = [ "ADUNATA_LISTEN_ADDRESS=0.0.0.0:8080" ];
+              ExposedPorts."8080/tcp" = { };
+              User = "65534:65534";
+            };
+          };
+
           # Starts PostgreSQL, Mailpit and the release binary on port 18080 and leaves the binary's PID in $adunataPid.
           startInstance = ''
             export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata
@@ -108,7 +161,12 @@
           '';
         in
         {
-          inherit client server;
+          inherit
+            client
+            server
+            release
+            image
+            ;
 
           clippy = craneLib.cargoClippy (
             serverArgs
@@ -206,9 +264,18 @@
     {
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
 
-      packages = forAllSystems (pkgs: {
-        default = (build pkgs).server;
-      });
+      packages = forAllSystems (
+        pkgs:
+        let
+          built = build pkgs;
+        in
+        {
+          default = built.server;
+        }
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux { inherit (built) release image; }
+      );
+
+      nixosModules.default = import ./nix/module.nix (pkgs: (build pkgs).server);
 
       checks = forAllSystems (
         pkgs:
@@ -238,7 +305,14 @@
                 touch $out
               '';
         }
-        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux { inherit (built) memory endToEnd; }
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          inherit (built) memory endToEnd;
+          nixos = import ./nix/test.nix {
+            inherit pkgs;
+            inherit (built) release image;
+            module = self.nixosModules.default;
+          };
+        }
       );
 
       devShells = forAllSystems (pkgs: {

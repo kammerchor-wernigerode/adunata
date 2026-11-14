@@ -7,6 +7,7 @@ This documentation follows the [arc42](https://arc42.org) template. Decisions wi
 - [Context and scope](03-context-and-scope.md)
 - [Solution strategy](04-solution-strategy.md)
 - [Building block view](05-building-block-view.md)
+- [Deployment view](07-deployment-view.md)
 - [Cross-cutting concepts](08-cross-cutting-concepts.md)
 - [Architecture decisions](09-architecture-decisions.md)
 - [Quality requirements](10-quality-requirements.md)

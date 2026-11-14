@@ -8,3 +8,4 @@
 |Mail|Every mail goes through an outbox in the database. A background task sends it and retries until the mail server accepts it.|[ADR 0006](../decisions/0006-outbox-for-mail.md)|
 |Decomposition|One process whose modules use each other only through their public interface. The compiler enforces the boundaries.|[ADR 0007](../decisions/0007-modular-monolith.md)|
 |Client libraries|Accessible widgets, routing, server state and forms come from established libraries. The API client is generated.|[ADR 0008](../decisions/0008-client-libraries.md)|
+|Build and deployment|One Nix flake builds the NixOS module, the OCI image and a static release binary and runs every check.|[ADR 0005](../decisions/0005-nix-flake-as-build-definition.md)|

@@ -20,6 +20,16 @@ This file routes. It names where things live and the rules that apply everywhere
 - An architecturally significant decision gets a record in `docs/decisions/`.
 - When an agent repeats a mistake, add a rule here.
 
+## Pull requests
+
+CI runs fast checks on every push to a pull request. Pull requests that are ready for review also run the end-to-end test, the memory measurement and the NixOS test, which take much longer.
+
+- Open a pull request as a draft. Pushing to a draft needs no approval.
+- Before each push, run the fast checks locally with `nix flake check`. Never push a state that fails them.
+- Push once per round of feedback. Collect every remark of a review, fix them together and then push.
+- Mark the pull request ready for review once the work is complete.
+- After an approval, push only after asking.
+
 ## Code style
 
 - Every file follows `.editorconfig`.
