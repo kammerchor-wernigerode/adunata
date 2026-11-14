@@ -4,9 +4,9 @@ Each group is one commit that passes `nix build .#checks.<system>.fast`.
 
 ## 1. Drop test databases after each test
 
-- [ ] 1.1 Give `empty_database` and `fresh_database` in `server/src/database.rs` a return type that owns the database name and drops the database with `WITH (FORCE)` in its `Drop`, as design.md describes. Update the 19 call sites in `database.rs`, `health.rs`, `mail.rs` and `spike.rs` so each binds the value for the whole test. Verify that `cargo test` passes and that `psql -tAc "select count(*) from pg_database where datname like 'adunata\_test\_%'"` returns the same number before and after the run.
-- [ ] 1.2 Update the server slice row in [section 08](../../../docs/arc42/08-cross-cutting-concepts.md#testing) to say that each test drops its database afterwards. Verify that the relative links resolve.
-- [ ] 1.3 Extend the README sentence on `cargo test` in "Tests and lints" to say that each test drops its database. Add the command that drops leftover `adunata_test_*` databases while no tests run. Verify that the command runs as written.
+- [x] 1.1 Give `empty_database` and `fresh_database` in `server/src/database.rs` a return type that owns the database name and drops the database with `WITH (FORCE)` in its `Drop`, as design.md describes. Update the 19 call sites in `database.rs`, `health.rs`, `mail.rs` and `spike.rs` so each binds the value for the whole test. Verify that `cargo test` passes and that `psql -tAc "select count(*) from pg_database where datname like 'adunata\_test\_%'"` returns the same number before and after the run.
+- [x] 1.2 Update the server slice row in [section 08](../../../docs/arc42/08-cross-cutting-concepts.md#testing) to say that each test drops its database afterwards. Verify that the relative links resolve.
+- [x] 1.3 Extend the README sentence on `cargo test` in "Tests and lints" to say that each test drops its database. Add the command that drops leftover `adunata_test_*` databases while no tests run. Verify that the command runs as written.
 
 ## 2. Share compiler output across worktrees
 

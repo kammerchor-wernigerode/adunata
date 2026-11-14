@@ -107,7 +107,13 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 |`client/`|`npm test`|Unit tests|
 |`client/`|`npm run lint`|Lints|
 
-`cargo test` creates a separate database for each test, so the user in `PGUSER` needs the right to create databases.
+`cargo test` creates a separate database for each test and drops it when the test ends, so the user in `PGUSER` needs the right to create databases.
+
+A test run that is killed leaves its databases behind. Drop them while no tests run:
+
+```sh
+psql -tAc "select datname from pg_database where datname like 'adunata\_test\_%'" | xargs -rn1 dropdb --force
+```
 
 The end-to-end tests run against a release build in Nix:
 

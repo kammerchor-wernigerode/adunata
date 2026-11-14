@@ -244,7 +244,8 @@ mod tests {
 
     #[tokio::test]
     async fn mail_server_comes_back() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         let token = unique_token();
         enqueue_test_mail(&pool, &token).await;
 
@@ -299,7 +300,8 @@ mod tests {
     #[tokio::test]
     async fn log_a_failed_mail_delivery() {
         let logs = captured_logs();
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         let token = unique_token();
         enqueue_test_mail(&pool, &token).await;
         let outbox_id: i64 = sqlx::query_scalar("SELECT id FROM mail_outbox")
@@ -352,7 +354,8 @@ mod tests {
 
     #[tokio::test]
     async fn send_through_the_configured_server() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         let token = unique_token();
         enqueue_test_mail(&pool, &token).await;
         deliver_due(
@@ -368,7 +371,8 @@ mod tests {
 
     #[tokio::test]
     async fn server_offers_no_encryption() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         let token = unique_token();
         enqueue_test_mail(&pool, &token).await;
         let port = env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025);
@@ -411,7 +415,8 @@ mod tests {
 
     #[tokio::test]
     async fn retry_delays_grow() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         enqueue_test_mail(&pool, &unique_token()).await;
         deliver_due(&pool, &delivery(1)).await.unwrap();
         let first = retry_delay_seconds(&pool).await;
@@ -424,7 +429,8 @@ mod tests {
 
     #[tokio::test]
     async fn restart_with_pending_mail() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         let token = unique_token();
         enqueue_test_mail(&pool, &token).await;
         let options = pool.connect_options().as_ref().clone();
@@ -443,7 +449,8 @@ mod tests {
 
     #[tokio::test]
     async fn accepted_mail() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         let token = unique_token();
         enqueue_test_mail(&pool, &token).await;
         let mailpit = delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025));
@@ -456,7 +463,8 @@ mod tests {
 
     #[tokio::test]
     async fn both_parts_hold_every_link() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         let token = unique_token();
         let link = format!("https://adunata.example.org/invitations/{token}");
         let mut connection = pool.acquire().await.unwrap();
@@ -481,7 +489,8 @@ mod tests {
 
     #[tokio::test]
     async fn action_fails_after_its_mail_was_added() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         let mut transaction = pool.begin().await.unwrap();
         let mail = Mail {
             recipient: "Organizer <organizer@example.org>".to_owned(),
@@ -500,7 +509,8 @@ mod tests {
 
     #[tokio::test]
     async fn permanent_failure() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         enqueue_test_mail(&pool, &unique_token()).await;
         for _ in 0..3 {
             sqlx::query("UPDATE mail_outbox SET next_attempt_at = now()")

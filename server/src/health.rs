@@ -88,7 +88,8 @@ mod tests {
 
     #[tokio::test]
     async fn healthy_instance() {
-        let (status, body) = get_health(fresh_database().await).await;
+        let database = fresh_database().await;
+        let (status, body) = get_health(database.pool()).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body, json!({ "status": "ready" }));
     }

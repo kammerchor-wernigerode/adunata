@@ -77,14 +77,68 @@ async fn applied_version(pool: &PgPool) -> Result<Option<i64>, sqlx::Error> {
 #[cfg(test)]
 pub mod testing {
     use std::sync::atomic::{AtomicU32, Ordering};
+    use std::thread;
 
     use sqlx::postgres::PgConnectOptions;
     use sqlx::{AssertSqlSafe, Connection, PgConnection, PgPool};
 
     static NEXT: AtomicU32 = AtomicU32::new(0);
 
+    /// A database that exists for one test. Dropping it drops the database on the server.
+    pub struct TestDatabase {
+        server: PgConnectOptions,
+        name: String,
+    }
+
+    impl TestDatabase {
+        pub fn options(&self) -> PgConnectOptions {
+            self.server.clone().database(&self.name)
+        }
+    }
+
+    impl Drop for TestDatabase {
+        fn drop(&mut self) {
+            let server = self.server.clone();
+            let statement = format!(r#"DROP DATABASE "{}" WITH (FORCE)"#, self.name);
+            let outcome = thread::spawn(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()?
+                    .block_on(execute_on_server(&server, statement))
+                    .map_err(std::io::Error::other)
+            })
+            .join();
+            if !matches!(outcome, Ok(Ok(()))) {
+                eprintln!("test database {} was not dropped", self.name);
+            }
+        }
+    }
+
+    /// A test database with all migrations applied.
+    pub struct FreshDatabase {
+        pool: PgPool,
+        _database: TestDatabase,
+    }
+
+    impl FreshDatabase {
+        pub fn pool(&self) -> PgPool {
+            self.pool.clone()
+        }
+    }
+
+    async fn execute_on_server(
+        server: &PgConnectOptions,
+        statement: String,
+    ) -> Result<(), sqlx::Error> {
+        let mut admin = PgConnection::connect_with(server).await?;
+        sqlx::raw_sql(AssertSqlSafe(statement))
+            .execute(&mut admin)
+            .await?;
+        Ok(())
+    }
+
     /// Creates an empty database without any schema. The server comes from the libpq environment variables.
-    pub async fn empty_database() -> PgConnectOptions {
+    pub async fn empty_database() -> TestDatabase {
         let server = PgConnectOptions::new();
         let name = format!(
             "adunata_test_{}_{}",
@@ -98,14 +152,19 @@ pub mod testing {
             .execute(&mut admin)
             .await
             .expect("test user must be allowed to create databases");
-        server.database(&name)
+        TestDatabase { server, name }
     }
 
     /// Creates an empty database with all migrations applied.
-    pub async fn fresh_database() -> PgPool {
-        super::connect(empty_database().await)
+    pub async fn fresh_database() -> FreshDatabase {
+        let database = empty_database().await;
+        let pool = super::connect(database.options())
             .await
-            .expect("migrations must apply to an empty database")
+            .expect("migrations must apply to an empty database");
+        FreshDatabase {
+            pool,
+            _database: database,
+        }
     }
 }
 
@@ -124,14 +183,16 @@ mod tests {
 
     #[tokio::test]
     async fn start_against_an_empty_database() {
-        let pool = connect(empty_database().await).await.unwrap();
+        let database = empty_database().await;
+        let pool = connect(database.options()).await.unwrap();
         assert!(table_exists(&pool, "spike_responses").await);
         assert!(table_exists(&pool, "mail_outbox").await);
     }
 
     #[tokio::test]
     async fn start_after_an_update() {
-        let options = empty_database().await;
+        let database = empty_database().await;
+        let options = database.options();
         let pool = connect(options.clone()).await.unwrap();
         let latest = latest_supported_version();
         sqlx::query("DROP TABLE mail_outbox")
@@ -152,7 +213,8 @@ mod tests {
 
     #[tokio::test]
     async fn start_after_a_downgrade() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         let newer = latest_supported_version() + 1;
         sqlx::query(
             "INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time) VALUES ($1, 'from a newer release', true, '\\x00', 0)",

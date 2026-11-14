@@ -228,7 +228,8 @@ mod tests {
 
     #[tokio::test]
     async fn stores_a_valid_response() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         let (status, _) = post(
             api::router(crate::api::testing::state(pool.clone())),
             &ada(),
@@ -246,7 +247,8 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_a_taken_name_at_the_name_field() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         post(
             api::router(crate::api::testing::state(pool.clone())),
             &ada(),
@@ -278,7 +280,8 @@ mod tests {
 
     #[tokio::test]
     async fn action_fails() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         post(
             api::router(crate::api::testing::state(pool.clone())),
             &ada(),
@@ -300,7 +303,8 @@ mod tests {
 
     #[tokio::test]
     async fn action_succeeds_while_the_mail_server_is_down() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         let (status, _) = post(
             api::router(crate::api::testing::state(pool.clone())),
             &ada(),
@@ -372,7 +376,8 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_a_blank_name() {
-        let pool = fresh_database().await;
+        let database = fresh_database().await;
+        let pool = database.pool();
         let (status, body) = post(
             api::router(crate::api::testing::state(pool)),
             &json!({ "name": "  ", "attendance": "declined", "beds": 0 }),
