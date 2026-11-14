@@ -26,16 +26,7 @@ jobs:
           restore-prefixes-first-match: nix-${{ runner.os }}-
           gc-max-store-size-linux: 8G
       - name: Formatting, lints, unit, slice and contract checks
-        run: >-
-          nix build --print-build-logs --no-link --option abort-on-warn true
-          .#checks.x86_64-linux.nixFormatting
-          .#checks.x86_64-linux.editorconfig
-          .#checks.x86_64-linux.rustFormatting
-          .#checks.x86_64-linux.clippy
-          .#checks.x86_64-linux.server
-          .#checks.x86_64-linux.clientLint
-          .#checks.x86_64-linux.clientTest
-          .#checks.x86_64-linux.contract
+        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.fast
 
   full:
     name: All checks
