@@ -6,6 +6,7 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use fluent_bundle::concurrent::FluentBundle;
 use fluent_bundle::{FluentArgs, FluentResource};
+use sqlx::PgPool;
 use time::Date;
 use unic_langid::LanguageIdentifier;
 use utoipa_axum::router::OpenApiRouter;
@@ -76,7 +77,7 @@ fn format(bundle: &FluentBundle<FluentResource>, id: &str, args: &FluentArgs) ->
     )
 }
 
-pub fn router<S: Clone + Send + Sync + 'static>() -> OpenApiRouter<S> {
+pub fn router() -> OpenApiRouter<PgPool> {
     OpenApiRouter::new().routes(routes!(catalog))
 }
 
@@ -147,7 +148,8 @@ mod tests {
         use axum::http::Request;
         use tower::ServiceExt;
 
-        let app: axum::Router = router::<()>().split_for_parts().0;
+        let pool = PgPool::connect_lazy("postgres://localhost").unwrap();
+        let app: axum::Router = router().split_for_parts().0.with_state(pool);
         let german = app
             .clone()
             .oneshot(
