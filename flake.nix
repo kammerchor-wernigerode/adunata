@@ -283,28 +283,34 @@
         let
           built = build pkgs;
         in
-        {
-          inherit (built)
-            server
-            clippy
-            rustFormatting
-            clientLint
-            clientTest
-            contract
-            ;
+        let
+          fastChecks = {
+            inherit (built)
+              server
+              clippy
+              rustFormatting
+              clientLint
+              clientTest
+              contract
+              ;
 
-          nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
-            find ${self} -name '*.nix' -exec nixfmt --check {} +
-            touch $out
-          '';
+            nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
+              find ${self} -name '*.nix' -exec nixfmt --check {} +
+              touch $out
+            '';
 
-          editorconfig =
-            pkgs.runCommand "check-editorconfig" { nativeBuildInputs = [ pkgs.editorconfig-checker ]; }
-              ''
-                cd ${self}
-                editorconfig-checker
-                touch $out
-              '';
+            editorconfig =
+              pkgs.runCommand "check-editorconfig" { nativeBuildInputs = [ pkgs.editorconfig-checker ]; }
+                ''
+                  cd ${self}
+                  editorconfig-checker
+                  touch $out
+                '';
+          };
+        in
+        fastChecks
+        // {
+          fast = pkgs.linkFarm "fast-checks" fastChecks;
         }
         // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           inherit (built) memory endToEnd;
