@@ -6,6 +6,13 @@ Adunata is a web application for choirs and instrumental ensembles. Organizers i
 
 The requirements live as capabilities in [`openspec/specs/`](../../openspec/specs/). This document does not repeat them.
 
+|Capability|What it covers|
+|-|-|
+|[instance-configuration](../../openspec/specs/instance-configuration/spec.md)|How operators configure an instance and how Adunata checks the configuration|
+|[localization](../../openspec/specs/localization/spec.md)|Languages of the client and of mail, catalogs and date formats|
+|[mail-delivery](../../openspec/specs/mail-delivery/spec.md)|Sending mail through the outbox with encryption and retries|
+|[service-operation](../../openspec/specs/service-operation/spec.md)|Installing, starting, migrating, monitoring and stopping an instance|
+
 ## Quality goals
 
 The goals are ordered by priority.
