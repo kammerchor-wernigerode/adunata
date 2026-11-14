@@ -88,11 +88,10 @@
             '';
           };
           cargoArtifacts = craneLib.buildDepsOnly serverArgs;
+          server = craneLib.buildPackage (serverArgs // { inherit cargoArtifacts; });
         in
         {
-          inherit client;
-
-          server = craneLib.buildPackage (serverArgs // { inherit cargoArtifacts; });
+          inherit client server;
 
           clippy = craneLib.cargoClippy (
             serverArgs
@@ -109,6 +108,45 @@
             buildPhase = "npm test";
             installPhase = "touch $out";
           };
+
+          memory =
+            pkgs.runCommand "check-memory"
+              {
+                nativeBuildInputs = [
+                  pkgs.postgresql_17
+                  pkgs.mailpit
+                  pkgs.oha
+                ];
+                SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+              }
+              ''
+                export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata
+                mkdir -p "$PGHOST"
+                initdb --username="$PGUSER" --auth=trust --no-instructions >/dev/null
+                pg_ctl start --wait --silent --options="-k $PGHOST -c listen_addresses="
+                mailpit --smtp 127.0.0.1:11025 --listen 127.0.0.1:18025 --quiet &
+                ADUNATA_DATABASE_URL="postgres:///postgres?host=$PGHOST&user=$PGUSER" \
+                  ADUNATA_LISTEN_ADDRESS=127.0.0.1:18080 ADUNATA_SMTP_PORT=11025 \
+                  ${server}/bin/adunata &
+                adunataPid=$!
+                for _ in $(seq 100); do (echo > /dev/tcp/127.0.0.1/18080) 2>/dev/null && break; sleep 0.1; done
+
+                oha --no-tui -z 30s -c 5 -m POST \
+                  -H 'content-type: application/json' \
+                  -d '{"name":"Load","attendance":"accepted","beds":1}' \
+                  http://127.0.0.1:18080/api/spike-responses > post.txt &
+                postPid=$!
+                oha --no-tui -z 30s -c 5 http://127.0.0.1:18080/ > get.txt
+                wait "$postPid"
+
+                peak=$(awk '/VmHWM/ { print $2 }' "/proc/$adunataPid/status")
+                echo "Peak resident memory: $((peak / 1024)) MB"
+                grep -E 'Requests/sec|Success rate' post.txt get.txt
+                kill "$adunataPid"
+                pg_ctl stop --wait --silent
+                test "$peak" -lt $((150 * 1024))
+                echo "$peak" > $out
+              '';
 
           clientLint = clientPackage {
             pname = "adunata-client-lint";
@@ -151,6 +189,7 @@
                 touch $out
               '';
         }
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux { inherit (built) memory; }
       );
 
       devShells = forAllSystems (pkgs: {
