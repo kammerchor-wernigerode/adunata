@@ -22,7 +22,7 @@
 - [x] 2.8 Try one translation catalog that the server delivers to the client and verify whether the client and the mail render from it, otherwise record why two catalogs are needed
 - [x] 2.9 Add an automated accessibility check of the form with axe and verify that it reports no violation
 - [x] 2.10 Measure the peak resident memory of a Linux release build while 10 concurrent connections send the form and load the client for a fixed duration and verify that it stays below 150 MB
-- [ ] 2.11 Check the spike code against the rules for plain Rust and the success criteria in design.md and present each result to the maintainer, who either accepts records 0002 and 0003 with the chosen libraries or has 0002 superseded by a record for TypeScript on server and client. Revise design.md before continuing if the spike failed
+- [x] 2.11 Check the spike code against the rules for plain Rust and the success criteria in design.md and present each result to the maintainer, who either accepts records 0002 and 0003 with the chosen libraries or has 0002 superseded by a record for TypeScript on server and client. Revise design.md before continuing if the spike failed
 
 ## 3. Server structure and client foundation
 
