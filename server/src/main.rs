@@ -32,7 +32,10 @@ async fn serve() {
     });
     let pool = database::connect(configuration.database)
         .await
-        .expect("database must be reachable and migrations must apply");
+        .unwrap_or_else(|error| {
+            eprintln!("Adunata cannot start because {error}");
+            std::process::exit(1);
+        });
     let delivery = mail::Delivery {
         transport: mail::unencrypted_transport(&configuration.smtp),
         sender: configuration.mail_sender,
