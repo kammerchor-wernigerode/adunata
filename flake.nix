@@ -90,6 +90,22 @@
           cargoArtifacts = craneLib.buildDepsOnly serverArgs;
           server = craneLib.buildPackage (serverArgs // { inherit cargoArtifacts; });
           openapi = pkgs.runCommand "adunata-openapi" { } "${server}/bin/adunata openapi > $out";
+
+          # Starts PostgreSQL, Mailpit and the release binary on port 18080 and leaves the binary's PID in $adunataPid.
+          startInstance = ''
+            export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata
+            mkdir -p "$PGHOST"
+            initdb --username="$PGUSER" --auth=trust --no-instructions >/dev/null
+            pg_ctl start --wait --silent --options="-k $PGHOST -c listen_addresses="
+            mailpit --smtp 127.0.0.1:11025 --listen 127.0.0.1:18025 --quiet &
+            ADUNATA_DATABASE_URL="postgres:///postgres?host=$PGHOST&user=$PGUSER" \
+              ADUNATA_LISTEN_ADDRESS=127.0.0.1:18080 ADUNATA_PUBLIC_URL=http://localhost:18080 \
+              ADUNATA_SMTP_HOST=127.0.0.1 ADUNATA_SMTP_PORT=11025 ADUNATA_SMTP_ENCRYPTION=none \
+              ADUNATA_MAIL_SENDER="Adunata <adunata@example.org>" \
+              ${server}/bin/adunata &
+            adunataPid=$!
+            for _ in $(seq 100); do (echo > /dev/tcp/127.0.0.1/18080) 2>/dev/null && break; sleep 0.1; done
+          '';
         in
         {
           inherit client server;
@@ -138,18 +154,7 @@
                 SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
               }
               ''
-                export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata
-                mkdir -p "$PGHOST"
-                initdb --username="$PGUSER" --auth=trust --no-instructions >/dev/null
-                pg_ctl start --wait --silent --options="-k $PGHOST -c listen_addresses="
-                mailpit --smtp 127.0.0.1:11025 --listen 127.0.0.1:18025 --quiet &
-                ADUNATA_DATABASE_URL="postgres:///postgres?host=$PGHOST&user=$PGUSER" \
-                  ADUNATA_LISTEN_ADDRESS=127.0.0.1:18080 ADUNATA_PUBLIC_URL=http://localhost:18080 \
-                  ADUNATA_SMTP_HOST=127.0.0.1 ADUNATA_SMTP_PORT=11025 ADUNATA_SMTP_ENCRYPTION=none \
-                  ADUNATA_MAIL_SENDER="Adunata <adunata@example.org>" \
-                  ${server}/bin/adunata &
-                adunataPid=$!
-                for _ in $(seq 100); do (echo > /dev/tcp/127.0.0.1/18080) 2>/dev/null && break; sleep 0.1; done
+                ${startInstance}
 
                 oha --no-tui -z 30s -c 5 -m POST \
                   -H 'content-type: application/json' \
@@ -167,6 +172,29 @@
                 test "$peak" -lt $((150 * 1024))
                 echo "$peak" > $out
               '';
+
+          endToEnd = clientPackage {
+            pname = "adunata-end-to-end";
+            nativeBuildInputs = [
+              pkgs.postgresql_17
+              pkgs.mailpit
+            ];
+            PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
+            PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
+            FONTCONFIG_FILE = pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; };
+            ADUNATA_E2E_URL = "http://127.0.0.1:18080";
+            buildPhase = ''
+              export HOME="$TMPDIR"
+              ${startInstance}
+              if ! npx playwright test; then
+                find test-results -name '*.md' -exec cat {} +
+                exit 1
+              fi
+              kill "$adunataPid"
+              pg_ctl stop --wait --silent
+            '';
+            installPhase = "touch $out";
+          };
 
           clientLint = clientPackage {
             pname = "adunata-client-lint";
@@ -210,7 +238,7 @@
                 touch $out
               '';
         }
-        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux { inherit (built) memory; }
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux { inherit (built) memory endToEnd; }
       );
 
       devShells = forAllSystems (pkgs: {
