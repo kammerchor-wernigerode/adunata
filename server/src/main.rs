@@ -23,26 +23,34 @@ async fn main() {
 }
 
 async fn serve() {
-    let configuration = Configuration::from_environment();
+    let configuration = Configuration::from_environment().unwrap_or_else(|problems| {
+        eprintln!("Adunata cannot start because its configuration is invalid:");
+        for problem in problems {
+            eprintln!("- {problem}");
+        }
+        std::process::exit(1);
+    });
     let pool = database::connect(configuration.database)
         .await
         .expect("database must be reachable and migrations must apply");
     let delivery = mail::Delivery {
-        transport: mail::unencrypted_transport(&configuration.smtp_host, configuration.smtp_port),
-        sender: "Adunata <adunata@example.org>"
-            .parse()
-            .expect("sender must be a mailbox"),
+        transport: mail::unencrypted_transport(&configuration.smtp),
+        sender: configuration.mail_sender,
         max_attempts: 8,
     };
     tokio::spawn(mail::run(pool.clone(), delivery, Duration::from_secs(2)));
     let listener = tokio::net::TcpListener::bind(configuration.listen_address)
         .await
         .expect("listen address must be free");
-    axum::serve(listener, app(pool))
+    let state = api::AppState {
+        pool,
+        public_url: configuration.public_url,
+    };
+    axum::serve(listener, app(state))
         .await
         .expect("server must keep running");
 }
 
-fn app(pool: sqlx::PgPool) -> axum::Router {
-    api::router(pool).merge(client::router())
+fn app(state: api::AppState) -> axum::Router {
+    api::router(state).merge(client::router())
 }
