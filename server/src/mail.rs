@@ -7,7 +7,7 @@ use sqlx::{PgConnection, PgPool};
 
 use crate::configuration::{Encryption, Smtp};
 
-const BATCH_SIZE: i64 = 10;
+const BATCH_SIZE: usize = 10;
 
 pub type Transport = AsyncSmtpTransport<Tokio1Executor>;
 
@@ -70,17 +70,18 @@ pub async fn run(pool: PgPool, delivery: Delivery, interval: Duration) {
     }
 }
 
+/// Delivers due mail, each in its own transaction, so a mail the server accepted stays marked as sent whatever happens to the next one.
 async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Error> {
-    let mut transaction = pool.begin().await?;
-    let pending: Vec<PendingMail> = sqlx::query_as(
-        "SELECT id, recipient, subject, text_body, html_body, attempts FROM mail_outbox \
-          WHERE sent_at IS NULL AND failed_at IS NULL AND next_attempt_at <= now() \
-          ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED",
-    )
-    .bind(BATCH_SIZE)
-    .fetch_all(&mut *transaction)
-    .await?;
-    for mail in pending {
+    for _ in 0..BATCH_SIZE {
+        let mut transaction = pool.begin().await?;
+        let pending: Option<PendingMail> = sqlx::query_as(
+            "SELECT id, recipient, subject, text_body, html_body, attempts FROM mail_outbox WHERE sent_at IS NULL AND failed_at IS NULL AND next_attempt_at <= now() ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED",
+        )
+        .fetch_optional(&mut *transaction)
+        .await?;
+        let Some(mail) = pending else {
+            return transaction.commit().await;
+        };
         if let Err(failure) = send(delivery, &mail).await {
             tracing::warn!(
                 outbox_id = mail.id,
@@ -92,8 +93,9 @@ async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Err
         } else {
             mark_sent(&mut transaction, mail.id).await?;
         }
+        transaction.commit().await?;
     }
-    transaction.commit().await
+    Ok(())
 }
 
 /// Sends one mail. A failure names only its kind, because messages from mail servers often repeat the recipient.
@@ -151,10 +153,7 @@ async fn schedule_retry(
 ) -> Result<(), sqlx::Error> {
     let attempts = mail.attempts + 1;
     sqlx::query(
-        "UPDATE mail_outbox SET attempts = $2, \
-          next_attempt_at = now() + make_interval(secs => LEAST(10 * power(2, $2 - 1), 3600)), \
-          failed_at = CASE WHEN $2 >= $3 THEN now() END \
-          WHERE id = $1",
+        "UPDATE mail_outbox SET attempts = $2, next_attempt_at = now() + make_interval(secs => LEAST(10 * power(2, $2 - 1), 3600)), failed_at = CASE WHEN $2 >= $3 THEN now() END WHERE id = $1",
     )
     .bind(mail.id)
     .bind(attempts)
