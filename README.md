@@ -39,6 +39,14 @@ Install [Nix](https://nixos.org/download/) and enable flakes. The development sh
 nix develop
 ```
 
+With [direnv](https://direnv.net) the shell loads by itself whenever you enter the repository and keeps your own shell with its prompt and aliases. [nix-direnv](https://github.com/nix-community/nix-direnv) caches the shell, so entering takes no time after the first load. Allow the tracked `.envrc` once:
+
+```sh
+direnv allow
+```
+
+The `.envrc` also loads an untracked `.envrc.local`, whose variables override those of the shell. A shell without the direnv hook, such as the one of a coding agent, runs a command in the environment with `direnv exec . <command>`.
+
 The shell does not start the services. Start them in their own terminal, also inside `nix develop`:
 
 ```sh
@@ -95,7 +103,7 @@ To work on the client, keep the server running and start the Vite development se
 npm run dev
 ```
 
-It serves the client on <http://localhost:5173> and reloads on every change. It forwards requests to `/api` to the server on port 8080.
+It serves the client on <http://localhost:5173> and reloads on every change. It forwards requests to `/api` to the server on port 8080. `ADUNATA_VITE_PORT` changes the port of Vite. The forwarding follows `ADUNATA_LISTEN_ADDRESS`.
 
 ### Tests and lints
 

@@ -14,9 +14,9 @@ Each group is one commit that passes `nix build .#checks.<system>.fast`.
 
 ## 3. Load the development shell through direnv
 
-- [ ] 3.1 Add `.envrc` with `use flake` followed by `source_env_if_exists .envrc.local`. Add `.envrc.local` and `/.direnv` to `.gitignore`. Verify that `direnv allow` in the main checkout sets `ADUNATA_DATABASE_URL` to the database `adunata`.
-- [ ] 3.2 Let `client/vite.config.ts` read `ADUNATA_VITE_PORT` with fallback 5173, set `strictPort` and build the proxy target from `ADUNATA_LISTEN_ADDRESS` with fallback `127.0.0.1:8080`. Verify that `npm run dev` without the variables serves on 5173 and proxies `/api` to 8080. Verify that `npm run lint` passes.
-- [ ] 3.3 Describe direnv with nix-direnv as the way into the development shell in the README section "With Nix". Mention `direnv exec . <command>` for shells without the direnv hook. In "Run Adunata" say that `ADUNATA_VITE_PORT` and `ADUNATA_LISTEN_ADDRESS` set the Vite port and its proxy target. Verify that each documented command runs as written.
+- [x] 3.1 Add `.envrc` with `use flake` followed by `source_env_if_exists .envrc.local`. Add `.envrc.local` and `/.direnv` to `.gitignore`. Verify that `direnv allow` in the main checkout sets `ADUNATA_DATABASE_URL` to the database `adunata`.
+- [x] 3.2 Let `client/vite.config.ts` read `ADUNATA_VITE_PORT` with fallback 5173, set `strictPort` and build the proxy target from `ADUNATA_LISTEN_ADDRESS` with fallback `127.0.0.1:8080`. Verify that `npm run dev` without the variables serves on 5173 and proxies `/api` to 8080. Verify that `npm run lint` passes.
+- [x] 3.3 Describe direnv with nix-direnv as the way into the development shell in the README section "With Nix". Mention `direnv exec . <command>` for shells without the direnv hook. In "Run Adunata" say that `ADUNATA_VITE_PORT` and `ADUNATA_LISTEN_ADDRESS` set the Vite port and its proxy target. Verify that each documented command runs as written.
 
 ## 4. Plugin for git-worktree-init
 
