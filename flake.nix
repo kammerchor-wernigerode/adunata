@@ -103,8 +103,8 @@
           };
           system = pkgs.stdenv.hostPlatform.system;
 
-          # A statically linked binary that runs on any Linux distribution, packed with the example systemd unit.
-          release =
+          # A statically linked binary that runs on any Linux distribution. The release archive and the image both carry it.
+          staticServer =
             let
               target = muslTargets.${system};
               targetVariable = pkgs.lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] target);
@@ -123,21 +123,22 @@
                 HOST_CC = "${pkgs.stdenv.cc}/bin/cc";
                 doCheck = false;
               };
-              binary = muslCrane.buildPackage (args // { cargoArtifacts = muslCrane.buildDepsOnly args; });
             in
-            pkgs.runCommand "adunata-release-${target}" { } ''
-              mkdir $out
-              cp ${binary}/bin/adunata $out/adunata
-              cp ${./deploy/systemd/adunata.service} $out/adunata.service
-              cp ${./deploy/systemd/adunata.env.example} $out/adunata.env.example
-              cp ${./LICENSE} $out/LICENSE
-            '';
+            muslCrane.buildPackage (args // { cargoArtifacts = muslCrane.buildDepsOnly args; });
+
+          release = pkgs.runCommand "adunata-release-${muslTargets.${system}}" { } ''
+            mkdir $out
+            cp ${staticServer}/bin/adunata $out/adunata
+            cp ${./deploy/systemd/adunata.service} $out/adunata.service
+            cp ${./deploy/systemd/adunata.env.example} $out/adunata.env.example
+            cp ${./LICENSE} $out/LICENSE
+          '';
 
           image = pkgs.dockerTools.buildLayeredImage {
             name = "adunata";
             tag = "latest";
             config = {
-              Cmd = [ (pkgs.lib.getExe server) ];
+              Cmd = [ "${staticServer}/bin/adunata" ];
               Env = [ "ADUNATA_LISTEN_ADDRESS=0.0.0.0:8080" ];
               ExposedPorts."8080/tcp" = { };
               User = "65534:65534";
