@@ -49,7 +49,7 @@
 
 ## 6. Mail delivery
 
-- [ ] 6.1 Send mail through the configured SMTP server and require encryption unless the operator allows otherwise. Verify with tests for the scenarios "Send through the configured server" and "Server offers no encryption"
+- [x] 6.1 Send mail through the configured SMTP server and require encryption unless the operator allows otherwise. Verify with tests for the scenarios "Send through the configured server" and "Server offers no encryption"
 - [ ] 6.2 Store every mail in the outbox in the transaction of its action and verify with tests for the scenarios "Action fails" and "Action succeeds while the mail server is down"
 - [ ] 6.3 Retry failed deliveries with increasing delays up to the configured number of attempts and resume after a restart. Verify with tests for the scenarios "Mail server comes back", "Permanent failure" and "Restart with pending mail"
 - [ ] 6.4 Mark a mail as sent once the server accepts it and never resend it. Verify with a test for the scenario "Accepted mail"

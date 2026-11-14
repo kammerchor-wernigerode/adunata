@@ -39,9 +39,12 @@ async fn serve() {
             std::process::exit(1);
         });
     let delivery = mail::Delivery {
-        transport: mail::unencrypted_transport(&configuration.smtp),
+        transport: mail::transport(&configuration.smtp).unwrap_or_else(|error| {
+            tracing::error!(%error, "mail server settings are unusable");
+            std::process::exit(1);
+        }),
         sender: configuration.mail_sender,
-        max_attempts: 8,
+        max_attempts: configuration.mail_max_attempts,
     };
     tokio::spawn(mail::run(pool.clone(), delivery, Duration::from_secs(2)));
     let listener = tokio::net::TcpListener::bind(configuration.listen_address)

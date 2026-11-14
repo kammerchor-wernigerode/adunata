@@ -145,7 +145,7 @@
                 mailpit --smtp 127.0.0.1:11025 --listen 127.0.0.1:18025 --quiet &
                 ADUNATA_DATABASE_URL="postgres:///postgres?host=$PGHOST&user=$PGUSER" \
                   ADUNATA_LISTEN_ADDRESS=127.0.0.1:18080 ADUNATA_PUBLIC_URL=http://localhost:18080 \
-                  ADUNATA_SMTP_HOST=127.0.0.1 ADUNATA_SMTP_PORT=11025 \
+                  ADUNATA_SMTP_HOST=127.0.0.1 ADUNATA_SMTP_PORT=11025 ADUNATA_SMTP_ENCRYPTION=none \
                   ADUNATA_MAIL_SENDER="Adunata <adunata@example.org>" \
                   ${server}/bin/adunata &
                 adunataPid=$!
@@ -238,6 +238,7 @@
           ADUNATA_DATABASE_URL = "postgres://adunata:adunata@localhost/adunata";
           ADUNATA_SMTP_HOST = "localhost";
           ADUNATA_SMTP_PORT = "1025";
+          ADUNATA_SMTP_ENCRYPTION = "none";
           ADUNATA_MAIL_SENDER = "Adunata <adunata@localhost>";
         };
       });
