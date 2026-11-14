@@ -100,6 +100,9 @@ pkgs.testers.runNixOSTest {
         )
         binary.wait_for_open_port(8080)
         assert_serves_adunata(binary)
+        _, linkage = binary.execute("ldd /usr/local/bin/adunata 2>&1")
+        print(linkage)
+        assert "statically linked" in linkage or "not a dynamic executable" in linkage, linkage
 
     with subtest("Install as container"):
         container.wait_for_unit("postgresql.service")
