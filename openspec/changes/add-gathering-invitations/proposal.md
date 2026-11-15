@@ -15,9 +15,13 @@ Ensembles meet every four to six weeks to rehearse and give concerts. Such a gat
 - Members who open their link see who has accepted or accepted tentatively. They see no other member's period, beds or comment.
 - Organizers see every response and the totals per status, along with the beds needed and offered.
 - Times of arrival and departure appear in the time zone of the instance, which operators set with a new setting.
-- Operators can configure how long Adunata keeps responses and comments after a gathering ends. By default it keeps them. Deleting a member deletes the member's invitations and responses.
+- Adunata deletes comments 30 days and responses 365 days after a gathering ends. Operators can change both periods or keep the data. Deleting a member deletes the member's invitations, responses, sessions and queued mail.
+- Mail in the outbox loses its content once its delivery ends, so personal links do not stay in the database.
+- Operators can link a privacy notice and an imprint. Every page and every invitation mail shows the links.
+- Operators name the reverse proxies that Adunata trusts for the network address of a request.
+- An operator who has lost every organizer mailbox restores access with a subcommand of the binary.
 
-Out of scope for this change are shared activities such as a dinner, reminders, response deadlines, travel by car, mail that covers several gatherings, exports, calendar links, voices or sections and sign-in through an external identity provider. Shared activities belong to the core and follow in a later change. Taking over data from the predecessor application also follows in its own change. Adunata works without it and starts empty.
+Out of scope for this change are shared activities such as a dinner, reminders, response deadlines, travel by car, mail that covers several gatherings, notifying members when the days of a gathering change, statistics about past gatherings, exports, calendar links, voices or sections and sign-in through an external identity provider. Shared activities belong to the core and follow in a later change. Taking over data from the predecessor application also follows in its own change. Adunata works without it and starts empty.
 
 This change depends on `establish-foundation`.
 
@@ -33,11 +37,12 @@ This change depends on `establish-foundation`.
 
 ### Modified Capabilities
 
-None.
+- `instance-configuration`: the required time zone, trusted proxies and links to a privacy notice and an imprint
+- `mail-delivery`: mail loses its content once its delivery ends and belongs to a member
 
 ## Impact
 
 - The server gains modules for access, members, gatherings, invitations and responses. The browser client gains views for organizers and the response form for members.
 - New mails are the sign-in link, the invitation and the cancellation of a gathering, all in German and English.
-- The database gains tables for members, sessions, gatherings, invitations and responses.
-- The arc42 sections on building blocks, runtime, cross-cutting concepts, quality requirements and the glossary change. New decision records cover sign-in by mail link and personal invitation links.
+- The database gains tables for members, sessions, sign-in links, gatherings, invitations and responses. The outbox gains references to the member and the invitation.
+- Most arc42 sections change, as listed in the design. New decision records cover sign-in by mail link, personal links in the fragment of the URL, wall-clock times in the time zone of the instance and the content of delivered mail.

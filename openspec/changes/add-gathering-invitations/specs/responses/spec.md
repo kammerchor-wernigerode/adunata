@@ -22,7 +22,11 @@ A member who accepts or accepts tentatively SHALL be able to state when they arr
 
 #### Scenario: Times in the time zone of the instance
 - **WHEN** the instance runs in the time zone Europe/Berlin and a member arrives on 14 March 2027 at 18:00 local time
-- **THEN** the form, the overview and every mail show 18:00, whatever time zone the browser or the server uses
+- **THEN** the form and the overview show 18:00, whatever time zone the browser or the server uses
+
+#### Scenario: Time between the steps
+- **WHEN** a member sends an arrival at 18:10
+- **THEN** Adunata rejects the response and marks the arrival as invalid
 
 #### Scenario: No period stated
 - **WHEN** a member accepts without stating a period
@@ -37,7 +41,7 @@ A member who accepts or accepts tentatively SHALL be able to state when they arr
 - **THEN** Adunata rejects the response and marks the departure as invalid
 
 ### Requirement: Beds
-A member who accepts or accepts tentatively SHALL state whether they need beds, offer beds or need none. A member who needs or offers beds SHALL state how many, at least one.
+A member who accepts or accepts tentatively SHALL state whether they need beds, offer beds or need none. A member who needs or offers beds SHALL state how many, from 1 to 20.
 
 #### Scenario: Offer beds
 - **WHEN** a member states that they offer two beds
@@ -77,11 +81,19 @@ An organizer SHALL be able to enter and change the response of any invitation wi
 - **THEN** the form shows the values the organizer entered
 
 ### Requirement: Retention
-Adunata SHALL keep responses and comments after a gathering ends unless the operator configures a retention period. The operator SHALL be able to set one period for comments and one for whole responses. Adunata SHALL delete them that many days after the last day of the gathering.
+Adunata SHALL delete comments 30 days and whole responses 365 days after the last day of a gathering. The operator SHALL be able to set each period in days or to keep the data. When the period for whole responses ends, Adunata SHALL delete the invitations of the gathering together with their responses and keep the gathering.
 
 #### Scenario: Default retention
-- **WHEN** a gathering ended a year ago and the operator configured no retention period
+- **WHEN** the operator configured no retention period and a gathering ended 31 days ago
+- **THEN** its responses exist without their comments
+
+#### Scenario: Keep everything
+- **WHEN** the operator set both periods to keep the data and a gathering ended two years ago
 - **THEN** its responses and comments still exist
+
+#### Scenario: Responses expire
+- **WHEN** the operator configured a retention period of 90 days for responses and a gathering ended 91 days ago
+- **THEN** the gathering still exists without invitations and responses
 
 #### Scenario: Comments expire
 - **WHEN** the operator configured a retention period of 30 days for comments and a gathering ended 31 days ago
@@ -105,8 +117,15 @@ On the response page Adunata SHALL show a member the names of everyone invited t
 - **WHEN** another invited member has added a comment
 - **THEN** the page does not show that comment
 
+### Requirement: Notice on the response page
+The response page SHALL state that other invited members see the member's name and status. It SHALL state at the comment field that only organizers read the comment.
+
+#### Scenario: Member reads the notice
+- **WHEN** a member opens the response form
+- **THEN** the page states who sees the name, the status and the comment
+
 ### Requirement: Overview for organizers
-Adunata SHALL show organizers every invitation of a gathering with member, status, period, beds, comment and who made the last change. It SHALL show the count per status and the total of beds needed and beds offered.
+Adunata SHALL show organizers every invitation of a gathering with member, status, period, beds, comment and who made the last change. It SHALL show the count per status and the total of beds needed and beds offered. It SHALL show an invitation whose mail failed for good and offer to resend it.
 
 #### Scenario: Plan beds
 - **WHEN** two members need one bed each and one member offers three beds

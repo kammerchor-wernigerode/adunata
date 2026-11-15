@@ -22,7 +22,7 @@ An organizer SHALL be able to change every field of a gathering that has not end
 
 #### Scenario: Shorten a gathering
 - **WHEN** an organizer moves the first day of a gathering one day later
-- **THEN** Adunata keeps existing responses and marks each response whose period lies partly outside the new span
+- **THEN** Adunata keeps existing responses and marks each response whose period lies partly or wholly outside the new span
 
 ### Requirement: Cancel gatherings
 An organizer SHALL be able to cancel a gathering that has not ended. A cancelled gathering SHALL stay visible to organizers as cancelled. Adunata SHALL inform every invited member by mail. Its invitation links SHALL show that it is cancelled and accept no responses.
@@ -30,6 +30,10 @@ An organizer SHALL be able to cancel a gathering that has not ended. A cancelled
 #### Scenario: Cancellation mail
 - **WHEN** an organizer cancels a gathering
 - **THEN** Adunata sends every invited member a mail in the member's language that names the cancelled gathering
+
+#### Scenario: Cancelled gathering takes no invitations
+- **WHEN** an organizer tries to invite members to a cancelled gathering
+- **THEN** Adunata refuses and explains that the gathering is cancelled
 
 #### Scenario: Member opens a cancelled gathering
 - **WHEN** a member opens the invitation link of a cancelled gathering
