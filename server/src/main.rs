@@ -7,6 +7,7 @@ mod health;
 mod legal;
 mod localization;
 mod mail;
+mod members;
 mod secret;
 mod serving;
 mod spike;

@@ -5,7 +5,7 @@ use utoipa::openapi::OpenApi as Document;
 use utoipa_axum::router::OpenApiRouter;
 
 use crate::configuration::{LegalLinks, PublicUrl};
-use crate::{access, health, legal, localization, serving, spike};
+use crate::{access, health, legal, localization, members, serving, spike};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -25,6 +25,7 @@ fn routes() -> OpenApiRouter<AppState> {
         .merge(spike::router())
         .merge(localization::router())
         .merge(legal::router())
+        .merge(members::router())
 }
 
 pub fn router(state: AppState) -> Router {

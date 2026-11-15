@@ -26,6 +26,9 @@ import type {
 import type {
   Health,
   LegalLinks,
+  Member,
+  MemberChange,
+  NewMember,
   SpikeResponse,
   ValidationErrors
 } from './model';
@@ -397,6 +400,341 @@ export function useLegalLinks<TData = Awaited<ReturnType<typeof legalLinks>>, TE
 
 
 
+
+export type listMembersResponse200 = {
+  data: Member[]
+  status: 200
+}
+
+export type listMembersResponseSuccess = (listMembersResponse200) & {
+  headers: Headers;
+};
+;
+
+export type listMembersResponse = (listMembersResponseSuccess)
+
+export const getListMembersUrl = () => {
+
+
+
+
+  return `/api/members`
+}
+
+export const listMembers = async ( options?: RequestInit): Promise<listMembersResponse> => {
+
+  const res = await fetch(getListMembersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listMembersResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as listMembersResponse
+}
+
+
+
+
+
+export const getListMembersQueryKey = () => {
+    return [
+    `/api/members`
+    ] as const;
+    }
+
+
+export const getListMembersQueryOptions = <TData = Awaited<ReturnType<typeof listMembers>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMembers>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMembersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMembers>>> = ({ signal }) => listMembers({ signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMembers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMembersQueryResult = NonNullable<Awaited<ReturnType<typeof listMembers>>>
+export type ListMembersQueryError = unknown
+
+
+export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMembers>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMembers>>,
+          TError,
+          Awaited<ReturnType<typeof listMembers>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMembers>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMembers>>,
+          TError,
+          Awaited<ReturnType<typeof listMembers>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMembers>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMembers>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMembersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type addMemberResponse201 = {
+  data: Member
+  status: 201
+}
+
+export type addMemberResponse422 = {
+  data: ValidationErrors
+  status: 422
+}
+
+export type addMemberResponseSuccess = (addMemberResponse201) & {
+  headers: Headers;
+};
+export type addMemberResponseError = (addMemberResponse422) & {
+  headers: Headers;
+};
+
+export type addMemberResponse = (addMemberResponseSuccess | addMemberResponseError)
+
+export const getAddMemberUrl = () => {
+
+
+
+
+  return `/api/members`
+}
+
+export const addMember = async (newMember: NewMember, options?: RequestInit): Promise<addMemberResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+const res = await fetch(getAddMemberUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(newMember)
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: addMemberResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as addMemberResponse
+}
+
+
+
+
+
+export const getAddMemberMutationKey = () => ['addMember'] as const;
+
+export const getAddMemberMutationOptions = <TError = ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addMember>>, TError,AddMemberMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof addMember>>, TError,AddMemberMutationVariables, TContext> => {
+
+const mutationKey = getAddMemberMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addMember>>, AddMemberMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  addMember(data,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddMemberMutationResult = NonNullable<Awaited<ReturnType<typeof addMember>>>
+    export type AddMemberMutationBody = NewMember
+    export type AddMemberMutationError = ValidationErrors
+    export type AddMemberMutationVariables = {data: NewMember}
+
+    export const useAddMember = <TError = ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addMember>>, TError,AddMemberMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof addMember>>,
+        TError,
+        AddMemberMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAddMemberMutationOptions(options), queryClient);
+    }
+
+export type changeMemberResponse200 = {
+  data: Member
+  status: 200
+}
+
+export type changeMemberResponse404 = {
+  data: void
+  status: 404
+}
+
+export type changeMemberResponse422 = {
+  data: ValidationErrors
+  status: 422
+}
+
+export type changeMemberResponseSuccess = (changeMemberResponse200) & {
+  headers: Headers;
+};
+export type changeMemberResponseError = (changeMemberResponse404 | changeMemberResponse422) & {
+  headers: Headers;
+};
+
+export type changeMemberResponse = (changeMemberResponseSuccess | changeMemberResponseError)
+
+export const getChangeMemberUrl = (id: number,) => {
+
+
+
+
+  return `/api/members/${id}`
+}
+
+export const changeMember = async (id: number,
+    memberChange: MemberChange, options?: RequestInit): Promise<changeMemberResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+const res = await fetch(getChangeMemberUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(memberChange)
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: changeMemberResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as changeMemberResponse
+}
+
+
+
+
+
+export const getChangeMemberMutationKey = () => ['changeMember'] as const;
+
+export const getChangeMemberMutationOptions = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeMember>>, TError,ChangeMemberMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof changeMember>>, TError,ChangeMemberMutationVariables, TContext> => {
+
+const mutationKey = getChangeMemberMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeMember>>, ChangeMemberMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  changeMember(id,data,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeMemberMutationResult = NonNullable<Awaited<ReturnType<typeof changeMember>>>
+    export type ChangeMemberMutationBody = MemberChange
+    export type ChangeMemberMutationError = void | ValidationErrors
+    export type ChangeMemberMutationVariables = {id: number;data: MemberChange}
+
+    export const useChangeMember = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeMember>>, TError,ChangeMemberMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof changeMember>>,
+        TError,
+        ChangeMemberMutationVariables,
+        TContext
+      > => {
+      return useMutation(getChangeMemberMutationOptions(options), queryClient);
+    }
 
 export type createResponseResponse201 = {
   data: SpikeResponse

@@ -25,6 +25,60 @@ export const LegalLinksResponse = zod.object({
 }).describe('Addresses of the privacy notice and the imprint that every page links. A missing address means the operator set none.')
 
 
+export const ListMembersResponseItem = zod.object({
+  "id": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string().describe('Language of the member\'s mail, `de` or `en`.'),
+  "active": zod.boolean(),
+  "organizer": zod.boolean()
+}).describe('A person in the ensemble whom organizers can invite.')
+export const ListMembersResponse = zod.array(ListMembersResponseItem)
+
+
+export const AddMemberBody = zod.object({
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string()
+}).describe('What an organizer enters for a new member. A new member is active and holds no role.')
+
+export const AddMemberResponse = zod.object({
+  "id": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string().describe('Language of the member\'s mail, `de` or `en`.'),
+  "active": zod.boolean(),
+  "organizer": zod.boolean()
+}).describe('A person in the ensemble whom organizers can invite.')
+
+
+export const ChangeMemberParams = zod.object({
+  "id": zod.int().describe('Id of the member')
+})
+
+export const ChangeMemberBody = zod.object({
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string(),
+  "active": zod.boolean(),
+  "organizer": zod.boolean()
+}).describe('Every field of a member that an organizer can change.')
+
+export const ChangeMemberResponse = zod.object({
+  "id": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string().describe('Language of the member\'s mail, `de` or `en`.'),
+  "active": zod.boolean(),
+  "organizer": zod.boolean()
+}).describe('A person in the ensemble whom organizers can invite.')
+
+
 export const createResponseBodyNameMax = 100;
 
 export const createResponseBodyBedsMin = 0;

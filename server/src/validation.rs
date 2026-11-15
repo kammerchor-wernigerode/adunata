@@ -12,12 +12,16 @@ pub enum ErrorCode {
     TooLong,
     TooLarge,
     Taken,
+    Invalid,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct FieldError {
     pub field: String,
     pub code: ErrorCode,
+    /// The stored value that a taken value collides with, such as a mail address that differs only in case.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conflict: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -29,6 +33,7 @@ pub fn field_error(field: &str, code: ErrorCode) -> FieldError {
     FieldError {
         field: field.to_owned(),
         code,
+        conflict: None,
     }
 }
 

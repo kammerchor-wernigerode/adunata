@@ -85,6 +85,113 @@
         }
       }
     },
+    "/api/members": {
+      "get": {
+        "operationId": "list_members",
+        "responses": {
+          "200": {
+            "description": "Every member, sorted by last name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Member"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "add_member",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewMember"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Member added as active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Member invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/members/{id}": {
+      "put": {
+        "operationId": "change_member",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the member",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Member changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such member"
+          },
+          "422": {
+            "description": "Change invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/spike-responses": {
       "post": {
         "operationId": "create_response",
@@ -146,7 +253,8 @@
           "required",
           "tooLong",
           "tooLarge",
-          "taken"
+          "taken",
+          "invalid"
         ]
       },
       "FieldError": {
@@ -161,6 +269,13 @@
           },
           "code": {
             "$ref": "#/components/schemas/ErrorCode"
+          },
+          "conflict": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The stored value that a taken value collides with, such as a mail address that differs only in case."
           }
         }
       },
@@ -201,6 +316,100 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "Member": {
+        "type": "object",
+        "description": "A person in the ensemble whom organizers can invite.",
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "mail",
+          "language",
+          "active",
+          "organizer"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "mail": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "description": "Language of the member's mail, `de` or `en`."
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "organizer": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MemberChange": {
+        "type": "object",
+        "description": "Every field of a member that an organizer can change.",
+        "required": [
+          "firstName",
+          "lastName",
+          "mail",
+          "language",
+          "active",
+          "organizer"
+        ],
+        "properties": {
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "mail": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "organizer": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NewMember": {
+        "type": "object",
+        "description": "What an organizer enters for a new member. A new member is active and holds no role.",
+        "required": [
+          "firstName",
+          "lastName",
+          "mail",
+          "language"
+        ],
+        "properties": {
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "mail": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
           }
         }
       },

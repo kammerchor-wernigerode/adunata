@@ -16,4 +16,5 @@ export const ErrorCode = {
   tooLong: 'tooLong',
   tooLarge: 'tooLarge',
   taken: 'taken',
+  invalid: 'invalid',
 } as const;
