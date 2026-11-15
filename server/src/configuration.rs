@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 use axum::http::Uri;
 use lettre::message::Mailbox;
 use sqlx::postgres::PgConnectOptions;
+use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time};
 
 const DEFAULT_LISTEN_ADDRESS: &str = "127.0.0.1:8080";
 const DEFAULT_SMTP_PORT: &str = "587";
@@ -19,6 +20,8 @@ pub struct Configuration {
     pub mail_sender: Mailbox,
     pub mail_max_attempts: i32,
     pub default_language: String,
+    #[expect(dead_code, reason = "nothing compares with the present yet")]
+    pub time_zone: InstanceTimeZone,
 }
 
 pub struct Smtp {
@@ -65,6 +68,48 @@ impl PublicUrl {
 
     pub fn link(&self, path: &str) -> String {
         format!("{}/{}", self.base, path.trim_start_matches('/'))
+    }
+}
+
+/// The time zone in which the instance shows wall-clock times and compares them with the present.
+#[derive(Clone, Debug)]
+pub struct InstanceTimeZone {
+    zone: jiff::tz::TimeZone,
+}
+
+impl InstanceTimeZone {
+    pub fn parse(name: &str) -> Option<Self> {
+        jiff::tz::TimeZone::get(name).ok().map(|zone| Self { zone })
+    }
+
+    /// Turns an instant into the date and wall-clock time of the instance.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "nothing compares with the present yet")
+    )]
+    pub fn wall_clock(&self, instant: OffsetDateTime) -> PrimitiveDateTime {
+        let timestamp = jiff::Timestamp::new(
+            instant.unix_timestamp(),
+            i32::try_from(instant.nanosecond()).expect("nanoseconds fit into i32"),
+        )
+        .expect("every instant of time lies within the range of jiff");
+        let civil = self.zone.to_datetime(timestamp);
+        let month = Month::try_from(u8::try_from(civil.month()).expect("month is positive"))
+            .expect("jiff yields valid months");
+        let date = Date::from_calendar_date(
+            i32::from(civil.year()),
+            month,
+            u8::try_from(civil.day()).expect("day is positive"),
+        )
+        .expect("jiff yields valid dates");
+        let time = Time::from_hms_nano(
+            u8::try_from(civil.hour()).expect("hour is positive"),
+            u8::try_from(civil.minute()).expect("minute is positive"),
+            u8::try_from(civil.second()).expect("second is positive"),
+            u32::try_from(civil.subsec_nanosecond()).expect("nanoseconds are positive"),
+        )
+        .expect("jiff yields valid times");
+        PrimitiveDateTime::new(date, time)
     }
 }
 
@@ -158,6 +203,14 @@ impl Configuration {
             |value| crate::localization::is_supported(value).then(|| value.to_owned()),
         );
 
+        let time_zone = parse(
+            &mut problems,
+            "ADUNATA_TIME_ZONE",
+            "an IANA time zone such as Europe/Berlin",
+            variable("ADUNATA_TIME_ZONE").as_deref(),
+            InstanceTimeZone::parse,
+        );
+
         match (
             listen_address,
             public_url,
@@ -166,6 +219,7 @@ impl Configuration {
             mail_sender,
             mail_max_attempts,
             default_language,
+            time_zone,
         ) {
             (
                 Some(listen_address),
@@ -175,6 +229,7 @@ impl Configuration {
                 Some(mail_sender),
                 Some(mail_max_attempts),
                 Some(default_language),
+                Some(time_zone),
             ) if problems.is_empty() => Ok(Self {
                 listen_address,
                 public_url,
@@ -183,6 +238,7 @@ impl Configuration {
                 mail_sender,
                 mail_max_attempts,
                 default_language,
+                time_zone,
             }),
             _ => Err(problems),
         }
@@ -316,6 +372,7 @@ mod tests {
                 "ADUNATA_MAIL_SENDER",
                 "Adunata <adunata@example.org>".to_owned(),
             ),
+            ("ADUNATA_TIME_ZONE", "Europe/Berlin".to_owned()),
         ])
     }
 
@@ -406,6 +463,7 @@ mod tests {
         let mut variables = required();
         variables.remove("ADUNATA_PUBLIC_URL");
         variables.remove("ADUNATA_SMTP_HOST");
+        variables.remove("ADUNATA_TIME_ZONE");
         assert_eq!(
             problems(&variables),
             vec![
@@ -415,7 +473,75 @@ mod tests {
                 Problem::Missing {
                     setting: "ADUNATA_SMTP_HOST"
                 },
+                Problem::Missing {
+                    setting: "ADUNATA_TIME_ZONE"
+                },
             ]
+        );
+    }
+
+    #[test]
+    fn unknown_time_zone() {
+        let mut variables = required();
+        variables.insert("ADUNATA_TIME_ZONE", "Europe/Wernigerode".to_owned());
+        variables.remove("ADUNATA_SMTP_HOST");
+        let problems = problems(&variables);
+        assert_eq!(
+            problems,
+            vec![
+                Problem::Missing {
+                    setting: "ADUNATA_SMTP_HOST"
+                },
+                Problem::Malformed {
+                    setting: "ADUNATA_TIME_ZONE",
+                    expected: "an IANA time zone such as Europe/Berlin"
+                },
+            ]
+        );
+    }
+
+    fn berlin_wall_clock(instant: OffsetDateTime) -> PrimitiveDateTime {
+        InstanceTimeZone::parse("Europe/Berlin")
+            .unwrap()
+            .wall_clock(instant)
+    }
+
+    #[test]
+    fn wall_clock_around_the_start_of_summer_time() {
+        use time::macros::datetime;
+        assert_eq!(
+            berlin_wall_clock(datetime!(2027-03-28 00:59:59 UTC)),
+            datetime!(2027-03-28 01:59:59)
+        );
+        assert_eq!(
+            berlin_wall_clock(datetime!(2027-03-28 01:00 UTC)),
+            datetime!(2027-03-28 03:00)
+        );
+    }
+
+    #[test]
+    fn wall_clock_around_the_end_of_summer_time() {
+        use time::macros::datetime;
+        assert_eq!(
+            berlin_wall_clock(datetime!(2027-10-31 00:30 UTC)),
+            datetime!(2027-10-31 02:30)
+        );
+        assert_eq!(
+            berlin_wall_clock(datetime!(2027-10-31 01:30 UTC)),
+            datetime!(2027-10-31 02:30)
+        );
+        assert_eq!(
+            berlin_wall_clock(datetime!(2027-10-31 02:00 UTC)),
+            datetime!(2027-10-31 03:00)
+        );
+    }
+
+    #[test]
+    fn wall_clock_keeps_the_date_of_the_instance() {
+        use time::macros::datetime;
+        assert_eq!(
+            berlin_wall_clock(datetime!(2027-03-13 23:30 UTC)),
+            datetime!(2027-03-14 00:30)
         );
     }
 

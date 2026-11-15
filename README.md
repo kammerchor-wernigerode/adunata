@@ -80,7 +80,7 @@ export PGHOST=localhost PGPORT=5432 PGUSER=adunata PGPASSWORD=adunata PGDATABASE
 export ADUNATA_PUBLIC_URL=http://localhost:8080
 export ADUNATA_DATABASE_URL=postgres://adunata:adunata@localhost/adunata
 export ADUNATA_SMTP_HOST=localhost ADUNATA_SMTP_PORT=1025 ADUNATA_SMTP_ENCRYPTION=none
-export ADUNATA_MAIL_SENDER="Adunata <adunata@localhost>"
+export ADUNATA_MAIL_SENDER="Adunata <adunata@localhost>" ADUNATA_TIME_ZONE=Europe/Berlin
 ```
 
 ### Run Adunata

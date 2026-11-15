@@ -15,6 +15,7 @@ pkgs.testers.runNixOSTest {
         services.adunata = {
           enable = true;
           publicUrl = "http://localhost:8080";
+          timeZone = "Europe/Berlin";
           mail.sender = "Adunata <adunata@example.org>";
           smtp = {
             host = "127.0.0.1";
@@ -114,6 +115,7 @@ pkgs.testers.runNixOSTest {
             " --env ADUNATA_DATABASE_URL=postgres://adunata@127.0.0.1/adunata"
             " --env ADUNATA_SMTP_HOST=127.0.0.1"
             " --env 'ADUNATA_MAIL_SENDER=Adunata <adunata@example.org>'"
+            " --env ADUNATA_TIME_ZONE=Europe/Berlin"
             " adunata:latest"
         )
         container.wait_for_open_port(8080)

@@ -26,6 +26,12 @@ in
       description = "The address under which people reach the instance. Every link in a mail starts with it.";
     };
 
+    timeZone = lib.mkOption {
+      type = lib.types.str;
+      example = "Europe/Berlin";
+      description = "IANA time zone of the instance. Adunata shows wall-clock times in it and compares them with the present.";
+    };
+
     listenAddress = lib.mkOption {
       type = lib.types.str;
       default = "127.0.0.1:8080";
@@ -133,6 +139,7 @@ in
       environment = {
         ADUNATA_PUBLIC_URL = cfg.publicUrl;
         ADUNATA_LISTEN_ADDRESS = cfg.listenAddress;
+        ADUNATA_TIME_ZONE = cfg.timeZone;
         ADUNATA_DEFAULT_LANGUAGE = cfg.defaultLanguage;
         ADUNATA_DATABASE_URL = cfg.database.url;
         ADUNATA_SMTP_HOST = cfg.smtp.host;

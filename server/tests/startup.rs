@@ -10,6 +10,7 @@ fn several_settings_missing_stops_before_anything_opens() {
             "postgres://adunata@127.0.0.1:1/adunata",
         )
         .env("ADUNATA_MAIL_SENDER", "Adunata <adunata@example.org>")
+        .env("ADUNATA_TIME_ZONE", "Europe/Berlin")
         .output()
         .expect("binary must run");
 
@@ -32,6 +33,7 @@ fn malformed_value_names_setting_and_format() {
         )
         .env("ADUNATA_SMTP_HOST", "mail.example.org")
         .env("ADUNATA_MAIL_SENDER", "Adunata <adunata@example.org>")
+        .env("ADUNATA_TIME_ZONE", "Europe/Berlin")
         .output()
         .expect("binary must run");
 

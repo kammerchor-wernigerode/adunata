@@ -20,6 +20,7 @@ tracing-subscriber = { version = "0.3.23", features = ["json"] }
 tokio = { version = "1.54.1", features = ["macros", "net", "rt-multi-thread", "signal"] }
 utoipa = { version = "6.0.0", features = ["time", "preserve_order"] }
 utoipa-axum = "0.3.0"
+jiff = { version = "1.0.0", default-features = false, features = ["std", "tzdb-bundle-always"] }
 
 [lints.rust]
 unsafe_code = "forbid"
