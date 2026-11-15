@@ -5,7 +5,7 @@ Each group is one commit that passes `nix build .#checks.<system>.fast`.
 ## 1. Drop test databases after each test
 
 - [x] 1.1 Give `empty_database` and `fresh_database` in `server/src/database.rs` a return type that owns the database name and drops the database with `WITH (FORCE)` in its `Drop`, as design.md describes. Update the 19 call sites in `database.rs`, `health.rs`, `mail.rs` and `spike.rs` so each binds the value for the whole test. Verify that `cargo test` passes and that `psql -tAc "select count(*) from pg_database where datname like 'adunata\_test\_%'"` returns the same number before and after the run.
-- [x] 1.2 Update the server slice row in [section 08](../../../docs/arc42/08-cross-cutting-concepts.md#testing) to say that each test drops its database afterwards. Verify that the relative links resolve.
+- [x] 1.2 Update the server slice row in [section 08](../../../../docs/arc42/08-cross-cutting-concepts.md#testing) to say that each test drops its database afterwards. Verify that the relative links resolve.
 - [x] 1.3 Extend the README sentence on `cargo test` in "Tests and lints" to say that each test drops its database. Add the command that drops leftover `adunata_test_*` databases while no tests run. Verify that the command runs as written.
 
 ## 2. Share compiler output across worktrees
@@ -22,7 +22,7 @@ Each group is one commit that passes `nix build .#checks.<system>.fast`.
 
 - [x] 4.1 Add a `[*.py]` section with `indent_size = 4` to `.editorconfig`. Verify that the check `editorconfig` passes.
 - [x] 4.2 Write `dev/worktree_plugin.py` with the options `port_base` (default 18000) and `clone_db` (default off), `SANITIZE_ENV`, `slot_of`, `apply`, `next_steps` and `teardown` as design.md describes. Verify with `python3 -m py_compile dev/worktree_plugin.py`.
-- [x] 4.3 Write the decision record `docs/decisions/0009-optional-worktree-tooling.md` from the draft in design.md. The record carries its own definition of reference `[1]`. Add its row to [section 09](../../../docs/arc42/09-architecture-decisions.md). Verify that the relative links resolve.
+- [x] 4.3 Write the decision record `docs/decisions/0009-optional-worktree-tooling.md` from the draft in design.md. The record carries its own definition of reference `[1]`. Add its row to [section 09](../../../../docs/arc42/09-architecture-decisions.md). Verify that the relative links resolve.
 - [x] 4.4 Add a section on parallel worktrees to `README.md`. It covers installing git-worktree-init, `git config worktree-init.plugin dev/worktree_plugin.py`, the options and the port layout. It explains how to include Claude Code worktrees by clearing `worktree-init.ignorePaths` and that their databases go away at the next `git wt prune`. It says that `git wt remove` fails while PostgreSQL is down. Verify that each documented command runs as written.
 
 ## 5. Acceptance
