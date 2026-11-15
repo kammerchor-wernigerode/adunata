@@ -15,20 +15,70 @@ mod validation;
 
 use std::time::Duration;
 
+use clap::{Parser, Subcommand};
 use configuration::Configuration;
+
+/// Adunata organizes the gatherings of choirs and instrumental ensembles.
+#[derive(Parser)]
+#[command(version, about, arg_required_else_help = true)]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Serve the API and the client until the service manager stops the process.
+    Serve,
+    /// Make a member an active organizer
+    ///
+    /// Creates the member if no member has the mail address. Meant for an operator who lost every organizer mailbox. Reads the same settings as `serve`.
+    GrantOrganizer {
+        /// Mail address of the member
+        #[arg(value_parser = mail_address)]
+        mail: String,
+        /// First name, used only when the member does not exist yet
+        #[arg(value_parser = name)]
+        first_name: String,
+        /// Last name, used only when the member does not exist yet
+        #[arg(value_parser = name)]
+        last_name: String,
+    },
+    #[command(about = "Print the OpenAPI document of the API")]
+    Openapi,
+}
+
+fn mail_address(value: &str) -> Result<String, String> {
+    value
+        .parse::<lettre::Address>()
+        .map(|_| value.to_owned())
+        .map_err(|_| "expected a mail address such as organizer@example.org".to_owned())
+}
+
+fn name(value: &str) -> Result<String, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        Err("expected a name that is not blank".to_owned())
+    } else {
+        Ok(trimmed.to_owned())
+    }
+}
 
 #[tokio::main]
 async fn main() {
-    let arguments: Vec<String> = std::env::args().skip(1).collect();
-    match arguments.first().map(String::as_str) {
-        Some("openapi") => {
+    match Cli::parse().command {
+        Command::Serve => serve().await,
+        Command::GrantOrganizer {
+            mail,
+            first_name,
+            last_name,
+        } => grant_organizer(&mail, &first_name, &last_name).await,
+        Command::Openapi => {
             let document = api::document()
                 .to_pretty_json()
                 .expect("OpenAPI document must serialize");
             println!("{document}");
         }
-        Some("grant-organizer") => grant_organizer(&arguments[1..]).await,
-        _ => serve().await,
     }
 }
 
@@ -51,19 +101,8 @@ async fn connect(configuration: &Configuration) -> sqlx::PgPool {
 }
 
 /// Makes the member with a mail address an active organizer, for an operator who lost every organizer mailbox.
-async fn grant_organizer(arguments: &[String]) {
+async fn grant_organizer(mail: &str, first_name: &str, last_name: &str) {
     tracing_subscriber::fmt().json().init();
-    let [mail, first_name, last_name] = arguments else {
-        eprintln!("usage: adunata grant-organizer <mail> <first name> <last name>");
-        std::process::exit(2);
-    };
-    if mail.parse::<lettre::Address>().is_err()
-        || first_name.trim().is_empty()
-        || last_name.trim().is_empty()
-    {
-        eprintln!("grant-organizer needs a valid mail address and both names");
-        std::process::exit(2);
-    }
     let configuration = configuration();
     let pool = connect(&configuration).await;
     let mut connection = pool.acquire().await.unwrap_or_else(|error| {

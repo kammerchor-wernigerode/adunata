@@ -92,7 +92,7 @@ cd client
 npm ci
 npm run build
 cd ../server
-cargo run
+cargo run -- serve
 ```
 
 The server listens on <http://localhost:8080> and applies database migrations on start.

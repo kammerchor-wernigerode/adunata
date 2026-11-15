@@ -4,6 +4,7 @@ use std::process::Command;
 #[test]
 fn several_settings_missing_stops_before_anything_opens() {
     let output = Command::new(env!("CARGO_BIN_EXE_adunata"))
+        .arg("serve")
         .env_clear()
         .env(
             "ADUNATA_DATABASE_URL",
@@ -25,6 +26,7 @@ fn several_settings_missing_stops_before_anything_opens() {
 #[test]
 fn malformed_value_names_setting_and_format() {
     let output = Command::new(env!("CARGO_BIN_EXE_adunata"))
+        .arg("serve")
         .env_clear()
         .env("ADUNATA_PUBLIC_URL", "http://adunata.example.org")
         .env(
@@ -48,6 +50,7 @@ fn malformed_value_names_setting_and_format() {
 #[test]
 fn unknown_time_zone_stops_before_the_database() {
     let output = Command::new(env!("CARGO_BIN_EXE_adunata"))
+        .arg("serve")
         .env_clear()
         .env("ADUNATA_PUBLIC_URL", "https://adunata.example.org")
         .env(
@@ -69,17 +72,56 @@ fn unknown_time_zone_stops_before_the_database() {
     assert!(!log.contains("database is not ready"), "{log}");
 }
 
-#[test]
-fn grant_organizer_needs_mail_and_both_names() {
+fn run(arguments: &[&str]) -> (Option<i32>, String, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_adunata"))
         .env_clear()
-        .args(["grant-organizer", "ada@example.org", "Ada"])
+        .args(arguments)
         .output()
         .expect("binary must run");
-    assert_eq!(output.status.code(), Some(2));
-    let message = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        message.contains("usage: adunata grant-organizer"),
-        "{message}"
-    );
+    (
+        output.status.code(),
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+    )
+}
+
+#[test]
+fn grant_organizer_needs_mail_and_both_names() {
+    let (code, _, error) = run(&["grant-organizer", "ada@example.org", "Ada"]);
+    assert_eq!(code, Some(2));
+    assert!(error.contains("<LAST_NAME>"), "{error}");
+    assert!(error.contains("Usage: adunata grant-organizer"), "{error}");
+}
+
+#[test]
+fn grant_organizer_rejects_a_malformed_address() {
+    let (code, _, error) = run(&["grant-organizer", "ada", "Ada", "Lovelace"]);
+    assert_eq!(code, Some(2));
+    assert!(error.contains("expected a mail address"), "{error}");
+}
+
+#[test]
+fn without_a_command_the_binary_prints_its_help() {
+    let (code, _, error) = run(&[]);
+    assert_eq!(code, Some(2));
+    for command in ["serve", "grant-organizer", "openapi"] {
+        assert!(error.contains(command), "{error}");
+    }
+}
+
+#[test]
+fn help_and_version_succeed() {
+    let (code, help, _) = run(&["help", "grant-organizer"]);
+    assert_eq!(code, Some(0));
+    assert!(help.contains("lost every organizer mailbox"), "{help}");
+    let (code, version, _) = run(&["--version"]);
+    assert_eq!(code, Some(0));
+    assert!(version.starts_with("adunata "), "{version}");
+}
+
+#[test]
+fn unknown_command() {
+    let (code, _, error) = run(&["serv"]);
+    assert_eq!(code, Some(2));
+    assert!(error.contains("serve"), "{error}");
 }
