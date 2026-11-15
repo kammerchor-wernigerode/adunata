@@ -1,5 +1,5 @@
 use std::fmt;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 
 use axum::http::Uri;
 use lettre::message::Mailbox;
@@ -11,6 +11,10 @@ const DEFAULT_SMTP_PORT: &str = "587";
 const DEFAULT_SMTP_ENCRYPTION: &str = "starttls";
 const DEFAULT_MAIL_MAX_ATTEMPTS: &str = "8";
 const DEFAULT_LANGUAGE: &str = "en";
+const DEFAULT_TRUSTED_PROXIES: &str = "127.0.0.1/32,::1/128";
+const DEFAULT_RETENTION_COMMENT_DAYS: &str = "30";
+const DEFAULT_RETENTION_RESPONSE_DAYS: &str = "365";
+const FIRST_ORGANIZER_MAIL: &str = "ADUNATA_FIRST_ORGANIZER_MAIL";
 
 pub struct Configuration {
     pub listen_address: SocketAddr,
@@ -22,6 +26,96 @@ pub struct Configuration {
     pub default_language: String,
     #[expect(dead_code, reason = "nothing compares with the present yet")]
     pub time_zone: InstanceTimeZone,
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "no request needs its network address yet")
+    )]
+    pub trusted_proxies: Vec<Network>,
+    #[cfg_attr(not(test), expect(dead_code, reason = "no personal data expires yet"))]
+    pub retention: Retention,
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "no page or mail links them yet")
+    )]
+    pub legal_links: LegalLinks,
+    #[cfg_attr(not(test), expect(dead_code, reason = "nobody signs in yet"))]
+    pub first_organizer: Option<FirstOrganizer>,
+}
+
+/// How long Adunata keeps personal data after the last day of a gathering.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Retention {
+    pub comments: RetentionPeriod,
+    pub responses: RetentionPeriod,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RetentionPeriod {
+    Days(u32),
+    Never,
+}
+
+impl RetentionPeriod {
+    fn parse(value: &str) -> Option<Self> {
+        if value == "never" {
+            return Some(Self::Never);
+        }
+        value.parse().ok().map(Self::Days)
+    }
+}
+
+/// Addresses of the privacy notice and the imprint, each optional.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LegalLinks {
+    pub privacy: Option<String>,
+    pub imprint: Option<String>,
+}
+
+/// The member whom Adunata makes organizer when an instance has none.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FirstOrganizer {
+    pub mail: String,
+    pub first_name: String,
+    pub last_name: String,
+}
+
+/// A network in CIDR notation, such as the one of a trusted reverse proxy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Network {
+    address: IpAddr,
+    prefix: u8,
+}
+
+impl Network {
+    fn parse(value: &str) -> Option<Self> {
+        let (address, prefix) = value.trim().split_once('/')?;
+        let address: IpAddr = address.parse().ok()?;
+        let prefix: u8 = prefix.parse().ok()?;
+        let bits = if address.is_ipv4() { 32 } else { 128 };
+        (prefix <= bits).then_some(Self { address, prefix })
+    }
+
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "no request needs its network address yet")
+    )]
+    pub fn contains(&self, candidate: IpAddr) -> bool {
+        match (self.address, candidate.to_canonical()) {
+            (IpAddr::V4(network), IpAddr::V4(candidate)) => {
+                let mask = u32::MAX
+                    .checked_shl(32 - u32::from(self.prefix))
+                    .unwrap_or(0);
+                u32::from(network) & mask == u32::from(candidate) & mask
+            }
+            (IpAddr::V6(network), IpAddr::V6(candidate)) => {
+                let mask = u128::MAX
+                    .checked_shl(128 - u32::from(self.prefix))
+                    .unwrap_or(0);
+                u128::from(network) & mask == u128::from(candidate) & mask
+            }
+            _ => false,
+        }
+    }
 }
 
 pub struct Smtp {
@@ -126,6 +220,10 @@ pub enum Problem {
         setting: &'static str,
         path: String,
     },
+    RequiredWith {
+        setting: &'static str,
+        with: &'static str,
+    },
 }
 
 impl fmt::Display for Problem {
@@ -134,6 +232,9 @@ impl fmt::Display for Problem {
             Self::Missing { setting } => write!(formatter, "{setting} is required but not set"),
             Self::Malformed { setting, expected } => {
                 write!(formatter, "{setting} must be {expected}")
+            }
+            Self::RequiredWith { setting, with } => {
+                write!(formatter, "{setting} is required when {with} is set")
             }
             Self::Unreadable { setting, path } => {
                 write!(
@@ -203,13 +304,14 @@ impl Configuration {
             |value| crate::localization::is_supported(value).then(|| value.to_owned()),
         );
 
-        let time_zone = parse(
-            &mut problems,
-            "ADUNATA_TIME_ZONE",
-            "an IANA time zone such as Europe/Berlin",
-            variable("ADUNATA_TIME_ZONE").as_deref(),
-            InstanceTimeZone::parse,
-        );
+        let time_zone = load_time_zone(&mut problems, variable);
+        let trusted_proxies = load_trusted_proxies(&mut problems, variable);
+        let retention = load_retention(&mut problems, variable);
+        let legal_links = LegalLinks {
+            privacy: optional_link(&mut problems, "ADUNATA_PRIVACY_URL", variable),
+            imprint: optional_link(&mut problems, "ADUNATA_IMPRINT_URL", variable),
+        };
+        let first_organizer = load_first_organizer(&mut problems, variable);
 
         match (
             listen_address,
@@ -220,6 +322,8 @@ impl Configuration {
             mail_max_attempts,
             default_language,
             time_zone,
+            trusted_proxies,
+            retention,
         ) {
             (
                 Some(listen_address),
@@ -230,6 +334,8 @@ impl Configuration {
                 Some(mail_max_attempts),
                 Some(default_language),
                 Some(time_zone),
+                Some(trusted_proxies),
+                Some(retention),
             ) if problems.is_empty() => Ok(Self {
                 listen_address,
                 public_url,
@@ -239,6 +345,10 @@ impl Configuration {
                 mail_max_attempts,
                 default_language,
                 time_zone,
+                trusted_proxies,
+                retention,
+                legal_links,
+                first_organizer,
             }),
             _ => Err(problems),
         }
@@ -295,6 +405,116 @@ fn load_smtp(
         encryption: encryption?,
         username: variable("ADUNATA_SMTP_USERNAME"),
         password,
+    })
+}
+
+fn load_time_zone(
+    problems: &mut Vec<Problem>,
+    variable: &dyn Fn(&str) -> Option<String>,
+) -> Option<InstanceTimeZone> {
+    parse(
+        problems,
+        "ADUNATA_TIME_ZONE",
+        "an IANA time zone such as Europe/Berlin",
+        variable("ADUNATA_TIME_ZONE").as_deref(),
+        InstanceTimeZone::parse,
+    )
+}
+
+fn load_trusted_proxies(
+    problems: &mut Vec<Problem>,
+    variable: &dyn Fn(&str) -> Option<String>,
+) -> Option<Vec<Network>> {
+    parse(
+        problems,
+        "ADUNATA_TRUSTED_PROXIES",
+        "a comma-separated list of networks such as 172.18.0.0/16,::1/128",
+        Some(with_default(variable, "ADUNATA_TRUSTED_PROXIES", DEFAULT_TRUSTED_PROXIES).as_str()),
+        |value| value.split(',').map(Network::parse).collect(),
+    )
+}
+
+fn load_retention(
+    problems: &mut Vec<Problem>,
+    variable: &dyn Fn(&str) -> Option<String>,
+) -> Option<Retention> {
+    let mut period = |setting, default| {
+        parse(
+            problems,
+            setting,
+            "a whole number of days or never",
+            Some(with_default(variable, setting, default).as_str()),
+            RetentionPeriod::parse,
+        )
+    };
+    let comments = period(
+        "ADUNATA_RETENTION_COMMENT_DAYS",
+        DEFAULT_RETENTION_COMMENT_DAYS,
+    );
+    let responses = period(
+        "ADUNATA_RETENTION_RESPONSE_DAYS",
+        DEFAULT_RETENTION_RESPONSE_DAYS,
+    );
+    Some(Retention {
+        comments: comments?,
+        responses: responses?,
+    })
+}
+
+fn optional_link(
+    problems: &mut Vec<Problem>,
+    setting: &'static str,
+    variable: &dyn Fn(&str) -> Option<String>,
+) -> Option<String> {
+    let value = variable(setting)?;
+    parse(
+        problems,
+        setting,
+        "an absolute HTTP or HTTPS URL such as https://example.org/privacy",
+        Some(&value),
+        |value| is_web_address(value).then(|| value.to_owned()),
+    )
+}
+
+fn is_web_address(value: &str) -> bool {
+    value
+        .parse::<Uri>()
+        .is_ok_and(|uri| matches!(uri.scheme_str(), Some("http" | "https")) && uri.host().is_some())
+}
+
+fn load_first_organizer(
+    problems: &mut Vec<Problem>,
+    variable: &dyn Fn(&str) -> Option<String>,
+) -> Option<FirstOrganizer> {
+    let mail = variable(FIRST_ORGANIZER_MAIL)?;
+    let mail = parse(
+        problems,
+        FIRST_ORGANIZER_MAIL,
+        "a mail address such as organizer@example.org",
+        Some(&mail),
+        |value| {
+            value
+                .parse::<lettre::Address>()
+                .ok()
+                .map(|_| value.to_owned())
+        },
+    );
+    let mut name = |setting| {
+        let name = variable(setting).filter(|name| !name.trim().is_empty());
+        if name.is_none() {
+            problems.push(Problem::RequiredWith {
+                setting,
+                with: FIRST_ORGANIZER_MAIL,
+            });
+        }
+        name.map(|name| name.trim().to_owned())
+    };
+    let first_name = name("ADUNATA_FIRST_ORGANIZER_FIRST_NAME");
+    let last_name = name("ADUNATA_FIRST_ORGANIZER_LAST_NAME");
+    Some(FirstOrganizer {
+        mail: mail?,
+        first_name: first_name?,
+        last_name: last_name?,
     })
 }
 
@@ -408,6 +628,22 @@ mod tests {
         assert_eq!(configuration.smtp.encryption, Encryption::StartTls);
         assert_eq!(configuration.mail_max_attempts, 8);
         assert_eq!(
+            configuration.retention,
+            Retention {
+                comments: RetentionPeriod::Days(30),
+                responses: RetentionPeriod::Days(365),
+            }
+        );
+        assert_eq!(configuration.legal_links, LegalLinks::default());
+        assert_eq!(configuration.first_organizer, None);
+        assert_eq!(
+            configuration.trusted_proxies,
+            vec![
+                Network::parse("127.0.0.1/32").unwrap(),
+                Network::parse("::1/128").unwrap()
+            ]
+        );
+        assert_eq!(
             configuration.mail_sender.email.to_string(),
             "adunata@example.org"
         );
@@ -497,6 +733,126 @@ mod tests {
                     expected: "an IANA time zone such as Europe/Berlin"
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn optional_settings() {
+        let mut variables = required();
+        variables.insert("ADUNATA_RETENTION_COMMENT_DAYS", "never".to_owned());
+        variables.insert("ADUNATA_RETENTION_RESPONSE_DAYS", "90".to_owned());
+        variables.insert(
+            "ADUNATA_PRIVACY_URL",
+            "https://choir.example.org/privacy".to_owned(),
+        );
+        variables.insert(
+            "ADUNATA_IMPRINT_URL",
+            "https://choir.example.org/imprint".to_owned(),
+        );
+        variables.insert("ADUNATA_FIRST_ORGANIZER_MAIL", "ada@example.org".to_owned());
+        variables.insert("ADUNATA_FIRST_ORGANIZER_FIRST_NAME", "Ada".to_owned());
+        variables.insert("ADUNATA_FIRST_ORGANIZER_LAST_NAME", "Lovelace".to_owned());
+        variables.insert("ADUNATA_TRUSTED_PROXIES", "172.18.0.0/16".to_owned());
+        let configuration = load(&variables).expect("configuration must be accepted");
+        assert_eq!(
+            configuration.retention,
+            Retention {
+                comments: RetentionPeriod::Never,
+                responses: RetentionPeriod::Days(90),
+            }
+        );
+        assert_eq!(
+            configuration.legal_links.privacy.as_deref(),
+            Some("https://choir.example.org/privacy")
+        );
+        assert_eq!(
+            configuration.first_organizer,
+            Some(FirstOrganizer {
+                mail: "ada@example.org".to_owned(),
+                first_name: "Ada".to_owned(),
+                last_name: "Lovelace".to_owned(),
+            })
+        );
+        assert_eq!(configuration.trusted_proxies.len(), 1);
+    }
+
+    #[test]
+    fn first_organizer_without_both_names() {
+        let mut variables = required();
+        variables.insert("ADUNATA_FIRST_ORGANIZER_MAIL", "ada@example.org".to_owned());
+        variables.insert("ADUNATA_FIRST_ORGANIZER_FIRST_NAME", "Ada".to_owned());
+        let problems = problems(&variables);
+        assert_eq!(
+            problems,
+            vec![Problem::RequiredWith {
+                setting: "ADUNATA_FIRST_ORGANIZER_LAST_NAME",
+                with: "ADUNATA_FIRST_ORGANIZER_MAIL"
+            }]
+        );
+        assert_eq!(
+            problems[0].to_string(),
+            "ADUNATA_FIRST_ORGANIZER_LAST_NAME is required when ADUNATA_FIRST_ORGANIZER_MAIL is set"
+        );
+    }
+
+    #[test]
+    fn retention_other_than_days_or_never() {
+        for value in ["-1", "30d", "forever", "1.5"] {
+            let mut variables = required();
+            variables.insert("ADUNATA_RETENTION_COMMENT_DAYS", value.to_owned());
+            assert_eq!(
+                problems(&variables),
+                vec![Problem::Malformed {
+                    setting: "ADUNATA_RETENTION_COMMENT_DAYS",
+                    expected: "a whole number of days or never"
+                }],
+                "{value} must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_optional_settings() {
+        let mut variables = required();
+        variables.insert(
+            "ADUNATA_PRIVACY_URL",
+            "choir.example.org/privacy".to_owned(),
+        );
+        variables.insert("ADUNATA_TRUSTED_PROXIES", "10.0.0.0/33".to_owned());
+        variables.insert("ADUNATA_FIRST_ORGANIZER_MAIL", "ada".to_owned());
+        variables.insert("ADUNATA_FIRST_ORGANIZER_FIRST_NAME", "Ada".to_owned());
+        variables.insert("ADUNATA_FIRST_ORGANIZER_LAST_NAME", "Lovelace".to_owned());
+        let settings: Vec<&str> = problems(&variables)
+            .iter()
+            .map(|problem| match problem {
+                Problem::Malformed { setting, .. } => *setting,
+                other => panic!("unexpected {other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            settings,
+            vec![
+                "ADUNATA_TRUSTED_PROXIES",
+                "ADUNATA_PRIVACY_URL",
+                "ADUNATA_FIRST_ORGANIZER_MAIL"
+            ]
+        );
+    }
+
+    #[test]
+    fn network_contains_its_addresses_only() {
+        let docker = Network::parse("172.18.0.0/16").unwrap();
+        assert!(docker.contains("172.18.4.2".parse().unwrap()));
+        assert!(docker.contains("::ffff:172.18.4.2".parse().unwrap()));
+        assert!(!docker.contains("172.19.0.1".parse().unwrap()));
+        assert!(!docker.contains("::1".parse().unwrap()));
+        let loopback = Network::parse("::1/128").unwrap();
+        assert!(loopback.contains("::1".parse().unwrap()));
+        assert!(!loopback.contains("::2".parse().unwrap()));
+        assert!(
+            Network::parse("0.0.0.0/0")
+                .unwrap()
+                .contains("203.0.113.9".parse().unwrap())
         );
     }
 
