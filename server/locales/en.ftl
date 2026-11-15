@@ -33,6 +33,11 @@ product-name = Adunata
 privacy-notice = Privacy notice
 imprint = Imprint
 
+status-pending = Pending
+status-accepted = Accepted
+status-tentative = Tentative
+status-declined = Declined
+
 language-label = Language
 
 spike-title = Response

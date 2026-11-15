@@ -33,6 +33,11 @@ product-name = Adunata
 privacy-notice = Datenschutzerklärung
 imprint = Impressum
 
+status-pending = Offen
+status-accepted = Zugesagt
+status-tentative = Vorläufig zugesagt
+status-declined = Abgesagt
+
 language-label = Sprache
 
 spike-title = Rückmeldung
