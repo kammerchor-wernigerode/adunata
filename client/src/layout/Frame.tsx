@@ -22,11 +22,11 @@ export function Frame() {
     <div className="flex min-h-screen flex-col">
       <header className="bg-primary text-primary-foreground">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3">
-          <span className="font-heading text-xl font-semibold">{translate('product-name')}</span>
+          <span className="font-heading text-lg font-semibold">{translate('product-name')}</span>
           <LanguageSwitcher />
         </div>
       </header>
-      <main ref={main} className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+      <main ref={main} className="mx-auto w-full max-w-5xl flex-1 px-4 py-5 sm:px-5">
         <Outlet />
       </main>
       <LegalFooter />

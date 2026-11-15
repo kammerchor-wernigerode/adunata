@@ -12,7 +12,7 @@ export function Page({ title, children }: { title: string; children: ReactNode }
 
   return (
     <>
-      <h1 tabIndex={-1} className="mb-6 font-heading text-3xl font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring">
+      <h1 tabIndex={-1} className="mb-4 font-heading text-2xl leading-tight font-semibold break-words outline-none focus-visible:ring-3 focus-visible:ring-ring sm:text-[1.65rem]">
         {title}
       </h1>
       {children}

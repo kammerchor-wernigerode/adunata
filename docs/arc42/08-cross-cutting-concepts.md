@@ -55,11 +55,11 @@ Headings use Literata and text uses Source Sans 3. The binary serves both fonts 
 
 A single-choice question is a list of full-width rows of a Radix `RadioGroup` with a visible circle. A chosen row shows a filled circle, a stronger border and a tint, never color alone.
 
-A status shows an icon from `lucide-react` next to its text. The icon is `aria-hidden`, so a screen reader reads only the text. Declining is not an error and appears in a neutral color.
+A status is a pill that shows an icon from `lucide-react` next to its text. The icon is `aria-hidden`, so a screen reader reads only the text. An acceptance is tinted with the primary color and a tentative acceptance with the secondary surface. Declining is not an error and appears in muted colors. A pending invitation shows only an outline.
 
 ### Pages and forms
 
-The frame around every page carries a header with the product name on the primary color, the main area and a footer. The footer links the privacy notice and the imprint when the operator set them.
+The frame around every page carries a header, the main area and a footer. The header is a band in the primary color with the product name in Literata. Organizer pages put their navigation into the band and underline the current page. Main headings are set in Literata at about 1.6 rem with a tight line height, so a long title still fits a phone. The footer links the privacy notice and the imprint when the operator set them.
 
 Every route sets its own page title through the main heading. After a route change, focus moves to the main heading. Forms follow these patterns:
 
