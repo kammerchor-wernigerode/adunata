@@ -17,6 +17,7 @@ This file routes. It names where things live and the rules that apply everywhere
 ## Workflow
 
 - New features start with `/openspec-propose <name>`. Open ideas start with `/openspec-explore`.
+- A person may have a change reviewed before its tasks with `/review-change [change] [model] [effort]`. Agents never start it on their own.
 - Small fixes need no change proposal.
 - An architecturally significant decision gets a record in `docs/decisions/`.
 - Archive a merged OpenSpec change directly on `main`, never through a pull request. Pull `main` first. The commit subject ends with `[skip ci]`, because the archive changes no code.
