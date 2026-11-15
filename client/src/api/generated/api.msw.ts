@@ -25,6 +25,7 @@ import {
 } from './model';
 import type {
   Health,
+  LegalLinks,
   SpikeResponse
 } from './model';
 
@@ -32,6 +33,8 @@ import type {
 export const getCatalogResponseMock = (): string => (faker.word.sample())
 
 export const getHealthResponseMock = (overrideResponse: Partial<Extract<Health, object>> = {}): Health => ({status: faker.helpers.arrayElement(Object.values(Status)), cause: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Cause)),null,]), ...overrideResponse})
+
+export const getLegalLinksResponseMock = (overrideResponse: Partial<Extract<LegalLinks, object>> = {}): LegalLinks => ({privacyUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), imprintUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
 
 export const getCreateResponseResponseMock = (overrideResponse: Partial<Extract<SpikeResponse, object>> = {}): SpikeResponse => ({name: faker.string.alpha({length: {min: 1, max: 100}}), attendance: faker.helpers.arrayElement(Object.values(Attendance)), arrival: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 10), null]), beds: faker.number.int({min: 0, max: 20}), ...overrideResponse})
 
@@ -61,6 +64,18 @@ export const getHealthMockHandler = (overrideResponse?: Health | ((info: Paramet
   }, options)
 }
 
+export const getLegalLinksMockHandler = (overrideResponse?: LegalLinks | ((info: Parameters<HttpResponseResolver>[0]) => Promise<LegalLinks> | LegalLinks), options?: RequestHandlerOptions) => {
+  return http.get('*/api/legal-links', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getLegalLinksResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
 export const getCreateResponseMockHandler = (overrideResponse?: SpikeResponse | ((info: Parameters<HttpResponseResolver<PathParams, SpikeResponse>>[0]) => Promise<SpikeResponse> | SpikeResponse), options?: RequestHandlerOptions) => {
   return http.post<PathParams, SpikeResponse>('*/api/spike-responses', async (info: Parameters<HttpResponseResolver<PathParams, SpikeResponse>>[0]) => {
 
@@ -75,5 +90,6 @@ export const getCreateResponseMockHandler = (overrideResponse?: SpikeResponse | 
 export const getAdunataMock = () => [
   getCatalogMockHandler(),
   getHealthMockHandler(),
+  getLegalLinksMockHandler(),
   getCreateResponseMockHandler()
 ]

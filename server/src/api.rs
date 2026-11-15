@@ -4,14 +4,15 @@ use utoipa::OpenApi;
 use utoipa::openapi::OpenApi as Document;
 use utoipa_axum::router::OpenApiRouter;
 
-use crate::configuration::PublicUrl;
-use crate::{access, health, localization, serving, spike};
+use crate::configuration::{LegalLinks, PublicUrl};
+use crate::{access, health, legal, localization, serving, spike};
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
     pub public_url: PublicUrl,
     pub default_language: String,
+    pub legal_links: LegalLinks,
 }
 
 #[derive(OpenApi)]
@@ -23,6 +24,7 @@ fn routes() -> OpenApiRouter<AppState> {
         .merge(health::router())
         .merge(spike::router())
         .merge(localization::router())
+        .merge(legal::router())
 }
 
 pub fn router(state: AppState) -> Router {
@@ -40,7 +42,7 @@ pub mod testing {
     use sqlx::PgPool;
 
     use super::AppState;
-    use crate::configuration::PublicUrl;
+    use crate::configuration::{LegalLinks, PublicUrl};
 
     pub const PUBLIC_URL: &str = "https://adunata.example.org";
 
@@ -49,6 +51,7 @@ pub mod testing {
             pool,
             public_url: PublicUrl::parse(PUBLIC_URL).expect("test URL must be valid"),
             default_language: "de".to_owned(),
+            legal_links: LegalLinks::default(),
         }
     }
 }

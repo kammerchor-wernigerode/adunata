@@ -25,6 +25,7 @@ import type {
 
 import type {
   Health,
+  LegalLinks,
   SpikeResponse,
   ValidationErrors
 } from './model';
@@ -272,6 +273,119 @@ export function useHealth<TData = Awaited<ReturnType<typeof health>>, TError = H
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getHealthQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type legalLinksResponse200 = {
+  data: LegalLinks
+  status: 200
+}
+
+export type legalLinksResponseSuccess = (legalLinksResponse200) & {
+  headers: Headers;
+};
+;
+
+export type legalLinksResponse = (legalLinksResponseSuccess)
+
+export const getLegalLinksUrl = () => {
+
+
+
+
+  return `/api/legal-links`
+}
+
+export const legalLinks = async ( options?: RequestInit): Promise<legalLinksResponse> => {
+
+  const res = await fetch(getLegalLinksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: legalLinksResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as legalLinksResponse
+}
+
+
+
+
+
+export const getLegalLinksQueryKey = () => {
+    return [
+    `/api/legal-links`
+    ] as const;
+    }
+
+
+export const getLegalLinksQueryOptions = <TData = Awaited<ReturnType<typeof legalLinks>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof legalLinks>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getLegalLinksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof legalLinks>>> = ({ signal }) => legalLinks({ signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof legalLinks>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type LegalLinksQueryResult = NonNullable<Awaited<ReturnType<typeof legalLinks>>>
+export type LegalLinksQueryError = unknown
+
+
+export function useLegalLinks<TData = Awaited<ReturnType<typeof legalLinks>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof legalLinks>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof legalLinks>>,
+          TError,
+          Awaited<ReturnType<typeof legalLinks>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useLegalLinks<TData = Awaited<ReturnType<typeof legalLinks>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof legalLinks>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof legalLinks>>,
+          TError,
+          Awaited<ReturnType<typeof legalLinks>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useLegalLinks<TData = Awaited<ReturnType<typeof legalLinks>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof legalLinks>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useLegalLinks<TData = Awaited<ReturnType<typeof legalLinks>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof legalLinks>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getLegalLinksQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

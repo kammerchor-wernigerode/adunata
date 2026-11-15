@@ -29,8 +29,13 @@ month-10 = October
 month-11 = November
 month-12 = December
 
+product-name = Adunata
+privacy-notice = Privacy notice
+imprint = Imprint
+
 language-label = Language
 
+spike-title = Response
 spike-name = Name
 spike-attendance = Attendance
 spike-attendance-accepted = Accepted

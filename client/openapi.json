@@ -68,6 +68,23 @@
         }
       }
     },
+    "/api/legal-links": {
+      "get": {
+        "operationId": "legal_links",
+        "responses": {
+          "200": {
+            "description": "Links every page shows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalLinks"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/spike-responses": {
       "post": {
         "operationId": "create_response",
@@ -164,6 +181,24 @@
               {
                 "type": "null"
               }
+            ]
+          }
+        }
+      },
+      "LegalLinks": {
+        "type": "object",
+        "description": "Addresses of the privacy notice and the imprint that every page links. A missing address means the operator set none.",
+        "properties": {
+          "privacyUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "imprintUrl": {
+            "type": [
+              "string",
+              "null"
             ]
           }
         }

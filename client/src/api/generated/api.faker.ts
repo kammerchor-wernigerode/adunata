@@ -15,6 +15,7 @@ import {
 } from './model';
 import type {
   Health,
+  LegalLinks,
   SpikeResponse
 } from './model';
 
@@ -22,6 +23,8 @@ import type {
 export const getCatalogResponseMock = (): string => (faker.word.sample())
 
 export const getHealthResponseMock = (overrideResponse: Partial<Extract<Health, object>> = {}): Health => ({status: faker.helpers.arrayElement(Object.values(Status)), cause: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Cause)),null,]), ...overrideResponse})
+
+export const getLegalLinksResponseMock = (overrideResponse: Partial<Extract<LegalLinks, object>> = {}): LegalLinks => ({privacyUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), imprintUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
 
 export const getCreateResponseResponseMock = (overrideResponse: Partial<Extract<SpikeResponse, object>> = {}): SpikeResponse => ({name: faker.string.alpha({length: {min: 1, max: 100}}), attendance: faker.helpers.arrayElement(Object.values(Attendance)), arrival: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 10), null]), beds: faker.number.int({min: 0, max: 20}), ...overrideResponse})
 

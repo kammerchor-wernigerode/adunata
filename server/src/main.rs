@@ -4,6 +4,7 @@ mod client;
 mod configuration;
 mod database;
 mod health;
+mod legal;
 mod localization;
 mod mail;
 mod secret;
@@ -56,6 +57,7 @@ async fn serve() {
         pool,
         public_url: configuration.public_url,
         default_language: configuration.default_language,
+        legal_links: configuration.legal_links,
     };
     tracing::info!(address = %listener.local_addr().expect("listener must have an address"), "accepting requests");
     serving::serve_until(listener, app(state), serving::termination_signal())

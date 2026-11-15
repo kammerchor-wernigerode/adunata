@@ -19,6 +19,12 @@ export const HealthResponse = zod.object({
 }).describe('Whether the instance can serve requests. It holds no personal data and no configuration values.')
 
 
+export const LegalLinksResponse = zod.object({
+  "privacyUrl": zod.string().nullish(),
+  "imprintUrl": zod.string().nullish()
+}).describe('Addresses of the privacy notice and the imprint that every page links. A missing address means the operator set none.')
+
+
 export const createResponseBodyNameMax = 100;
 
 export const createResponseBodyBedsMin = 0;

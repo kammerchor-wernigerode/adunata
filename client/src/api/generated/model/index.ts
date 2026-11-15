@@ -10,6 +10,7 @@ export * from './cause';
 export * from './errorCode';
 export * from './fieldError';
 export * from './health';
+export * from './legalLinks';
 export * from './spikeResponse';
 export * from './status';
 export * from './validationErrors';

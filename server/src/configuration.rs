@@ -33,10 +33,6 @@ pub struct Configuration {
     pub trusted_proxies: Vec<Network>,
     #[cfg_attr(not(test), expect(dead_code, reason = "no personal data expires yet"))]
     pub retention: Retention,
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "no page or mail links them yet")
-    )]
     pub legal_links: LegalLinks,
     #[cfg_attr(not(test), expect(dead_code, reason = "nobody signs in yet"))]
     pub first_organizer: Option<FirstOrganizer>,
