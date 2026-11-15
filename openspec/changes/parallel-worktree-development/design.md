@@ -19,7 +19,7 @@ See proposal.md for the motivation. These facts shape the approach.
 
 - Server, Vite and their databases of several worktrees run at the same time on one machine.
 - A new worktree compiles without a manual client build.
-- The main checkout behaves exactly as today when no plugin and no `.envrc.local` are present.
+- The main checkout keeps its ports and database when no plugin and no `.envrc.local` are present. Only Vite changes, because `strictPort` makes it fail on a taken port instead of moving on.
 
 **Non-Goals:**
 
@@ -69,11 +69,11 @@ Alternative considered: `direnv exec <target>`. It needs `direnv allow` first an
 
 `apply` runs on create and on refresh, so the steps that create something check first. It refuses to run in the main worktree, which `git wt refresh` without an argument would otherwise give a slot.
 
-1. Write `.envrc.local`, keep the previous file as `.envrc.local.bak` and call `ensure_ignored` for `.envrc.local` and `.direnv`, which covers branches older than this change.
+1. Write `.envrc.local`, keep the previous file as `.envrc.local.bak` and call `ensure_ignored` for `.envrc.local`, `.envrc.local.bak` and `.direnv`, which covers branches older than this change.
 2. Create `adunata_wt<n>` only if `pg_database` lacks it.
 3. Clone only when step 2 created the database. On a failed clone, drop the database before re-raising, so a refresh does not keep a half copy.
 4. Run `npm ci --prefer-offline` and `npm run build` in `client/` every time, so a refresh picks up a changed lockfile.
-5. Run `direnv allow` only if `.envrc` exists and `direnv` is on the `PATH`. Otherwise `next_steps` names the missing step.
+5. Run `direnv allow` only if `.envrc` exists and `direnv` is on the `PATH`. Otherwise `next_steps` names the missing step. Without `.envrc` it says to rebase the branch.
 
 ### Clone with `pg_dump` into `psql`
 

@@ -50,6 +50,7 @@ def apply(ctx) -> None:
         raise RuntimeError("the main worktree keeps the defaults of the development shell")
     ctx.write(ENVIRONMENT_FILE, environment_of(ctx), backup=True)
     ctx.ensure_ignored(ENVIRONMENT_FILE)
+    ctx.ensure_ignored(ENVIRONMENT_FILE + ".bak")
     ctx.ensure_ignored(".direnv")
     prepare_database(ctx)
     in_development_shell(ctx, "npm ci --prefer-offline && npm run build", cwd=ctx.target / "client")
@@ -60,7 +61,9 @@ def apply(ctx) -> None:
 def next_steps(ctx) -> list[str]:
     port = server_port(ctx)
     steps = [f"Server: http://localhost:{port}", f"Vite: http://localhost:{port + 1}"]
-    if has_envrc(ctx) and not has_direnv():
+    if not has_envrc(ctx):
+        steps.insert(0, "This branch has no .envrc, so nothing loads these ports. Rebase it onto main.")
+    elif not has_direnv():
         steps.insert(0, "Install direnv, then run: direnv allow")
     return steps
 

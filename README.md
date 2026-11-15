@@ -117,7 +117,7 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 
 `cargo test` creates a separate database for each test and drops it when the test ends, so the user in `PGUSER` needs the right to create databases.
 
-A test run that is killed leaves its databases behind. Drop them while no tests run:
+A test run that is killed leaves its databases behind. Drop them while no tests run in any worktree:
 
 ```sh
 psql -tAc "select datname from pg_database where datname like 'adunata\_test\_%'" | xargs -rn1 dropdb --force
@@ -167,7 +167,7 @@ The server listens on `port_base + 10n` and Vite on `port_base + 10n + 1`. Mail 
 |Option|Default|Meaning|
 |-|-|-|
 |`port_base`|`18000`|Port from which the ports of the slots count. Change it per repository if another project uses the same range.|
-|`clone_db`|off|Copies the database of the main checkout instead of starting empty.|
+|`clone_db`|off|Copies the database of the main checkout instead of starting empty. If the copy is interrupted, drop the database with `dropdb adunata_wt<n>` and run `git wt refresh` again.|
 
 Set an option per repository with `git config worktree-init.port-base 19000` or for one worktree with a flag:
 
