@@ -12,7 +12,10 @@ const BATCH_SIZE: usize = 10;
 pub type Transport = AsyncSmtpTransport<Tokio1Executor>;
 
 pub struct Mail {
+    /// The bare mail address. Delivery adds the display name of the member.
     pub recipient: String,
+    pub member_id: Option<i64>,
+    pub invitation_id: Option<i64>,
     pub subject: String,
     pub text: String,
     pub html: String,
@@ -51,8 +54,10 @@ pub fn transport(smtp: &Smtp) -> Result<Transport, lettre::transport::smtp::Erro
 }
 
 pub async fn enqueue(connection: &mut PgConnection, mail: &Mail) -> Result<(), sqlx::Error> {
-    sqlx::query("INSERT INTO mail_outbox (recipient, subject, text_body, html_body) VALUES ($1, $2, $3, $4)")
+    sqlx::query("INSERT INTO mail_outbox (recipient, member_id, invitation_id, subject, text_body, html_body) VALUES ($1, $2, $3, $4, $5, $6)")
         .bind(&mail.recipient)
+        .bind(mail.member_id)
+        .bind(mail.invitation_id)
         .bind(&mail.subject)
         .bind(&mail.text)
         .bind(&mail.html)
@@ -100,10 +105,12 @@ async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Err
 
 /// Sends one mail. A failure names only its kind, because messages from mail servers often repeat the recipient.
 async fn send(delivery: &Delivery, mail: &PendingMail) -> Result<(), String> {
-    let recipient = mail
-        .recipient
-        .parse::<Mailbox>()
-        .map_err(|_| "invalid recipient".to_owned())?;
+    let recipient = Mailbox::new(
+        None,
+        mail.recipient
+            .parse()
+            .map_err(|_| "invalid recipient".to_owned())?,
+    );
     let message = Message::builder()
         .from(delivery.sender.clone())
         .to(recipient)
@@ -225,7 +232,9 @@ mod tests {
     async fn enqueue_test_mail(pool: &PgPool, token: &str) {
         let mut connection = pool.acquire().await.unwrap();
         let mail = Mail {
-            recipient: "Organizer <organizer@example.org>".to_owned(),
+            recipient: "organizer@example.org".to_owned(),
+            member_id: None,
+            invitation_id: None,
             subject: format!("Response {token}"),
             text: format!("Plain {token}"),
             html: format!("<p>Rich {token}</p>"),
@@ -469,7 +478,9 @@ mod tests {
         let link = format!("https://adunata.example.org/invitations/{token}");
         let mut connection = pool.acquire().await.unwrap();
         let mail = Mail {
-            recipient: "Organizer <organizer@example.org>".to_owned(),
+            recipient: "organizer@example.org".to_owned(),
+            member_id: None,
+            invitation_id: None,
             subject: format!("Links {token}"),
             text: format!("Answer here: {link}"),
             html: format!("<p>Answer <a href=\"{link}\">here</a>.</p>"),
@@ -493,7 +504,9 @@ mod tests {
         let pool = database.pool();
         let mut transaction = pool.begin().await.unwrap();
         let mail = Mail {
-            recipient: "Organizer <organizer@example.org>".to_owned(),
+            recipient: "organizer@example.org".to_owned(),
+            member_id: None,
+            invitation_id: None,
             subject: "Rolled back".to_owned(),
             text: "Rolled back".to_owned(),
             html: "<p>Rolled back</p>".to_owned(),

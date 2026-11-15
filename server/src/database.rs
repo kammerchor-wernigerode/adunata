@@ -193,22 +193,25 @@ mod tests {
     async fn start_after_an_update() {
         let database = empty_database().await;
         let options = database.options();
-        let pool = connect(options.clone()).await.unwrap();
-        let latest = latest_supported_version();
-        sqlx::query("DROP TABLE mail_outbox")
-            .execute(&pool)
+        let first = MIGRATOR
+            .iter()
+            .map(|migration| migration.version)
+            .min()
+            .unwrap();
+        let older = PgPoolOptions::new()
+            .connect_with(options.clone())
             .await
             .unwrap();
-        sqlx::query("DELETE FROM _sqlx_migrations WHERE version = $1")
-            .bind(latest)
-            .execute(&pool)
-            .await
-            .unwrap();
-        pool.close().await;
+        MIGRATOR.run_to(first, &older).await.unwrap();
+        assert!(!table_exists(&older, "mail_outbox").await);
+        older.close().await;
 
         let pool = connect(options).await.unwrap();
         assert!(table_exists(&pool, "mail_outbox").await);
-        assert_eq!(applied_version(&pool).await.unwrap(), Some(latest));
+        assert_eq!(
+            applied_version(&pool).await.unwrap(),
+            Some(latest_supported_version())
+        );
     }
 
     #[tokio::test]

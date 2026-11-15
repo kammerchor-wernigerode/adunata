@@ -19,7 +19,7 @@ const MAX_NAME_LENGTH: usize = 100;
 
 time::serde::format_description!(iso_date, Date, "[year]-[month]-[day]");
 const MAX_BEDS: u8 = 20;
-const SPIKE_RECIPIENT: &str = "Organizer <organizer@example.org>";
+const SPIKE_RECIPIENT: &str = "organizer@example.org";
 const GATHERING_START: Date = time::macros::date!(2027 - 03 - 14);
 const GATHERING_END: Date = time::macros::date!(2027 - 03 - 16);
 
@@ -159,6 +159,8 @@ fn confirmation(
     let link = public_url.link("/");
     Mail {
         recipient: SPIKE_RECIPIENT.to_owned(),
+        member_id: None,
+        invitation_id: None,
         subject,
         text: format!("{body}\n{beds}\n{link}"),
         html: format!(
