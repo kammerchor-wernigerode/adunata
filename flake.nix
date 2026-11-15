@@ -69,6 +69,8 @@
           serverArgs = {
             src = serverSource;
             strictDeps = true;
+            # The tests bind PostgreSQL and Mailpit to the loopback address, which the macOS sandbox forbids otherwise.
+            __darwinAllowLocalNetworking = true;
             meta.mainProgram = "adunata";
             nativeCheckInputs = [
               pkgs.postgresql_17
@@ -93,7 +95,16 @@
               ln -sfn ${client} ../client/dist
             '';
           };
-          cargoArtifacts = craneLib.buildDepsOnly serverArgs;
+          # Dependencies compile without the client and without the services of the tests, so a change to the client keeps them cached.
+          forDependencies =
+            args:
+            removeAttrs args [
+              "preBuild"
+              "preCheck"
+              "postCheck"
+              "nativeCheckInputs"
+            ];
+          cargoArtifacts = craneLib.buildDepsOnly (forDependencies serverArgs);
           server = craneLib.buildPackage (serverArgs // { inherit cargoArtifacts; });
           openapi = pkgs.runCommand "adunata-openapi" { } "${server}/bin/adunata openapi > $out";
 
@@ -124,7 +135,9 @@
                 doCheck = false;
               };
             in
-            muslCrane.buildPackage (args // { cargoArtifacts = muslCrane.buildDepsOnly args; });
+            muslCrane.buildPackage (
+              args // { cargoArtifacts = muslCrane.buildDepsOnly (forDependencies args); }
+            );
 
           release = pkgs.runCommand "adunata-release-${muslTargets.${system}}" { } ''
             mkdir $out
