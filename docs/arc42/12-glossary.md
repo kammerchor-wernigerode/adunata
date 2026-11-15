@@ -3,8 +3,9 @@
 |Term|Definition|
 |-|-|
 |Ensemble|A choir or an instrumental ensemble that uses Adunata.|
-|Member|A person who belongs to an ensemble and can be invited to gatherings. A member is active or inactive.|
-|Organizer|A member with the organizer role. Organizers keep the member list, create gatherings and invite members.|
+|Member|A person who belongs to an ensemble and can be invited to gatherings. A member has a first and a last name, a mail address that no other member has in any case, a language for mail and is active or inactive. Only active members receive new invitations.|
+|Organizer|An active member with the organizer role. Organizers keep the member list, create gatherings and invite members.|
+|Organizer role|The right to use organizer functions. Organizers grant it to active members and revoke it. An instance always keeps at least one active organizer.|
 |Gathering|A continuous span of one or more days on which an ensemble meets to rehearse or to give concerts, such as a rehearsal weekend, a rehearsal camp during the week or a concert.|
 |Invitation|The request to one member to attend one gathering. Each invitation has its own personal link.|
 |Personal link|The secret link in an invitation mail. It lets the invited member answer without an account.|
