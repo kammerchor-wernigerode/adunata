@@ -17,4 +17,5 @@ export const ErrorCode = {
   tooLarge: 'tooLarge',
   taken: 'taken',
   invalid: 'invalid',
+  lastOrganizer: 'lastOrganizer',
 } as const;

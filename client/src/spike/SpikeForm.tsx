@@ -16,6 +16,7 @@ const serverErrorMessages: Record<ErrorCode, string> = {
   tooLarge: 'error-too-large',
   taken: 'error-taken',
   invalid: 'error-invalid',
+  lastOrganizer: 'error-invalid',
 }
 
 const attendanceOptions = ['accepted', 'tentative', 'declined'] as const

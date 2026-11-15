@@ -13,6 +13,7 @@ pub enum ErrorCode {
     TooLarge,
     Taken,
     Invalid,
+    LastOrganizer,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

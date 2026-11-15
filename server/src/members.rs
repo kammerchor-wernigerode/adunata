@@ -114,7 +114,7 @@ async fn add_member(State(state): State<AppState>, Json(member): Json<NewMember>
     responses(
         (status = 200, description = "Member changed", body = Member),
         (status = 404, description = "No such member"),
-        (status = 422, description = "Change invalid", body = crate::validation::ValidationErrors),
+        (status = 422, description = "Change invalid or it would leave no active organizer", body = crate::validation::ValidationErrors),
     )
 )]
 async fn change_member(
@@ -126,14 +126,54 @@ async fn change_member(
     if !errors.is_empty() {
         return invalid(errors);
     }
-    let Ok(mut connection) = state.pool.acquire().await else {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    };
-    match update(&mut connection, id, &change).await {
-        Ok(Some(stored)) => Json(stored).into_response(),
-        Ok(None) => StatusCode::NOT_FOUND.into_response(),
-        Err(error) => rejected(&mut connection, &change.mail, &error).await,
+    match change_guarded(&state.pool, id, &change).await {
+        Ok(Outcome::Done(stored)) => Json(stored).into_response(),
+        Ok(Outcome::NotFound) => StatusCode::NOT_FOUND.into_response(),
+        Ok(Outcome::LastOrganizer) => {
+            let field = if change.organizer {
+                "active"
+            } else {
+                "organizer"
+            };
+            invalid(vec![field_error(field, ErrorCode::LastOrganizer)])
+        }
+        Err(error) => match state.pool.acquire().await {
+            Ok(mut connection) => rejected(&mut connection, &change.mail, &error).await,
+            Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        },
     }
+}
+
+enum Outcome<T> {
+    Done(T),
+    NotFound,
+    LastOrganizer,
+}
+
+async fn change_guarded(
+    pool: &sqlx::PgPool,
+    id: i64,
+    change: &MemberChange,
+) -> Result<Outcome<Member>, sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+    if !(change.active && change.organizer) && is_last_organizer(&mut transaction, id).await? {
+        return Ok(Outcome::LastOrganizer);
+    }
+    let Some(stored) = update(&mut transaction, id, change).await? else {
+        return Ok(Outcome::NotFound);
+    };
+    transaction.commit().await?;
+    Ok(Outcome::Done(stored))
+}
+
+/// Locks the rows of every active organizer and tells whether the member is the only one. Revoking the role, deactivating and deleting a member call it before they change anything, so two organizers who remove each other at once cannot leave the instance without one.
+async fn is_last_organizer(connection: &mut PgConnection, id: i64) -> Result<bool, sqlx::Error> {
+    let organizers: Vec<i64> = sqlx::query_scalar(
+        "SELECT id FROM members WHERE active AND organizer ORDER BY id FOR UPDATE",
+    )
+    .fetch_all(connection)
+    .await?;
+    Ok(organizers == [id])
 }
 
 /// The active members, the only ones that new invitations reach.
@@ -224,6 +264,9 @@ fn validate(member: &MemberChange) -> Vec<FieldError> {
     }
     if !localization::is_supported(&member.language) {
         errors.push(field_error("language", ErrorCode::Invalid));
+    }
+    if member.organizer && !member.active {
+        errors.push(field_error("organizer", ErrorCode::Invalid));
     }
     errors
 }
@@ -378,6 +421,136 @@ mod tests {
                 { "field": "mail", "code": "invalid" },
                 { "field": "language", "code": "invalid" },
             ] })
+        );
+    }
+
+    async fn organizer(pool: &sqlx::PgPool, first_name: &str) -> Value {
+        let (_, added) = send(
+            pool,
+            "POST",
+            "/api/members",
+            &json!({ "firstName": first_name, "lastName": "Organizer", "mail": format!("{first_name}@example.org"), "language": "de" }),
+        )
+        .await;
+        let mut change = added.clone();
+        change["organizer"] = json!(true);
+        let (status, stored) = send(
+            pool,
+            "PUT",
+            &format!("/api/members/{}", added["id"]),
+            &change,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        stored
+    }
+
+    async fn active_organizers(pool: &sqlx::PgPool) -> i64 {
+        sqlx::query_scalar("SELECT count(*) FROM members WHERE active AND organizer")
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn revoke_the_last_organizer() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let mut only = organizer(&pool, "ada").await;
+        only["organizer"] = json!(false);
+        let (status, body) =
+            send(&pool, "PUT", &format!("/api/members/{}", only["id"]), &only).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            body,
+            json!({ "errors": [{ "field": "organizer", "code": "lastOrganizer" }] })
+        );
+        assert_eq!(active_organizers(&pool).await, 1);
+    }
+
+    #[tokio::test]
+    async fn deactivate_the_last_organizer() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let mut only = organizer(&pool, "ada").await;
+        only["active"] = json!(false);
+        only["organizer"] = json!(false);
+        let (status, _) = send(&pool, "PUT", &format!("/api/members/{}", only["id"]), &only).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(active_organizers(&pool).await, 1);
+    }
+
+    #[tokio::test]
+    async fn revoke_one_of_two_organizers() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        organizer(&pool, "ada").await;
+        let mut second = organizer(&pool, "clara").await;
+        second["organizer"] = json!(false);
+        let (status, _) = send(
+            &pool,
+            "PUT",
+            &format!("/api/members/{}", second["id"]),
+            &second,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(active_organizers(&pool).await, 1);
+    }
+
+    fn revoked(member: &Value) -> MemberChange {
+        MemberChange {
+            organizer: false,
+            ..serde_json::from_value(member.clone()).unwrap()
+        }
+    }
+
+    #[tokio::test]
+    async fn two_concurrent_revocations_leave_one_organizer() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let first = organizer(&pool, "ada").await;
+        let second = organizer(&pool, "clara").await;
+        let first_id = first["id"].as_i64().unwrap();
+        let second_id = second["id"].as_i64().unwrap();
+
+        let mut transaction = pool.begin().await.unwrap();
+        assert!(!is_last_organizer(&mut transaction, first_id).await.unwrap());
+        let other = tokio::spawn({
+            let pool = pool.clone();
+            let change = revoked(&second);
+            async move { change_guarded(&pool, second_id, &change).await }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        update(&mut transaction, first_id, &revoked(&first))
+            .await
+            .unwrap();
+        transaction.commit().await.unwrap();
+
+        let outcome = other.await.unwrap().unwrap();
+        assert!(matches!(outcome, Outcome::LastOrganizer));
+        assert_eq!(active_organizers(&pool).await, 1);
+    }
+
+    #[tokio::test]
+    async fn role_only_for_active_members() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let (_, added) = send(&pool, "POST", "/api/members", &ada()).await;
+        let mut change = added.clone();
+        change["active"] = json!(false);
+        change["organizer"] = json!(true);
+        let (status, body) = send(
+            &pool,
+            "PUT",
+            &format!("/api/members/{}", added["id"]),
+            &change,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            body,
+            json!({ "errors": [{ "field": "organizer", "code": "invalid" }] })
         );
     }
 

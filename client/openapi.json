@@ -180,7 +180,7 @@
             "description": "No such member"
           },
           "422": {
-            "description": "Change invalid",
+            "description": "Change invalid or it would leave no active organizer",
             "content": {
               "application/json": {
                 "schema": {
@@ -254,7 +254,8 @@
           "tooLong",
           "tooLarge",
           "taken",
-          "invalid"
+          "invalid",
+          "lastOrganizer"
         ]
       },
       "FieldError": {
