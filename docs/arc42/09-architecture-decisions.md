@@ -10,3 +10,4 @@
 |0006|[Outbox for mail](../decisions/0006-outbox-for-mail.md)|Accepted|
 |0007|[Modular monolith](../decisions/0007-modular-monolith.md)|Accepted|
 |0008|[Client libraries](../decisions/0008-client-libraries.md)|Accepted|
+|0009|[Optional tooling for parallel worktrees](../decisions/0009-optional-worktree-tooling.md)|Accepted|

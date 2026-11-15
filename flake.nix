@@ -333,8 +333,10 @@
             pkgs.nodejs_24
             pkgs.postgresql_17
             pkgs.mailpit
+            pkgs.sccache
           ];
 
+          RUSTC_WRAPPER = "sccache";
           PGHOST = "localhost";
           PGPORT = "5432";
           PGUSER = "adunata";

@@ -9,6 +9,8 @@ export default defineConfig({
     alias: { '@': path.resolve(import.meta.dirname, './src') },
   },
   server: {
-    proxy: { '/api': 'http://127.0.0.1:8080' },
+    port: Number(process.env.ADUNATA_VITE_PORT || 5173),
+    strictPort: true,
+    proxy: { '/api': `http://${process.env.ADUNATA_LISTEN_ADDRESS || '127.0.0.1:8080'}` },
   },
 })
