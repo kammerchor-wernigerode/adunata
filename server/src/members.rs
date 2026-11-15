@@ -251,6 +251,33 @@ pub async fn active_organizer(
         .await
 }
 
+/// Whether any active member holds the organizer role.
+pub async fn has_active_organizer(connection: &mut PgConnection) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM members WHERE active AND organizer)")
+        .fetch_one(connection)
+        .await
+}
+
+/// Makes the member with this mail address an active organizer. Creates the member with the given names and language if no member has the address in any case.
+pub async fn grant_organizer(
+    connection: &mut PgConnection,
+    mail: &str,
+    first_name: &str,
+    last_name: &str,
+    language: &str,
+) -> Result<Member, sqlx::Error> {
+    let query = format!(
+        "INSERT INTO members (first_name, last_name, mail, language, active, organizer) VALUES ($1, $2, $3, $4, true, true) ON CONFLICT ((lower(mail))) DO UPDATE SET active = true, organizer = true RETURNING {COLUMNS}"
+    );
+    sqlx::query_as(sqlx::AssertSqlSafe(query))
+        .bind(first_name.trim())
+        .bind(last_name.trim())
+        .bind(mail.trim())
+        .bind(language)
+        .fetch_one(connection)
+        .await
+}
+
 /// The active members, the only ones that new invitations reach.
 #[cfg_attr(not(test), expect(dead_code, reason = "nobody is invited yet"))]
 pub async fn active_members(connection: &mut PgConnection) -> Result<Vec<Member>, sqlx::Error> {

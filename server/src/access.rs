@@ -17,7 +17,7 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use crate::api::AppState;
-use crate::configuration::{Network, PublicUrl};
+use crate::configuration::{FirstOrganizer, Network, PublicUrl};
 use crate::mail::{self, Mail};
 use crate::members::{self, Member};
 use crate::{localization, secret};
@@ -49,6 +49,38 @@ async fn check_origin(State(origin): State<String>, request: Request, next: Next
 #[derive(Clone, Debug, Deserialize, ToSchema)]
 pub struct SignInRequest {
     pub mail: String,
+}
+
+/// What Adunata did about the first organizer at start-up.
+#[derive(Debug, PartialEq, Eq)]
+pub enum FirstOrganizerOutcome {
+    Created,
+    AlreadyPresent,
+    NobodyCanSignIn,
+}
+
+/// Creates the first organizer from the settings if the instance has no active organizer yet.
+pub async fn ensure_first_organizer(
+    pool: &sqlx::PgPool,
+    first: Option<&FirstOrganizer>,
+    language: &str,
+) -> Result<FirstOrganizerOutcome, sqlx::Error> {
+    let mut connection = pool.acquire().await?;
+    if members::has_active_organizer(&mut connection).await? {
+        return Ok(FirstOrganizerOutcome::AlreadyPresent);
+    }
+    let Some(first) = first else {
+        return Ok(FirstOrganizerOutcome::NobodyCanSignIn);
+    };
+    members::grant_organizer(
+        &mut connection,
+        &first.mail,
+        &first.first_name,
+        &first.last_name,
+        language,
+    )
+    .await?;
+    Ok(FirstOrganizerOutcome::Created)
 }
 
 /// Counts sign-in requests per network address in memory, which is enough for one process.
@@ -481,6 +513,7 @@ mod tests {
     }
 
     mod sign_in {
+        use crate::configuration::FirstOrganizer;
         use axum::body::to_bytes;
         use axum::http::Response as HttpResponse;
         use serde_json::{Value, json};
@@ -919,6 +952,92 @@ mod tests {
             }
             assert!(!limiter.allow(address, start + Duration::from_mins(59)));
             assert!(limiter.allow(address, start + HOUR));
+        }
+
+        fn ada() -> FirstOrganizer {
+            FirstOrganizer {
+                mail: "ada@example.org".to_owned(),
+                first_name: "Ada".to_owned(),
+                last_name: "Lovelace".to_owned(),
+            }
+        }
+
+        async fn organizers(pool: &PgPool) -> Vec<(String, String)> {
+            sqlx::query_as(
+                "SELECT mail, language FROM members WHERE active AND organizer ORDER BY id",
+            )
+            .fetch_all(pool)
+            .await
+            .unwrap()
+        }
+
+        #[tokio::test]
+        async fn set_up_a_new_instance() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let outcome = ensure_first_organizer(&pool, Some(&ada()), "de")
+                .await
+                .unwrap();
+            assert_eq!(outcome, FirstOrganizerOutcome::Created);
+            assert_eq!(
+                organizers(&pool).await,
+                vec![("ada@example.org".to_owned(), "de".to_owned())]
+            );
+        }
+
+        #[tokio::test]
+        async fn instance_without_any_organizer() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let outcome = ensure_first_organizer(&pool, None, "de").await.unwrap();
+            assert_eq!(outcome, FirstOrganizerOutcome::NobodyCanSignIn);
+            assert!(organizers(&pool).await.is_empty());
+        }
+
+        #[tokio::test]
+        async fn instance_already_has_an_organizer() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            sqlx::query("INSERT INTO members (first_name, last_name, mail, language, organizer) VALUES ('Clara', 'Schumann', 'clara@example.org', 'en', true)")
+                .execute(&pool)
+                .await
+                .unwrap();
+            let outcome = ensure_first_organizer(&pool, Some(&ada()), "de")
+                .await
+                .unwrap();
+            assert_eq!(outcome, FirstOrganizerOutcome::AlreadyPresent);
+            assert_eq!(
+                organizers(&pool).await,
+                vec![("clara@example.org".to_owned(), "en".to_owned())]
+            );
+            assert_eq!(count(&pool, "SELECT count(*) FROM members").await, 1);
+        }
+
+        #[tokio::test]
+        async fn every_organizer_mailbox_lost() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            sqlx::query("INSERT INTO members (first_name, last_name, mail, language, active, organizer) VALUES ('Clara', 'Schumann', 'clara@example.org', 'en', false, true)")
+                .execute(&pool)
+                .await
+                .unwrap();
+            let mut connection = pool.acquire().await.unwrap();
+            members::grant_organizer(&mut connection, "CLARA@example.org", "C", "S", "de")
+                .await
+                .unwrap();
+            members::grant_organizer(&mut connection, "new@example.org", "New", "Organizer", "de")
+                .await
+                .unwrap();
+            drop(connection);
+            assert_eq!(
+                organizers(&pool).await,
+                vec![
+                    ("clara@example.org".to_owned(), "en".to_owned()),
+                    ("new@example.org".to_owned(), "de".to_owned())
+                ]
+            );
+            request_link(&pool, "new@example.org").await;
+            assert_eq!(links(&pool).await, 1);
         }
 
         #[tokio::test]

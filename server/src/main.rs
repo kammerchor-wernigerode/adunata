@@ -19,30 +19,98 @@ use configuration::Configuration;
 
 #[tokio::main]
 async fn main() {
-    if std::env::args().nth(1).as_deref() == Some("openapi") {
-        let document = api::document()
-            .to_pretty_json()
-            .expect("OpenAPI document must serialize");
-        println!("{document}");
-        return;
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    match arguments.first().map(String::as_str) {
+        Some("openapi") => {
+            let document = api::document()
+                .to_pretty_json()
+                .expect("OpenAPI document must serialize");
+            println!("{document}");
+        }
+        Some("grant-organizer") => grant_organizer(&arguments[1..]).await,
+        _ => serve().await,
     }
-    serve().await;
 }
 
-async fn serve() {
-    tracing_subscriber::fmt().json().init();
-    let configuration = Configuration::from_environment().unwrap_or_else(|problems| {
+fn configuration() -> Configuration {
+    Configuration::from_environment().unwrap_or_else(|problems| {
         for problem in problems {
             tracing::error!(%problem, "configuration is invalid");
         }
         std::process::exit(1);
-    });
-    let pool = database::connect(configuration.database)
+    })
+}
+
+async fn connect(configuration: &Configuration) -> sqlx::PgPool {
+    database::connect(configuration.database.clone())
         .await
         .unwrap_or_else(|error| {
             tracing::error!(%error, "database is not ready");
             std::process::exit(1);
-        });
+        })
+}
+
+/// Makes the member with a mail address an active organizer, for an operator who lost every organizer mailbox.
+async fn grant_organizer(arguments: &[String]) {
+    tracing_subscriber::fmt().json().init();
+    let [mail, first_name, last_name] = arguments else {
+        eprintln!("usage: adunata grant-organizer <mail> <first name> <last name>");
+        std::process::exit(2);
+    };
+    if mail.parse::<lettre::Address>().is_err()
+        || first_name.trim().is_empty()
+        || last_name.trim().is_empty()
+    {
+        eprintln!("grant-organizer needs a valid mail address and both names");
+        std::process::exit(2);
+    }
+    let configuration = configuration();
+    let pool = connect(&configuration).await;
+    let mut connection = pool.acquire().await.unwrap_or_else(|error| {
+        tracing::error!(%error, "database is not ready");
+        std::process::exit(1);
+    });
+    match members::grant_organizer(
+        &mut connection,
+        mail,
+        first_name,
+        last_name,
+        &configuration.default_language,
+    )
+    .await
+    {
+        Ok(member) => println!(
+            "{} is an active organizer and can request a sign-in link",
+            member.mail
+        ),
+        Err(error) => {
+            tracing::error!(%error, "organizer role could not be granted");
+            std::process::exit(1);
+        }
+    }
+}
+
+async fn serve() {
+    tracing_subscriber::fmt().json().init();
+    let configuration = configuration();
+    let pool = connect(&configuration).await;
+    match access::ensure_first_organizer(
+        &pool,
+        configuration.first_organizer.as_ref(),
+        &configuration.default_language,
+    )
+    .await
+    {
+        Ok(access::FirstOrganizerOutcome::Created) => tracing::info!("first organizer created"),
+        Ok(access::FirstOrganizerOutcome::AlreadyPresent) => {}
+        Ok(access::FirstOrganizerOutcome::NobodyCanSignIn) => tracing::warn!(
+            "the instance has no active organizer, so nobody can sign in. Set ADUNATA_FIRST_ORGANIZER_MAIL with both names or run adunata grant-organizer"
+        ),
+        Err(error) => {
+            tracing::error!(%error, "first organizer could not be created");
+            std::process::exit(1);
+        }
+    }
     let delivery = mail::Delivery {
         transport: mail::transport(&configuration.smtp).unwrap_or_else(|error| {
             tracing::error!(%error, "mail server settings are unusable");

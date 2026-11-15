@@ -32,6 +32,29 @@ in
       description = "IANA time zone of the instance. Adunata shows wall-clock times in it and compares them with the present.";
     };
 
+    firstOrganizer = lib.mkOption {
+      type = lib.types.nullOr (
+        lib.types.submodule {
+          options = {
+            mail = lib.mkOption {
+              type = lib.types.str;
+              description = "Mail address of the first organizer.";
+            };
+            firstName = lib.mkOption {
+              type = lib.types.str;
+              description = "First name of the first organizer.";
+            };
+            lastName = lib.mkOption {
+              type = lib.types.str;
+              description = "Last name of the first organizer.";
+            };
+          };
+        }
+      );
+      default = null;
+      description = "The member whom Adunata makes organizer when the instance has no active organizer.";
+    };
+
     trustedProxies = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [
@@ -159,6 +182,11 @@ in
         ADUNATA_MAIL_MAX_ATTEMPTS = toString cfg.mail.maxAttempts;
       }
       // lib.optionalAttrs (cfg.smtp.username != null) { ADUNATA_SMTP_USERNAME = cfg.smtp.username; }
+      // lib.optionalAttrs (cfg.firstOrganizer != null) {
+        ADUNATA_FIRST_ORGANIZER_MAIL = cfg.firstOrganizer.mail;
+        ADUNATA_FIRST_ORGANIZER_FIRST_NAME = cfg.firstOrganizer.firstName;
+        ADUNATA_FIRST_ORGANIZER_LAST_NAME = cfg.firstOrganizer.lastName;
+      }
       // lib.optionalAttrs (cfg.database.passwordFile != null) {
         ADUNATA_DATABASE_PASSWORD_FILE = "%d/database-password";
       }

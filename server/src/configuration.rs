@@ -30,7 +30,6 @@ pub struct Configuration {
     #[cfg_attr(not(test), expect(dead_code, reason = "no personal data expires yet"))]
     pub retention: Retention,
     pub legal_links: LegalLinks,
-    #[cfg_attr(not(test), expect(dead_code, reason = "nobody signs in yet"))]
     pub first_organizer: Option<FirstOrganizer>,
 }
 

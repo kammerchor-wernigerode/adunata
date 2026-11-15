@@ -68,3 +68,18 @@ fn unknown_time_zone_stops_before_the_database() {
     );
     assert!(!log.contains("database is not ready"), "{log}");
 }
+
+#[test]
+fn grant_organizer_needs_mail_and_both_names() {
+    let output = Command::new(env!("CARGO_BIN_EXE_adunata"))
+        .env_clear()
+        .args(["grant-organizer", "ada@example.org", "Ada"])
+        .output()
+        .expect("binary must run");
+    assert_eq!(output.status.code(), Some(2));
+    let message = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        message.contains("usage: adunata grant-organizer"),
+        "{message}"
+    );
+}
