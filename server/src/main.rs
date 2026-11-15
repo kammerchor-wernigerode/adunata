@@ -10,6 +10,7 @@ mod mail;
 mod secret;
 mod serving;
 mod spike;
+mod validation;
 
 use std::time::Duration;
 

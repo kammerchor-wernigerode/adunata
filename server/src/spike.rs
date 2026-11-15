@@ -14,6 +14,9 @@ use crate::api::AppState;
 use crate::configuration::PublicUrl;
 use crate::localization;
 use crate::mail::{self, Mail};
+use crate::validation::{
+    ErrorCode, FieldError, ValidationErrors, field_error, invalid, is_unique_violation,
+};
 
 const MAX_NAME_LENGTH: usize = 100;
 
@@ -51,26 +54,6 @@ pub struct SpikeResponse {
     pub arrival: Option<Date>,
     #[schema(minimum = 0, maximum = 20)]
     pub beds: u8,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub enum ErrorCode {
-    Required,
-    TooLong,
-    TooLarge,
-    Taken,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-pub struct FieldError {
-    pub field: String,
-    pub code: ErrorCode,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-pub struct ValidationErrors {
-    pub errors: Vec<FieldError>,
 }
 
 pub fn router() -> OpenApiRouter<AppState> {
@@ -169,27 +152,6 @@ fn confirmation(
             mail::escape_html(&beds)
         ),
     }
-}
-
-fn is_unique_violation(error: &sqlx::Error) -> bool {
-    error
-        .as_database_error()
-        .is_some_and(sqlx::error::DatabaseError::is_unique_violation)
-}
-
-fn field_error(field: &str, code: ErrorCode) -> FieldError {
-    FieldError {
-        field: field.to_owned(),
-        code,
-    }
-}
-
-fn invalid(errors: Vec<FieldError>) -> Response {
-    (
-        StatusCode::UNPROCESSABLE_ENTITY,
-        Json(ValidationErrors { errors }),
-    )
-        .into_response()
 }
 
 #[cfg(test)]

@@ -141,6 +141,7 @@
       },
       "ErrorCode": {
         "type": "string",
+        "description": "Why a field was rejected. The client turns each code into a message from the catalog.",
         "enum": [
           "required",
           "tooLong",
