@@ -39,6 +39,36 @@ Every API response also carries `Cache-Control: no-store`, so no cache keeps per
 
 A middleware on `/api` rejects every request with a method other than `GET` or `HEAD` whose `Origin` header differs from the origin of `ADUNATA_PUBLIC_URL`. A page on another origin can therefore not change data through the browser of a signed-in organizer. A request without `Origin` does not come from a browser page and passes. In development the Vite server forwards `/api` and sets `Origin` to the public URL.
 
+## User interface
+
+The client builds on the components and libraries of [ADR 0008](../decisions/0008-client-libraries.md).
+
+### Tokens and type
+
+Components use only the semantic tokens of shadcn/ui, such as `--primary`, `--ring`, `--input` and `--border`, and never a fixed color. The brand color enters through `--primary` and `--primary-foreground` alone, so branding per instance can set it later. `--accent` stays the neutral hover surface. Until branding per instance exists, the primary color is a neutral slate, `#2F4A5A` in light and `#9CC3D5` in dark mode.
+
+The boundary of a control and the focus indicator reach at least 3:1 against their background, as WCAG 2.2 asks. The tokens `--input` and `--ring` carry values that meet it in both color schemes, and the focus ring is drawn at full opacity. The client follows the color scheme of the operating system through `prefers-color-scheme`.
+
+Headings use Literata and text uses Source Sans 3. The binary serves both fonts with their licenses. Sizes are in `rem`, so the interface scales with the browser's text size.
+
+### Controls
+
+A single-choice question is a list of full-width rows of a Radix `RadioGroup` with a visible circle. A chosen row shows a filled circle, a stronger border and a tint, never color alone.
+
+A status shows an icon from `lucide-react` next to its text. The icon is `aria-hidden`, so a screen reader reads only the text. Declining is not an error and appears in a neutral color.
+
+### Pages and forms
+
+The frame around every page carries a header with the product name on the primary color, the main area and a footer. The footer links the privacy notice and the imprint when the operator set them.
+
+Every route sets its own page title through the main heading. After a route change, focus moves to the main heading. Forms follow these patterns:
+
+- A field with an error carries `aria-invalid` and links its message through `aria-describedby`.
+- After a rejected save, focus moves to the first invalid field.
+- A successful save is announced through an element with `role="status"`.
+
+Every page runs axe in its client slice test. Axe in jsdom computes neither colors nor layout, so end-to-end tests check contrast of control boundaries and focus indicators and the layout at narrow widths.
+
 ## Persistence and migrations
 
 PostgreSQL holds all data, see [ADR 0004](../decisions/0004-postgresql-as-database.md). Queries are plain SQL that the server sends at runtime. Builds therefore need no database.
