@@ -1,4 +1,7 @@
 use axum::Router;
+use axum::http::{HeaderValue, header};
+use axum::middleware::map_response;
+use axum::response::Response;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
@@ -13,6 +16,40 @@ pub async fn serve_until(
             let _ = stop.await;
         })
         .await
+}
+
+/// Adds the headers that keep pages out of foreign frames and their addresses out of referrers to every response.
+pub fn with_security_headers(app: Router) -> Router {
+    app.layer(map_response(security_headers))
+}
+
+/// Keeps every cache from storing a response, because API responses carry personal data.
+pub fn without_caching(app: Router) -> Router {
+    app.layer(map_response(no_store))
+}
+
+async fn security_headers(mut response: Response) -> Response {
+    let headers = response.headers_mut();
+    headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
+    headers.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static("default-src 'self'; frame-ancestors 'none'"),
+    );
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    response
+}
+
+async fn no_store(mut response: Response) -> Response {
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
 }
 
 /// Fires once the service manager asks the process to terminate or someone presses Ctrl-C.

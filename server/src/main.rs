@@ -63,5 +63,47 @@ async fn serve() {
 }
 
 fn app(state: api::AppState) -> axum::Router {
-    api::router(state).merge(client::router())
+    serving::with_security_headers(api::router(state).merge(client::router()))
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::body::Body;
+    use axum::http::{HeaderMap, Request, header};
+    use tower::ServiceExt;
+
+    use super::*;
+
+    async fn headers(path: &str) -> HeaderMap {
+        let pool = sqlx::PgPool::connect_lazy("postgres://localhost").unwrap();
+        app(api::testing::state(pool))
+            .oneshot(Request::get(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+            .headers()
+            .clone()
+    }
+
+    fn assert_security_headers(headers: &HeaderMap) {
+        assert_eq!(headers[header::REFERRER_POLICY], "no-referrer");
+        assert_eq!(
+            headers[header::CONTENT_SECURITY_POLICY],
+            "default-src 'self'; frame-ancestors 'none'"
+        );
+        assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
+    }
+
+    #[tokio::test]
+    async fn entry_page_carries_security_headers() {
+        let headers = headers("/").await;
+        assert_security_headers(&headers);
+        assert!(!headers.contains_key(header::CACHE_CONTROL));
+    }
+
+    #[tokio::test]
+    async fn api_response_is_never_cached() {
+        let headers = headers("/api/catalogs/de").await;
+        assert_security_headers(&headers);
+        assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+    }
 }
