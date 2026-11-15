@@ -27,3 +27,5 @@ Mail leaves with a delay of up to the polling interval of the background task, c
 If the process stops between handing a mail to the server and marking it as sent, the mail goes out a second time after the next start. Members may then receive the same mail twice, which is less harmful than receiving none.
 
 The outbox keeps every sent mail with its content. How long it keeps them is not yet decided.
+
+[ADR 0013](0013-mail-loses-its-content-once-its-delivery-ends.md) decides how long the outbox keeps the content of a mail.

@@ -12,3 +12,4 @@
 |0008|[Client libraries](../decisions/0008-client-libraries.md)|Accepted|
 |0009|[Optional tooling for parallel worktrees](../decisions/0009-optional-worktree-tooling.md)|Accepted|
 |0012|[Wall-clock times in the instance time zone](../decisions/0012-wall-clock-times-in-the-instance-time-zone.md)|Accepted|
+|0013|[Mail loses its content once its delivery ends](../decisions/0013-mail-loses-its-content-once-its-delivery-ends.md)|Accepted|
