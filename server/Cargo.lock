@@ -8,11 +8,13 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "fluent-bundle",
+ "getrandom 0.4.3",
  "jiff",
  "lettre",
  "rust-embed",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "sqlx",
  "time",
  "tokio",

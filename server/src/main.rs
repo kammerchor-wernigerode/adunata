@@ -5,6 +5,7 @@ mod database;
 mod health;
 mod localization;
 mod mail;
+mod secret;
 mod serving;
 mod spike;
 
