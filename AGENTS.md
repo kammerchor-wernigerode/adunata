@@ -36,7 +36,7 @@ CI runs fast checks on every push to a pull request. Pull requests that are read
 ## Code style
 
 - Every file follows `.editorconfig`.
-- Every dependency of server and client, including fonts and icons, has a license approved by the OSI. Adunata meets the conditions of each license, such as shipping a notice or license text with the artifacts that contain the dependency. The commit that adds a dependency names its license.
+- Every dependency of server and client, including fonts, icons and tools for build and test, has a license approved by the OSI. Adunata meets the conditions of each license, such as shipping a notice or license text with the artifacts that contain the dependency. The commit that adds a dependency names its license.
 
 ### Rust
 
