@@ -37,6 +37,15 @@ struct PendingMail {
     attempts: i32,
 }
 
+/// Escapes a text for the HTML part of a mail. Every value that people entered passes through it.
+pub fn escape_html(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
 pub fn transport(smtp: &Smtp) -> Result<Transport, lettre::transport::smtp::Error> {
     let builder = match smtp.encryption {
         Encryption::StartTls => Transport::starttls_relay(&smtp.host)?,
@@ -538,6 +547,45 @@ mod tests {
         let message = mailpit_message(&token).await;
         assert!(message["Text"].as_str().unwrap().contains(&link));
         assert!(message["HTML"].as_str().unwrap().contains(&link));
+    }
+
+    #[tokio::test]
+    async fn title_with_markup() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let token = unique_token();
+        let title = format!("<b>Probe</b> {token}");
+        let mut connection = pool.acquire().await.unwrap();
+        let mail = Mail {
+            recipient: "organizer@example.org".to_owned(),
+            member_id: None,
+            invitation_id: None,
+            subject: title.clone(),
+            text: title.clone(),
+            html: format!("<p>{}</p>", escape_html(&title)),
+        };
+        enqueue(&mut connection, &mail).await.unwrap();
+        drop(connection);
+        deliver_due(
+            &pool,
+            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
+        )
+        .await
+        .unwrap();
+        let html = mailpit_message(&token).await["HTML"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert!(html.contains("&lt;b&gt;Probe&lt;/b&gt;"), "{html}");
+        assert!(!html.contains("<b>"), "{html}");
+    }
+
+    #[test]
+    fn escape_every_character_with_meaning_in_html() {
+        assert_eq!(
+            escape_html(r#"<a href="x" title='y'>&</a>"#),
+            "&lt;a href=&quot;x&quot; title=&#39;y&#39;&gt;&amp;&lt;/a&gt;"
+        );
     }
 
     #[tokio::test]

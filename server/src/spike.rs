@@ -165,17 +165,10 @@ fn confirmation(
         text: format!("{body}\n{beds}\n{link}"),
         html: format!(
             "<p>{}</p><p>{}</p><p><a href=\"{link}\">{link}</a></p>",
-            escape_html(&body),
-            escape_html(&beds)
+            mail::escape_html(&body),
+            mail::escape_html(&beds)
         ),
     }
-}
-
-fn escape_html(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
 }
 
 fn is_unique_violation(error: &sqlx::Error) -> bool {
