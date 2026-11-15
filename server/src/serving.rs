@@ -11,11 +11,14 @@ pub async fn serve_until(
     app: Router,
     stop: oneshot::Receiver<()>,
 ) -> std::io::Result<()> {
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = stop.await;
-        })
-        .await
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(async {
+        let _ = stop.await;
+    })
+    .await
 }
 
 /// Adds the headers that keep pages out of foreign frames and their addresses out of referrers to every response.

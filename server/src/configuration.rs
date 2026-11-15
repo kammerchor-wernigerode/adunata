@@ -26,10 +26,6 @@ pub struct Configuration {
     pub default_language: String,
     #[expect(dead_code, reason = "nothing compares with the present yet")]
     pub time_zone: InstanceTimeZone,
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "no request needs its network address yet")
-    )]
     pub trusted_proxies: Vec<Network>,
     #[cfg_attr(not(test), expect(dead_code, reason = "no personal data expires yet"))]
     pub retention: Retention,
@@ -83,7 +79,7 @@ pub struct Network {
 }
 
 impl Network {
-    fn parse(value: &str) -> Option<Self> {
+    pub fn parse(value: &str) -> Option<Self> {
         let (address, prefix) = value.trim().split_once('/')?;
         let address: IpAddr = address.parse().ok()?;
         let prefix: u8 = prefix.parse().ok()?;
@@ -91,10 +87,6 @@ impl Network {
         (prefix <= bits).then_some(Self { address, prefix })
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "no request needs its network address yet")
-    )]
     pub fn contains(&self, candidate: IpAddr) -> bool {
         match (self.address, candidate.to_canonical()) {
             (IpAddr::V4(network), IpAddr::V4(candidate)) => {

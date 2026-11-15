@@ -4,7 +4,8 @@ use utoipa::OpenApi;
 use utoipa::openapi::OpenApi as Document;
 use utoipa_axum::router::OpenApiRouter;
 
-use crate::configuration::{LegalLinks, PublicUrl};
+use crate::access::SignInLimiter;
+use crate::configuration::{LegalLinks, Network, PublicUrl};
 use crate::{access, health, legal, localization, members, serving, spike};
 
 #[derive(Clone)]
@@ -13,6 +14,8 @@ pub struct AppState {
     pub public_url: PublicUrl,
     pub default_language: String,
     pub legal_links: LegalLinks,
+    pub trusted_proxies: Vec<Network>,
+    pub sign_in_limiter: SignInLimiter,
 }
 
 #[derive(OpenApi)]
@@ -44,7 +47,8 @@ pub mod testing {
     use sqlx::PgPool;
 
     use super::AppState;
-    use crate::configuration::{LegalLinks, PublicUrl};
+    use crate::access::SignInLimiter;
+    use crate::configuration::{LegalLinks, Network, PublicUrl};
 
     pub const PUBLIC_URL: &str = "https://adunata.example.org";
 
@@ -54,6 +58,8 @@ pub mod testing {
             public_url: PublicUrl::parse(PUBLIC_URL).expect("test URL must be valid"),
             default_language: "de".to_owned(),
             legal_links: LegalLinks::default(),
+            trusted_proxies: vec![Network::parse("127.0.0.1/32").expect("loopback is a network")],
+            sign_in_limiter: SignInLimiter::default(),
         }
     }
 }

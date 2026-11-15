@@ -1,4 +1,9 @@
-use axum::extract::{FromRequestParts, Request, State};
+use std::collections::{HashMap, VecDeque};
+use std::net::{IpAddr, SocketAddr};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use axum::extract::{ConnectInfo, FromRequestParts, Request, State};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::middleware::{Next, from_fn_with_state};
@@ -12,12 +17,15 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use crate::api::AppState;
-use crate::configuration::PublicUrl;
+use crate::configuration::{Network, PublicUrl};
 use crate::mail::{self, Mail};
 use crate::members::{self, Member};
 use crate::{localization, secret};
 
 const SESSION_DAYS: i32 = 14;
+const LINKS_PER_ADDRESS_AND_HOUR: i64 = 3;
+const REQUESTS_PER_NETWORK_ADDRESS_AND_HOUR: usize = 20;
+const HOUR: Duration = Duration::from_hours(1);
 const SECURE_COOKIE_NAME: &str = "__Host-adunata_session";
 
 /// Rejects every request that may change data and comes from a page on another origin. A request without an `Origin` header does not come from a browser page and passes.
@@ -41,6 +49,77 @@ async fn check_origin(State(origin): State<String>, request: Request, next: Next
 #[derive(Clone, Debug, Deserialize, ToSchema)]
 pub struct SignInRequest {
     pub mail: String,
+}
+
+/// Counts sign-in requests per network address in memory, which is enough for one process.
+#[derive(Clone, Default)]
+pub struct SignInLimiter {
+    requests: Arc<Mutex<HashMap<IpAddr, VecDeque<Instant>>>>,
+}
+
+impl SignInLimiter {
+    /// Records a request and tells whether the address stays within its limit for the past hour.
+    fn allow(&self, address: IpAddr, now: Instant) -> bool {
+        let mut requests = self
+            .requests
+            .lock()
+            .expect("no thread panics while holding the limiter");
+        requests.retain(|_, times| {
+            while times
+                .front()
+                .is_some_and(|time| now.duration_since(*time) >= HOUR)
+            {
+                times.pop_front();
+            }
+            !times.is_empty()
+        });
+        let times = requests.entry(address).or_default();
+        if times.len() >= REQUESTS_PER_NETWORK_ADDRESS_AND_HOUR {
+            return false;
+        }
+        times.push_back(now);
+        true
+    }
+}
+
+/// The network address of the client. Behind a trusted proxy it is the rightmost entry of `X-Forwarded-For` that is no trusted proxy itself. Entries further left are whatever the client sent.
+pub struct ClientAddress(pub Option<IpAddr>);
+
+impl FromRequestParts<AppState> for ClientAddress {
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let peer = parts
+            .extensions
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|ConnectInfo(address)| address.ip());
+        Ok(Self(peer.map(|peer| {
+            client_address(peer, &parts.headers, &state.trusted_proxies)
+        })))
+    }
+}
+
+fn client_address(peer: IpAddr, headers: &HeaderMap, trusted: &[Network]) -> IpAddr {
+    let is_trusted = |address: IpAddr| trusted.iter().any(|network| network.contains(address));
+    if !is_trusted(peer) {
+        return peer;
+    }
+    let forwarded: Vec<IpAddr> = headers
+        .get_all("x-forwarded-for")
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .map(|entry| entry.trim().parse::<IpAddr>().ok())
+        .collect::<Option<_>>()
+        .unwrap_or_default();
+    forwarded
+        .into_iter()
+        .rev()
+        .find(|address| !is_trusted(*address))
+        .unwrap_or(peer)
 }
 
 /// The signed-in organizer. Organizer routes take it as an argument and so reject every request without a valid session with status 401. The session counts only while its member is active and holds the organizer role.
@@ -85,8 +164,14 @@ pub fn router() -> OpenApiRouter<AppState> {
 )]
 async fn request_sign_in(
     State(state): State<AppState>,
+    ClientAddress(client): ClientAddress,
     Json(request): Json<SignInRequest>,
 ) -> StatusCode {
+    if let Some(client) = client
+        && !state.sign_in_limiter.allow(client, Instant::now())
+    {
+        return StatusCode::ACCEPTED;
+    }
     if let Err(error) = send_sign_in_link(&state, &request.mail).await {
         tracing::error!(%error, "sign-in link could not be stored");
     }
@@ -99,6 +184,15 @@ async fn send_sign_in_link(state: &AppState, mail_address: &str) -> Result<(), s
     else {
         return Ok(());
     };
+    let recent: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM sign_in_links WHERE member_id = $1 AND created_at > now() - interval '1 hour'",
+    )
+    .bind(organizer.id)
+    .fetch_one(&mut *transaction)
+    .await?;
+    if recent >= LINKS_PER_ADDRESS_AND_HOUR {
+        return Ok(());
+    }
     let secret = secret::generate();
     sqlx::query(
         "INSERT INTO sign_in_links (member_id, secret_hash, expires_at) VALUES ($1, $2, now() + interval '1 hour')",
@@ -682,6 +776,149 @@ mod tests {
                 session_status(state, &cookie).await,
                 StatusCode::UNAUTHORIZED
             );
+        }
+
+        async fn request_from(
+            state: &AppState,
+            peer: &str,
+            forwarded: Option<&str>,
+            mail: &str,
+        ) -> StatusCode {
+            let mut request = Request::post("/api/sign-in-requests")
+                .header(header::CONTENT_TYPE, "application/json");
+            if let Some(forwarded) = forwarded {
+                request = request.header("x-forwarded-for", forwarded);
+            }
+            let mut request = request
+                .body(Body::from(json!({ "mail": mail }).to_string()))
+                .unwrap();
+            request
+                .extensions_mut()
+                .insert(ConnectInfo(SocketAddr::new(peer.parse().unwrap(), 40000)));
+            call(state.clone(), request).await.status()
+        }
+
+        async fn links(pool: &PgPool) -> i64 {
+            count(pool, "SELECT count(*) FROM sign_in_links").await
+        }
+
+        #[tokio::test]
+        async fn repeated_requests() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            organizer(&pool).await;
+            for _ in 0..4 {
+                assert_eq!(
+                    request_link(&pool, "ada@example.org").await,
+                    StatusCode::ACCEPTED
+                );
+            }
+            assert_eq!(links(&pool).await, 3);
+            assert_eq!(count(&pool, "SELECT count(*) FROM mail_outbox").await, 3);
+        }
+
+        #[tokio::test]
+        async fn many_requests_from_one_network_address() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            organizer(&pool).await;
+            let state = api::testing::state(pool.clone());
+            for number in 0..20 {
+                let mail = format!("guess{number}@example.org");
+                assert_eq!(
+                    request_from(&state, "203.0.113.7", None, &mail).await,
+                    StatusCode::ACCEPTED
+                );
+            }
+            assert_eq!(
+                request_from(&state, "203.0.113.7", None, "ada@example.org").await,
+                StatusCode::ACCEPTED
+            );
+            assert_eq!(links(&pool).await, 0);
+            request_from(&state, "203.0.113.8", None, "ada@example.org").await;
+            assert_eq!(links(&pool).await, 1);
+        }
+
+        #[tokio::test]
+        async fn request_through_a_trusted_proxy() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            organizer(&pool).await;
+            let state = api::testing::state(pool.clone());
+            for _ in 0..20 {
+                request_from(
+                    &state,
+                    "127.0.0.1",
+                    Some("198.51.100.1"),
+                    "nobody@example.org",
+                )
+                .await;
+            }
+            request_from(&state, "127.0.0.1", Some("198.51.100.1"), "ada@example.org").await;
+            assert_eq!(links(&pool).await, 0);
+            request_from(
+                &state,
+                "127.0.0.1",
+                Some("6.6.6.6, 198.51.100.2"),
+                "ada@example.org",
+            )
+            .await;
+            assert_eq!(links(&pool).await, 1);
+        }
+
+        #[tokio::test]
+        async fn header_from_an_untrusted_client() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            organizer(&pool).await;
+            let state = api::testing::state(pool.clone());
+            for number in 0..20 {
+                let forwarded = format!("198.51.100.{number}");
+                request_from(
+                    &state,
+                    "203.0.113.9",
+                    Some(&forwarded),
+                    "nobody@example.org",
+                )
+                .await;
+            }
+            request_from(
+                &state,
+                "203.0.113.9",
+                Some("198.51.100.200"),
+                "ada@example.org",
+            )
+            .await;
+            assert_eq!(links(&pool).await, 0);
+        }
+
+        #[test]
+        fn client_address_behind_proxies() {
+            let trusted = [Network::parse("10.0.0.0/8").unwrap()];
+            let headers = |value: &str| {
+                let mut headers = HeaderMap::new();
+                headers.insert("x-forwarded-for", value.parse().unwrap());
+                headers
+            };
+            let proxy: IpAddr = "10.0.0.2".parse().unwrap();
+            assert_eq!(
+                client_address(proxy, &headers("1.1.1.1, 2.2.2.2, 10.0.0.3"), &trusted),
+                "2.2.2.2".parse::<IpAddr>().unwrap()
+            );
+            assert_eq!(client_address(proxy, &HeaderMap::new(), &trusted), proxy);
+            assert_eq!(client_address(proxy, &headers("garbage"), &trusted), proxy);
+        }
+
+        #[test]
+        fn limit_frees_up_after_an_hour() {
+            let limiter = SignInLimiter::default();
+            let address: IpAddr = "203.0.113.1".parse().unwrap();
+            let start = Instant::now();
+            for _ in 0..20 {
+                assert!(limiter.allow(address, start));
+            }
+            assert!(!limiter.allow(address, start + Duration::from_mins(59)));
+            assert!(limiter.allow(address, start + HOUR));
         }
 
         #[tokio::test]
