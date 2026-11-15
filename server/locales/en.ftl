@@ -42,6 +42,64 @@ sign-in-mail-subject = Your sign-in link for Adunata
 sign-in-mail-body = Hello { $firstName }, open this link within one hour to sign in to Adunata. It works once.
 sign-in-mail-ignore = If you did not ask to sign in, ignore this mail.
 
+nav-label = Main navigation
+nav-members = Members
+nav-sign-out = Sign out
+
+sign-in-title = Sign in
+sign-in-mail = Mail address
+sign-in-send = Send sign-in link
+sign-in-sent = If this address belongs to an organizer, a sign-in link is on its way. It works once within one hour.
+sign-in-confirm-title = Confirm sign-in
+sign-in-confirm-text = Press the button to sign in on this device.
+sign-in-confirm = Sign in
+sign-in-invalid = This link was already used or has expired.
+sign-in-request-new = Request a new link
+
+members-title = Members
+members-add = Add member
+members-search = Search by name or mail address
+members-filter = Show
+members-filter-all = All
+members-filter-active = Active
+members-filter-inactive = Inactive
+members-empty = No member matches.
+members-count = { $count ->
+        [one] One member
+       *[other] { $count } members
+    }
+
+member-first-name = First name
+member-last-name = Last name
+member-name = Name
+member-mail = Mail address
+member-language = Language of mail
+member-status = Status
+member-active = Active
+member-inactive = Inactive
+member-organizer = Organizer
+member-role = Role
+member-organizer-hint = Organizers sign in and manage members and gatherings.
+member-new-title = Add member
+member-edit-title = Edit { $name }
+member-save = Save
+member-saved = Saved.
+member-delete = Delete member
+member-delete-confirm = Delete { $name } with all invitations, responses and waiting mail?
+member-delete-yes = Delete
+member-cancel = Cancel
+
+error-field-required = Fill in this field.
+error-field-too-long = This is too long.
+error-mail-invalid = Enter a mail address such as name@example.org.
+error-mail-taken = The address { $conflict } is already taken.
+error-last-organizer = The instance needs at least one active organizer.
+error-organizer-inactive = Only active members can be organizers.
+error-unexpected = Something went wrong. Try again.
+
+language-name-de = Deutsch
+language-name-en = English
+
 language-label = Language
 
 spike-title = Response

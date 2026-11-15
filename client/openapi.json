@@ -101,6 +101,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "No valid organizer session"
           }
         }
       },
@@ -126,6 +129,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "No valid organizer session"
           },
           "422": {
             "description": "Member invalid",
@@ -176,6 +182,9 @@
               }
             }
           },
+          "401": {
+            "description": "No valid organizer session"
+          },
           "404": {
             "description": "No such member"
           },
@@ -208,6 +217,9 @@
         "responses": {
           "204": {
             "description": "Member deleted together with everything that belongs to the member"
+          },
+          "401": {
+            "description": "No valid organizer session"
           },
           "404": {
             "description": "No such member"

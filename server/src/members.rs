@@ -62,7 +62,10 @@ pub fn router() -> OpenApiRouter<AppState> {
 #[utoipa::path(
     get,
     path = "/api/members",
-    responses((status = 200, description = "Every member, sorted by last name", body = Vec<Member>))
+    responses(
+        (status = 200, description = "Every member, sorted by last name", body = Vec<Member>),
+        (status = 401, description = "No valid organizer session"),
+    )
 )]
 async fn list_members(_: Organizer, State(state): State<AppState>) -> Response {
     let query =
@@ -82,6 +85,7 @@ async fn list_members(_: Organizer, State(state): State<AppState>) -> Response {
     request_body = NewMember,
     responses(
         (status = 201, description = "Member added as active", body = Member),
+        (status = 401, description = "No valid organizer session"),
         (status = 422, description = "Member invalid", body = crate::validation::ValidationErrors),
     )
 )]
@@ -118,6 +122,7 @@ async fn add_member(
     request_body = MemberChange,
     responses(
         (status = 200, description = "Member changed", body = Member),
+        (status = 401, description = "No valid organizer session"),
         (status = 404, description = "No such member"),
         (status = 422, description = "Change invalid or it would leave no active organizer", body = crate::validation::ValidationErrors),
     )
@@ -156,6 +161,7 @@ async fn change_member(
     params(("id" = i64, Path, description = "Id of the member")),
     responses(
         (status = 204, description = "Member deleted together with everything that belongs to the member"),
+        (status = 401, description = "No valid organizer session"),
         (status = 404, description = "No such member"),
         (status = 422, description = "The member is the last active organizer", body = crate::validation::ValidationErrors),
     )

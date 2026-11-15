@@ -1,6 +1,8 @@
-import { Outlet, useRouterState } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
-import { useLegalLinks } from '@/api/generated/api'
+import { signOut, useLegalLinks } from '@/api/generated/api'
+import { useOrganizer } from '@/access/session'
 import { LanguageSwitcher } from '@/l10n/LanguageSwitcher'
 import { useTranslate } from '@/l10n/translate'
 
@@ -23,7 +25,10 @@ export function Frame() {
       <header className="bg-primary text-primary-foreground">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3">
           <span className="font-heading text-lg font-semibold">{translate('product-name')}</span>
-          <LanguageSwitcher />
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <OrganizerNavigation />
+            <LanguageSwitcher />
+          </div>
         </div>
       </header>
       <main ref={main} className="mx-auto w-full max-w-5xl flex-1 px-4 py-5 sm:px-5">
@@ -31,6 +36,39 @@ export function Frame() {
       </main>
       <LegalFooter />
     </div>
+  )
+}
+
+function OrganizerNavigation() {
+  const translate = useTranslate()
+  const organizer = useOrganizer()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  if (!organizer) return null
+
+  async function leave() {
+    await signOut()
+    queryClient.clear()
+    await navigate({ to: '/sign-in' })
+  }
+
+  const item =
+    'rounded-sm underline-offset-4 decoration-2 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-primary-foreground aria-[current=page]:underline'
+  return (
+    <nav aria-label={translate('nav-label')}>
+      <ul className="flex flex-wrap gap-4">
+        <li>
+          <Link to="/members" className={item}>
+            {translate('nav-members')}
+          </Link>
+        </li>
+        <li>
+          <button type="button" onClick={leave} className={item}>
+            {translate('nav-sign-out')}
+          </button>
+        </li>
+      </ul>
+    </nav>
   )
 }
 

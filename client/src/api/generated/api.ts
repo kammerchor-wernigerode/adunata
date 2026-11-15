@@ -407,12 +407,19 @@ export type listMembersResponse200 = {
   status: 200
 }
 
+export type listMembersResponse401 = {
+  data: void
+  status: 401
+}
+
 export type listMembersResponseSuccess = (listMembersResponse200) & {
   headers: Headers;
 };
-;
+export type listMembersResponseError = (listMembersResponse401) & {
+  headers: Headers;
+};
 
-export type listMembersResponse = (listMembersResponseSuccess)
+export type listMembersResponse = (listMembersResponseSuccess | listMembersResponseError)
 
 export const getListMembersUrl = () => {
 
@@ -451,7 +458,7 @@ export const getListMembersQueryKey = () => {
     }
 
 
-export const getListMembersQueryOptions = <TData = Awaited<ReturnType<typeof listMembers>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMembers>>, TError, TData>>, fetch?: RequestInit}
+export const getListMembersQueryOptions = <TData = Awaited<ReturnType<typeof listMembers>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMembers>>, TError, TData>>, fetch?: RequestInit}
 ) => {
 
 const {query: queryOptions, fetch: fetchOptions} = options ?? {};
@@ -470,10 +477,10 @@ const {query: queryOptions, fetch: fetchOptions} = options ?? {};
 }
 
 export type ListMembersQueryResult = NonNullable<Awaited<ReturnType<typeof listMembers>>>
-export type ListMembersQueryError = unknown
+export type ListMembersQueryError = void
 
 
-export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, TError = unknown>(
+export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, TError = void>(
   options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMembers>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMembers>>,
@@ -483,7 +490,7 @@ export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, 
       >, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, TError = unknown>(
+export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, TError = void>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMembers>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMembers>>,
@@ -493,11 +500,11 @@ export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, 
       >, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, TError = unknown>(
+export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, TError = void>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMembers>>, TError, TData>>, fetch?: RequestInit}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, TError = unknown>(
+export function useListMembers<TData = Awaited<ReturnType<typeof listMembers>>, TError = void>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMembers>>, TError, TData>>, fetch?: RequestInit}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -520,6 +527,11 @@ export type addMemberResponse201 = {
   status: 201
 }
 
+export type addMemberResponse401 = {
+  data: void
+  status: 401
+}
+
 export type addMemberResponse422 = {
   data: ValidationErrors
   status: 422
@@ -528,7 +540,7 @@ export type addMemberResponse422 = {
 export type addMemberResponseSuccess = (addMemberResponse201) & {
   headers: Headers;
 };
-export type addMemberResponseError = (addMemberResponse422) & {
+export type addMemberResponseError = (addMemberResponse401 | addMemberResponse422) & {
   headers: Headers;
 };
 
@@ -580,7 +592,7 @@ const res = await fetch(getAddMemberUrl(),
 
 export const getAddMemberMutationKey = () => ['addMember'] as const;
 
-export const getAddMemberMutationOptions = <TError = ValidationErrors,
+export const getAddMemberMutationOptions = <TError = void | ValidationErrors,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addMember>>, TError,AddMemberMutationVariables, TContext>, fetch?: RequestInit}
 ): UseMutationOptions<Awaited<ReturnType<typeof addMember>>, TError,AddMemberMutationVariables, TContext> => {
 
@@ -609,10 +621,10 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
 
     export type AddMemberMutationResult = NonNullable<Awaited<ReturnType<typeof addMember>>>
     export type AddMemberMutationBody = NewMember
-    export type AddMemberMutationError = ValidationErrors
+    export type AddMemberMutationError = void | ValidationErrors
     export type AddMemberMutationVariables = {data: NewMember}
 
-    export const useAddMember = <TError = ValidationErrors,
+    export const useAddMember = <TError = void | ValidationErrors,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addMember>>, TError,AddMemberMutationVariables, TContext>, fetch?: RequestInit}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof addMember>>,
@@ -628,6 +640,11 @@ export type changeMemberResponse200 = {
   status: 200
 }
 
+export type changeMemberResponse401 = {
+  data: void
+  status: 401
+}
+
 export type changeMemberResponse404 = {
   data: void
   status: 404
@@ -641,7 +658,7 @@ export type changeMemberResponse422 = {
 export type changeMemberResponseSuccess = (changeMemberResponse200) & {
   headers: Headers;
 };
-export type changeMemberResponseError = (changeMemberResponse404 | changeMemberResponse422) & {
+export type changeMemberResponseError = (changeMemberResponse401 | changeMemberResponse404 | changeMemberResponse422) & {
   headers: Headers;
 };
 
@@ -742,6 +759,11 @@ export type deleteMemberResponse204 = {
   status: 204
 }
 
+export type deleteMemberResponse401 = {
+  data: void
+  status: 401
+}
+
 export type deleteMemberResponse404 = {
   data: void
   status: 404
@@ -755,7 +777,7 @@ export type deleteMemberResponse422 = {
 export type deleteMemberResponseSuccess = (deleteMemberResponse204) & {
   headers: Headers;
 };
-export type deleteMemberResponseError = (deleteMemberResponse404 | deleteMemberResponse422) & {
+export type deleteMemberResponseError = (deleteMemberResponse401 | deleteMemberResponse404 | deleteMemberResponse422) & {
   headers: Headers;
 };
 
