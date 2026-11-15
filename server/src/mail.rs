@@ -31,6 +31,7 @@ pub struct Delivery {
 struct PendingMail {
     id: i64,
     recipient: String,
+    recipient_name: Option<String>,
     subject: String,
     text_body: String,
     html_body: String,
@@ -89,7 +90,7 @@ async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Err
     for _ in 0..BATCH_SIZE {
         let mut transaction = pool.begin().await?;
         let pending: Option<PendingMail> = sqlx::query_as(
-            "SELECT id, recipient, subject, text_body, html_body, attempts FROM mail_outbox WHERE sent_at IS NULL AND failed_at IS NULL AND next_attempt_at <= now() ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED",
+            "SELECT outbox.id, outbox.recipient, members.first_name || ' ' || members.last_name AS recipient_name, outbox.subject, outbox.text_body, outbox.html_body, outbox.attempts FROM mail_outbox outbox LEFT JOIN members ON members.id = outbox.member_id WHERE outbox.sent_at IS NULL AND outbox.failed_at IS NULL AND outbox.next_attempt_at <= now() ORDER BY outbox.id LIMIT 1 FOR UPDATE OF outbox SKIP LOCKED",
         )
         .fetch_optional(&mut *transaction)
         .await?;
@@ -115,7 +116,7 @@ async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Err
 /// Sends one mail. A failure names only its kind, because messages from mail servers often repeat the recipient.
 async fn send(delivery: &Delivery, mail: &PendingMail) -> Result<(), String> {
     let recipient = Mailbox::new(
-        None,
+        mail.recipient_name.clone(),
         mail.recipient
             .parse()
             .map_err(|_| "invalid recipient".to_owned())?,
@@ -578,6 +579,39 @@ mod tests {
             .to_owned();
         assert!(html.contains("&lt;b&gt;Probe&lt;/b&gt;"), "{html}");
         assert!(!html.contains("<b>"), "{html}");
+    }
+
+    #[tokio::test]
+    async fn mail_to_a_member_carries_the_name() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let token = unique_token();
+        let member_id: i64 = sqlx::query_scalar(
+            "INSERT INTO members (first_name, last_name, mail, language) VALUES ('Ada', 'Lovelace', 'ada@example.org', 'en') RETURNING id",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let mut connection = pool.acquire().await.unwrap();
+        let mail = Mail {
+            recipient: "ada@example.org".to_owned(),
+            member_id: Some(member_id),
+            invitation_id: None,
+            subject: format!("Named {token}"),
+            text: token.clone(),
+            html: format!("<p>{token}</p>"),
+        };
+        enqueue(&mut connection, &mail).await.unwrap();
+        drop(connection);
+        deliver_due(
+            &pool,
+            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
+        )
+        .await
+        .unwrap();
+        let message = mailpit_message(&token).await;
+        assert_eq!(message["To"][0]["Name"], "Ada Lovelace");
+        assert_eq!(message["To"][0]["Address"], "ada@example.org");
     }
 
     #[test]
