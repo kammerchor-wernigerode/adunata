@@ -6,7 +6,7 @@ See proposal.md for the motivation. These facts shape the approach.
 
 - The development shell in `flake.nix` sets every `ADUNATA_` and `PG` variable with fixed values for port 8080 and the database `adunata`.
 - `client/vite.config.ts` uses the Vite default port 5173 and proxies `/api` to the fixed address `http://127.0.0.1:8080`. `client/playwright.config.ts` already reads `ADUNATA_E2E_URL`.
-- The server rejects a plain HTTP public URL unless its host is `localhost`, as the [configuration reference](../../../docs/operating/configuration.md) states.
+- The server rejects a plain HTTP public URL unless its host is `localhost`, as the [configuration reference](../../../../docs/operating/configuration.md) states.
 - `empty_database` in `server/src/database.rs` creates `adunata_test_<pid>_<n>` and never drops it. `fresh_database` builds on it. 17 tests call `fresh_database` and 2 tests in `database.rs` call `empty_database`.
 - git-worktree-init [1] calls a Python plugin with `apply(ctx)` on create and refresh and with `teardown(ctx)` on `git wt remove` and on every sweep. A sweep runs on `git wt prune`, create and refresh. In mode `prune` the worktree is gone and `ctx.run` starts in the main worktree. Teardown may run more than once. Slot 0 is reserved by default. Paths matching `*/.claude/worktrees/*` are skipped by default.
 - The hook runs in whatever shell called `git worktree add`. That shell often lacks `createdb`, `npm` or `direnv`. It may also carry the variables of another worktree's direnv.
@@ -106,7 +106,7 @@ Alternative considered: one shared `CARGO_TARGET_DIR`. Cargo locks the directory
 
 ### Decision record
 
-Draft for `docs/decisions/0009-optional-worktree-tooling.md`. It supersedes no record and extends [ADR 0005](../../../docs/decisions/0005-nix-flake-as-build-definition.md).
+Draft for `docs/decisions/0009-optional-worktree-tooling.md`. It supersedes no record and extends [ADR 0005](../../../../docs/decisions/0005-nix-flake-as-build-definition.md).
 
 > **ADR 0009: Optional tooling for parallel worktrees**
 >
@@ -122,8 +122,8 @@ Draft for `docs/decisions/0009-optional-worktree-tooling.md`. It supersedes no r
 
 |Section|Change|
 |-|-|
-|[08 Cross-cutting concepts](../../../docs/arc42/08-cross-cutting-concepts.md#testing)|The server slice row says that each test drops its database afterwards.|
-|[09 Architecture decisions](../../../docs/arc42/09-architecture-decisions.md)|A row for ADR 0009.|
+|[08 Cross-cutting concepts](../../../../docs/arc42/08-cross-cutting-concepts.md#testing)|The server slice row says that each test drops its database afterwards.|
+|[09 Architecture decisions](../../../../docs/arc42/09-architecture-decisions.md)|A row for ADR 0009.|
 
 Section 07 stays as it is, because it describes how Adunata runs, not how it is developed. Section 11 stays as it is, because the tooling is optional and development works without it.
 
