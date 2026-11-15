@@ -63,3 +63,95 @@ pub mod testing {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use axum::body::Body;
+    use axum::http::{Method, Request, StatusCode, header};
+    use tower::ServiceExt;
+    use utoipa_axum::routes;
+
+    use super::*;
+
+    /// Operations that answer without an organizer session: health, catalogs, the links every page shows, sign-in and sign-out, the routes behind an invitation link and the spike until feature modules replace it.
+    const PUBLIC: [&str; 7] = [
+        "GET /api/health",
+        "GET /api/catalogs/{locale}",
+        "GET /api/legal-links",
+        "POST /api/sign-in-requests",
+        "POST /api/sessions",
+        "DELETE /api/session",
+        "POST /api/spike-responses",
+    ];
+
+    /// Replaces each path parameter such as `{id}` with `1`.
+    fn with_example_parameters(path: &str) -> String {
+        path.split('/')
+            .map(|segment| {
+                if segment.starts_with('{') {
+                    "1"
+                } else {
+                    segment
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("/")
+    }
+
+    /// Calls every operation of the document without a session and returns those that do not answer with status 401 and are not public.
+    async fn unprotected(operations: OpenApiRouter<AppState>) -> Vec<String> {
+        let (router, document) = operations.split_for_parts();
+        let pool = sqlx::PgPool::connect_lazy("postgres://localhost").unwrap();
+        let app = router.with_state(testing::state(pool));
+        let mut found = Vec::new();
+        for (path, item) in &document.paths.paths {
+            let verbs = [
+                (Method::GET, &item.get),
+                (Method::PUT, &item.put),
+                (Method::POST, &item.post),
+                (Method::DELETE, &item.delete),
+                (Method::PATCH, &item.patch),
+            ];
+            for (verb, _) in verbs
+                .into_iter()
+                .filter(|(_, operation)| operation.is_some())
+            {
+                let name = format!("{verb} {path}");
+                if PUBLIC.contains(&name.as_str()) {
+                    continue;
+                }
+                let uri = with_example_parameters(path);
+                let request = Request::builder()
+                    .method(verb)
+                    .uri(uri)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap();
+                let status = app.clone().oneshot(request).await.unwrap().status();
+                if status != StatusCode::UNAUTHORIZED {
+                    found.push(format!("{name} answered {status}"));
+                }
+            }
+        }
+        found
+    }
+
+    #[tokio::test]
+    async fn every_organizer_operation_requires_a_session() {
+        assert_eq!(unprotected(routes()).await, Vec::<String>::new());
+    }
+
+    #[utoipa::path(post, path = "/api/forgotten", responses((status = 204, description = "Changes data without asking who")))]
+    async fn forgotten() -> StatusCode {
+        StatusCode::NO_CONTENT
+    }
+
+    #[tokio::test]
+    async fn a_route_without_the_extractor_is_found() {
+        let routes = routes().merge(OpenApiRouter::new().routes(routes!(forgotten)));
+        assert_eq!(
+            unprotected(routes).await,
+            vec!["POST /api/forgotten answered 204 No Content".to_owned()]
+        );
+    }
+}
