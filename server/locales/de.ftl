@@ -38,6 +38,10 @@ status-accepted = Zugesagt
 status-tentative = Vorläufig zugesagt
 status-declined = Abgesagt
 
+sign-in-mail-subject = Dein Anmeldelink für Adunata
+sign-in-mail-body = Hallo { $firstName }, öffne diesen Link innerhalb einer Stunde, um dich bei Adunata anzumelden. Er funktioniert einmal.
+sign-in-mail-ignore = Wenn du keine Anmeldung angefordert hast, ignoriere diese Mail.
+
 language-label = Sprache
 
 spike-title = Rückmeldung

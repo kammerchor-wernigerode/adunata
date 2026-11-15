@@ -14,6 +14,7 @@ export * from './legalLinks';
 export * from './member';
 export * from './memberChange';
 export * from './newMember';
+export * from './signInRequest';
 export * from './spikeResponse';
 export * from './status';
 export * from './validationErrors';

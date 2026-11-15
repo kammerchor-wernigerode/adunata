@@ -225,6 +225,75 @@
         }
       }
     },
+    "/api/session": {
+      "get": {
+        "operationId": "current_session",
+        "responses": {
+          "200": {
+            "description": "The signed-in organizer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "sign_out",
+        "responses": {
+          "204": {
+            "description": "Session ended and its cookie removed"
+          }
+        }
+      }
+    },
+    "/api/sessions": {
+      "post": {
+        "summary": "Expects the secret of a sign-in link as `Authorization: Bearer <secret>`.",
+        "operationId": "sign_in",
+        "responses": {
+          "201": {
+            "description": "Session started, its cookie is set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The link is unknown, used or expired"
+          }
+        }
+      }
+    },
+    "/api/sign-in-requests": {
+      "post": {
+        "operationId": "request_sign_in",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Same answer whether or not the address belongs to an organizer"
+          }
+        }
+      }
+    },
     "/api/spike-responses": {
       "post": {
         "operationId": "create_response",
@@ -443,6 +512,18 @@
             "type": "string"
           },
           "language": {
+            "type": "string"
+          }
+        }
+      },
+      "SignInRequest": {
+        "type": "object",
+        "description": "The mail address for which someone asks for a sign-in link.",
+        "required": [
+          "mail"
+        ],
+        "properties": {
+          "mail": {
             "type": "string"
           }
         }

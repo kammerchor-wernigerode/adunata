@@ -86,6 +86,41 @@ export const DeleteMemberParams = zod.object({
 export const DeleteMemberResponse = zod.void()
 
 
+export const CurrentSessionResponse = zod.object({
+  "id": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string().describe('Language of the member\'s mail, `de` or `en`.'),
+  "active": zod.boolean(),
+  "organizer": zod.boolean()
+}).describe('A person in the ensemble whom organizers can invite.')
+
+
+export const SignOutResponse = zod.void()
+
+
+/**
+ * @summary Expects the secret of a sign-in link as `Authorization: Bearer <secret>`.
+ */
+export const SignInResponse = zod.object({
+  "id": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string().describe('Language of the member\'s mail, `de` or `en`.'),
+  "active": zod.boolean(),
+  "organizer": zod.boolean()
+}).describe('A person in the ensemble whom organizers can invite.')
+
+
+export const RequestSignInBody = zod.object({
+  "mail": zod.string()
+}).describe('The mail address for which someone asks for a sign-in link.')
+
+export const RequestSignInResponse = zod.void()
+
+
 export const createResponseBodyNameMax = 100;
 
 export const createResponseBodyBedsMin = 0;

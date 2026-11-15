@@ -29,6 +29,7 @@ import type {
   Member,
   MemberChange,
   NewMember,
+  SignInRequest,
   SpikeResponse
 } from './model';
 
@@ -44,6 +45,10 @@ export const getListMembersResponseMock = (): Member[] => (Array.from({ length: 
 export const getAddMemberResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
 
 export const getChangeMemberResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
+
+export const getCurrentSessionResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
+
+export const getSignInResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
 
 export const getCreateResponseResponseMock = (overrideResponse: Partial<Extract<SpikeResponse, object>> = {}): SpikeResponse => ({name: faker.string.alpha({length: {min: 1, max: 100}}), attendance: faker.helpers.arrayElement(Object.values(Attendance)), arrival: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 10), null]), beds: faker.number.int({min: 0, max: 20}), ...overrideResponse})
 
@@ -131,6 +136,50 @@ export const getDeleteMemberMockHandler = (overrideResponse?: void | ((info: Par
   }, options)
 }
 
+export const getCurrentSessionMockHandler = (overrideResponse?: Member | ((info: Parameters<HttpResponseResolver>[0]) => Promise<Member> | Member), options?: RequestHandlerOptions) => {
+  return http.get('*/api/session', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getCurrentSessionResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getSignOutMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.delete('*/api/session', async (info: Parameters<HttpResponseResolver>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
+export const getSignInMockHandler = (overrideResponse?: Member | ((info: Parameters<HttpResponseResolver>[0]) => Promise<Member> | Member), options?: RequestHandlerOptions) => {
+  return http.post('*/api/sessions', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getSignInResponseMock(),
+      { status: 201
+      })
+  }, options)
+}
+
+export const getRequestSignInMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<PathParams, SignInRequest>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, SignInRequest>('*/api/sign-in-requests', async (info: Parameters<HttpResponseResolver<PathParams, SignInRequest>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 202
+      })
+  }, options)
+}
+
 export const getCreateResponseMockHandler = (overrideResponse?: SpikeResponse | ((info: Parameters<HttpResponseResolver<PathParams, SpikeResponse>>[0]) => Promise<SpikeResponse> | SpikeResponse), options?: RequestHandlerOptions) => {
   return http.post<PathParams, SpikeResponse>('*/api/spike-responses', async (info: Parameters<HttpResponseResolver<PathParams, SpikeResponse>>[0]) => {
 
@@ -150,5 +199,9 @@ export const getAdunataMock = () => [
   getAddMemberMockHandler(),
   getChangeMemberMockHandler(),
   getDeleteMemberMockHandler(),
+  getCurrentSessionMockHandler(),
+  getSignOutMockHandler(),
+  getSignInMockHandler(),
+  getRequestSignInMockHandler(),
   getCreateResponseMockHandler()
 ]

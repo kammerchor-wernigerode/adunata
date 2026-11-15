@@ -8,6 +8,7 @@ use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
+use crate::access::Organizer;
 use crate::api::AppState;
 use crate::localization;
 use crate::validation::{ErrorCode, FieldError, field_error, invalid, is_unique_violation};
@@ -63,7 +64,7 @@ pub fn router() -> OpenApiRouter<AppState> {
     path = "/api/members",
     responses((status = 200, description = "Every member, sorted by last name", body = Vec<Member>))
 )]
-async fn list_members(State(state): State<AppState>) -> Response {
+async fn list_members(_: Organizer, State(state): State<AppState>) -> Response {
     let query =
         format!("SELECT {COLUMNS} FROM members ORDER BY lower(last_name), lower(first_name), id");
     match sqlx::query_as::<_, Member>(sqlx::AssertSqlSafe(query))
@@ -84,7 +85,11 @@ async fn list_members(State(state): State<AppState>) -> Response {
         (status = 422, description = "Member invalid", body = crate::validation::ValidationErrors),
     )
 )]
-async fn add_member(State(state): State<AppState>, Json(member): Json<NewMember>) -> Response {
+async fn add_member(
+    _: Organizer,
+    State(state): State<AppState>,
+    Json(member): Json<NewMember>,
+) -> Response {
     let member = MemberChange {
         first_name: member.first_name,
         last_name: member.last_name,
@@ -118,6 +123,7 @@ async fn add_member(State(state): State<AppState>, Json(member): Json<NewMember>
     )
 )]
 async fn change_member(
+    _: Organizer,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(change): Json<MemberChange>,
@@ -154,7 +160,11 @@ async fn change_member(
         (status = 422, description = "The member is the last active organizer", body = crate::validation::ValidationErrors),
     )
 )]
-async fn delete_member(State(state): State<AppState>, Path(id): Path<i64>) -> Response {
+async fn delete_member(
+    _: Organizer,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Response {
     match delete_guarded(&state.pool, id).await {
         Ok(Outcome::Done(())) => StatusCode::NO_CONTENT.into_response(),
         Ok(Outcome::NotFound) => StatusCode::NOT_FOUND.into_response(),
@@ -213,6 +223,32 @@ async fn is_last_organizer(connection: &mut PgConnection, id: i64) -> Result<boo
     .fetch_all(connection)
     .await?;
     Ok(organizers == [id])
+}
+
+/// The active organizer with this mail address, ignoring case.
+pub async fn active_organizer_by_mail(
+    connection: &mut PgConnection,
+    mail: &str,
+) -> Result<Option<Member>, sqlx::Error> {
+    let query = format!(
+        "SELECT {COLUMNS} FROM members WHERE lower(mail) = lower($1) AND active AND organizer"
+    );
+    sqlx::query_as(sqlx::AssertSqlSafe(query))
+        .bind(mail.trim())
+        .fetch_optional(connection)
+        .await
+}
+
+/// The member with this id if the member is active and holds the organizer role.
+pub async fn active_organizer(
+    connection: &mut PgConnection,
+    id: i64,
+) -> Result<Option<Member>, sqlx::Error> {
+    let query = format!("SELECT {COLUMNS} FROM members WHERE id = $1 AND active AND organizer");
+    sqlx::query_as(sqlx::AssertSqlSafe(query))
+        .bind(id)
+        .fetch_optional(connection)
+        .await
 }
 
 /// The active members, the only ones that new invitations reach.
@@ -315,34 +351,103 @@ mod tests {
     use axum::body::{Body, to_bytes};
     use axum::http::{Request, header};
     use serde_json::{Value, json};
+    use sqlx::PgPool;
     use tower::ServiceExt;
 
     use super::*;
+    use crate::access::testing::signed_in_organizer;
     use crate::api;
-    use crate::database::testing::fresh_database;
+    use crate::database::testing::{FreshDatabase, fresh_database};
 
-    async fn send(
-        pool: &sqlx::PgPool,
-        method: &str,
-        path: &str,
-        body: &Value,
-    ) -> (StatusCode, Value) {
-        let request = Request::builder()
-            .method(method)
-            .uri(path)
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(body.to_string()))
-            .unwrap();
-        let response = api::router(api::testing::state(pool.clone()))
-            .oneshot(request)
-            .await
-            .unwrap();
-        let status = response.status();
-        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        (
-            status,
-            serde_json::from_slice(&bytes).unwrap_or(Value::Null),
-        )
+    /// A test database with one signed-in organizer, Root Organizer, who sends every request.
+    struct Instance {
+        _database: FreshDatabase,
+        pool: PgPool,
+        root: i64,
+        cookie: String,
+    }
+
+    async fn instance() -> Instance {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let (root, cookie) = signed_in_organizer(&pool).await;
+        Instance {
+            _database: database,
+            pool,
+            root,
+            cookie,
+        }
+    }
+
+    impl Instance {
+        async fn send(&self, method: &str, path: &str, body: &Value) -> (StatusCode, Value) {
+            let request = Request::builder()
+                .method(method)
+                .uri(path)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::COOKIE, &self.cookie)
+                .body(Body::from(body.to_string()))
+                .unwrap();
+            let response = api::router(api::testing::state(self.pool.clone()))
+                .oneshot(request)
+                .await
+                .unwrap();
+            let status = response.status();
+            let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            (
+                status,
+                serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+            )
+        }
+
+        async fn add(&self, member: &Value) -> Value {
+            let (status, added) = self.send("POST", "/api/members", member).await;
+            assert_eq!(status, StatusCode::CREATED, "{added}");
+            added
+        }
+
+        async fn change(&self, member: &Value) -> (StatusCode, Value) {
+            self.send("PUT", &format!("/api/members/{}", member["id"]), member)
+                .await
+        }
+
+        async fn root(&self) -> Value {
+            let (_, list) = self.send("GET", "/api/members", &Value::Null).await;
+            list.as_array()
+                .unwrap()
+                .iter()
+                .find(|member| member["id"] == self.root)
+                .unwrap()
+                .clone()
+        }
+
+        async fn organizer(&self, first_name: &str) -> Value {
+            let added = self
+                .add(&json!({ "firstName": first_name, "lastName": "Organizer", "mail": format!("{first_name}@example.org"), "language": "de" }))
+                .await;
+            let mut change = added.clone();
+            change["organizer"] = json!(true);
+            let (status, stored) = self.change(&change).await;
+            assert_eq!(status, StatusCode::OK);
+            stored
+        }
+
+        async fn active_organizers(&self) -> i64 {
+            sqlx::query_scalar("SELECT count(*) FROM members WHERE active AND organizer")
+                .fetch_one(&self.pool)
+                .await
+                .unwrap()
+        }
+
+        async fn active_mail_addresses(&self) -> Vec<String> {
+            let mut connection = self.pool.acquire().await.unwrap();
+            active_members(&mut connection)
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|member| member.mail)
+                .collect()
+        }
     }
 
     fn ada() -> Value {
@@ -350,26 +455,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn request_without_a_session() {
+        let instance = instance().await;
+        let request = Request::get("/api/members").body(Body::empty()).unwrap();
+        let response = api::router(api::testing::state(instance.pool.clone()))
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
     async fn add_a_member() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (status, body) = send(&pool, "POST", "/api/members", &ada()).await;
-        assert_eq!(status, StatusCode::CREATED);
-        assert_eq!(body["active"], true);
-        assert_eq!(body["organizer"], false);
-        let (_, list) = send(&pool, "GET", "/api/members", &Value::Null).await;
-        assert_eq!(list.as_array().unwrap().len(), 1);
+        let instance = instance().await;
+        let added = instance.add(&ada()).await;
+        assert_eq!(added["active"], true);
+        assert_eq!(added["organizer"], false);
+        assert!(
+            instance
+                .active_mail_addresses()
+                .await
+                .contains(&"Ada@Example.org".to_owned())
+        );
     }
 
     #[tokio::test]
     async fn duplicate_address() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        send(&pool, "POST", "/api/members", &ada()).await;
+        let instance = instance().await;
+        instance.add(&ada()).await;
         let mut twin = ada();
         twin["mail"] = json!("ada@example.ORG");
         twin["firstName"] = json!("Augusta");
-        let (status, body) = send(&pool, "POST", "/api/members", &twin).await;
+        let (status, body) = instance.send("POST", "/api/members", &twin).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(
             body,
@@ -379,78 +496,70 @@ mod tests {
 
     #[tokio::test]
     async fn change_the_mail_address() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, added) = send(&pool, "POST", "/api/members", &ada()).await;
-        let mut change = added.clone();
+        let instance = instance().await;
+        let mut change = instance.add(&ada()).await;
         change["mail"] = json!("countess@example.org");
-        let path = format!("/api/members/{}", added["id"]);
-        let (status, body) = send(&pool, "PUT", &path, &change).await;
+        let (status, body) = instance.change(&change).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body["mail"], "countess@example.org");
-        let mut connection = pool.acquire().await.unwrap();
-        let recipients: Vec<String> = active_members(&mut connection)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|member| member.mail)
-            .collect();
-        assert_eq!(recipients, vec!["countess@example.org"]);
+        let addresses = instance.active_mail_addresses().await;
+        assert!(addresses.contains(&"countess@example.org".to_owned()));
+        assert!(!addresses.contains(&"Ada@Example.org".to_owned()));
     }
 
     #[tokio::test]
     async fn deactivate_a_member() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, added) = send(&pool, "POST", "/api/members", &ada()).await;
-        let mut change = added.clone();
+        let instance = instance().await;
+        let mut change = instance.add(&ada()).await;
         change["active"] = json!(false);
-        let path = format!("/api/members/{}", added["id"]);
-        let (status, _) = send(&pool, "PUT", &path, &change).await;
+        let (status, _) = instance.change(&change).await;
         assert_eq!(status, StatusCode::OK);
-        let (_, list) = send(&pool, "GET", "/api/members", &Value::Null).await;
-        assert_eq!(list[0]["active"], false);
-        let mut connection = pool.acquire().await.unwrap();
-        assert!(active_members(&mut connection).await.unwrap().is_empty());
+        let (_, list) = instance.send("GET", "/api/members", &Value::Null).await;
+        assert!(
+            list.as_array()
+                .unwrap()
+                .iter()
+                .any(|member| member["id"] == change["id"] && member["active"] == false)
+        );
+        assert!(
+            !instance
+                .active_mail_addresses()
+                .await
+                .contains(&"Ada@Example.org".to_owned())
+        );
     }
 
     #[tokio::test]
     async fn list_is_sorted_by_last_name() {
-        let database = fresh_database().await;
-        let pool = database.pool();
+        let instance = instance().await;
         for (first, last, mail) in [
             ("Clara", "schumann", "clara@example.org"),
             ("Johannes", "Brahms", "jb@example.org"),
         ] {
-            send(
-                &pool,
-                "POST",
-                "/api/members",
-                &json!({ "firstName": first, "lastName": last, "mail": mail, "language": "de" }),
-            )
-            .await;
+            instance
+                .add(&json!({ "firstName": first, "lastName": last, "mail": mail, "language": "de" }))
+                .await;
         }
-        let (_, list) = send(&pool, "GET", "/api/members", &Value::Null).await;
+        let (_, list) = instance.send("GET", "/api/members", &Value::Null).await;
         let names: Vec<&str> = list
             .as_array()
             .unwrap()
             .iter()
             .map(|member| member["lastName"].as_str().unwrap())
             .collect();
-        assert_eq!(names, vec!["Brahms", "schumann"]);
+        assert_eq!(names, vec!["Brahms", "Organizer", "schumann"]);
     }
 
     #[tokio::test]
     async fn invalid_fields() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (status, body) = send(
-            &pool,
-            "POST",
-            "/api/members",
-            &json!({ "firstName": " ", "lastName": "x".repeat(101), "mail": "no-address", "language": "fr" }),
-        )
-        .await;
+        let instance = instance().await;
+        let (status, body) = instance
+            .send(
+                "POST",
+                "/api/members",
+                &json!({ "firstName": " ", "lastName": "x".repeat(101), "mail": "no-address", "language": "fr" }),
+            )
+            .await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(
             body,
@@ -463,78 +572,39 @@ mod tests {
         );
     }
 
-    async fn organizer(pool: &sqlx::PgPool, first_name: &str) -> Value {
-        let (_, added) = send(
-            pool,
-            "POST",
-            "/api/members",
-            &json!({ "firstName": first_name, "lastName": "Organizer", "mail": format!("{first_name}@example.org"), "language": "de" }),
-        )
-        .await;
-        let mut change = added.clone();
-        change["organizer"] = json!(true);
-        let (status, stored) = send(
-            pool,
-            "PUT",
-            &format!("/api/members/{}", added["id"]),
-            &change,
-        )
-        .await;
-        assert_eq!(status, StatusCode::OK);
-        stored
-    }
-
-    async fn active_organizers(pool: &sqlx::PgPool) -> i64 {
-        sqlx::query_scalar("SELECT count(*) FROM members WHERE active AND organizer")
-            .fetch_one(pool)
-            .await
-            .unwrap()
-    }
-
     #[tokio::test]
     async fn revoke_the_last_organizer() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let mut only = organizer(&pool, "ada").await;
+        let instance = instance().await;
+        let mut only = instance.root().await;
         only["organizer"] = json!(false);
-        let (status, body) =
-            send(&pool, "PUT", &format!("/api/members/{}", only["id"]), &only).await;
+        let (status, body) = instance.change(&only).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(
             body,
             json!({ "errors": [{ "field": "organizer", "code": "lastOrganizer" }] })
         );
-        assert_eq!(active_organizers(&pool).await, 1);
+        assert_eq!(instance.active_organizers().await, 1);
     }
 
     #[tokio::test]
     async fn deactivate_the_last_organizer() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let mut only = organizer(&pool, "ada").await;
+        let instance = instance().await;
+        let mut only = instance.root().await;
         only["active"] = json!(false);
         only["organizer"] = json!(false);
-        let (status, _) = send(&pool, "PUT", &format!("/api/members/{}", only["id"]), &only).await;
+        let (status, _) = instance.change(&only).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(active_organizers(&pool).await, 1);
+        assert_eq!(instance.active_organizers().await, 1);
     }
 
     #[tokio::test]
     async fn revoke_one_of_two_organizers() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        organizer(&pool, "ada").await;
-        let mut second = organizer(&pool, "clara").await;
+        let instance = instance().await;
+        let mut second = instance.organizer("clara").await;
         second["organizer"] = json!(false);
-        let (status, _) = send(
-            &pool,
-            "PUT",
-            &format!("/api/members/{}", second["id"]),
-            &second,
-        )
-        .await;
+        let (status, _) = instance.change(&second).await;
         assert_eq!(status, StatusCode::OK);
-        assert_eq!(active_organizers(&pool).await, 1);
+        assert_eq!(instance.active_organizers().await, 1);
     }
 
     fn revoked(member: &Value) -> MemberChange {
@@ -546,46 +616,41 @@ mod tests {
 
     #[tokio::test]
     async fn two_concurrent_revocations_leave_one_organizer() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let first = organizer(&pool, "ada").await;
-        let second = organizer(&pool, "clara").await;
-        let first_id = first["id"].as_i64().unwrap();
+        let instance = instance().await;
+        let first = instance.root().await;
+        let second = instance.organizer("clara").await;
+        let pool = instance.pool.clone();
         let second_id = second["id"].as_i64().unwrap();
 
         let mut transaction = pool.begin().await.unwrap();
-        assert!(!is_last_organizer(&mut transaction, first_id).await.unwrap());
+        assert!(
+            !is_last_organizer(&mut transaction, instance.root)
+                .await
+                .unwrap()
+        );
         let other = tokio::spawn({
             let pool = pool.clone();
             let change = revoked(&second);
             async move { change_guarded(&pool, second_id, &change).await }
         });
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        update(&mut transaction, first_id, &revoked(&first))
+        update(&mut transaction, instance.root, &revoked(&first))
             .await
             .unwrap();
         transaction.commit().await.unwrap();
 
         let outcome = other.await.unwrap().unwrap();
         assert!(matches!(outcome, Outcome::LastOrganizer));
-        assert_eq!(active_organizers(&pool).await, 1);
+        assert_eq!(instance.active_organizers().await, 1);
     }
 
     #[tokio::test]
     async fn role_only_for_active_members() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, added) = send(&pool, "POST", "/api/members", &ada()).await;
-        let mut change = added.clone();
+        let instance = instance().await;
+        let mut change = instance.add(&ada()).await;
         change["active"] = json!(false);
         change["organizer"] = json!(true);
-        let (status, body) = send(
-            &pool,
-            "PUT",
-            &format!("/api/members/{}", added["id"]),
-            &change,
-        )
-        .await;
+        let (status, body) = instance.change(&change).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(
             body,
@@ -595,25 +660,23 @@ mod tests {
 
     #[tokio::test]
     async fn delete_the_last_organizer() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let only = organizer(&pool, "ada").await;
-        let (status, body) = send(
-            &pool,
-            "DELETE",
-            &format!("/api/members/{}", only["id"]),
-            &Value::Null,
-        )
-        .await;
+        let instance = instance().await;
+        let (status, body) = instance
+            .send(
+                "DELETE",
+                &format!("/api/members/{}", instance.root),
+                &Value::Null,
+            )
+            .await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(
             body,
             json!({ "errors": [{ "field": "member", "code": "lastOrganizer" }] })
         );
-        assert_eq!(active_organizers(&pool).await, 1);
+        assert_eq!(instance.active_organizers().await, 1);
     }
 
-    async fn count(pool: &sqlx::PgPool, table: &str, member_id: i64) -> i64 {
+    async fn count(pool: &PgPool, table: &str, member_id: i64) -> i64 {
         sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT count(*) FROM {table} WHERE member_id = $1"
         )))
@@ -626,39 +689,54 @@ mod tests {
     /// Covers the scenarios "Delete a member" and "Member deleted while a mail waits". Each table that references a member adds its rows here.
     #[tokio::test]
     async fn delete_a_member_with_everything_that_belongs_to_it() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, added) = send(&pool, "POST", "/api/members", &ada()).await;
-        let id = added["id"].as_i64().unwrap();
-        sqlx::query("INSERT INTO mail_outbox (recipient, member_id, subject, text_body, html_body) VALUES ('ada@example.org', $1, 's', 't', 'h')")
+        let instance = instance().await;
+        let clara = instance.organizer("clara").await;
+        let id = clara["id"].as_i64().unwrap();
+        let pool = &instance.pool;
+        sqlx::query("INSERT INTO mail_outbox (recipient, member_id, subject, text_body, html_body) VALUES ('clara@example.org', $1, 's', 't', 'h')")
             .bind(id)
-            .execute(&pool)
+            .execute(pool)
+            .await
+            .unwrap();
+        crate::access::testing::session_cookie(pool, id).await;
+        sqlx::query("INSERT INTO sign_in_links (member_id, secret_hash, expires_at) VALUES ($1, '\\x01', now())")
+            .bind(id)
+            .execute(pool)
             .await
             .unwrap();
 
-        let (status, _) = send(&pool, "DELETE", &format!("/api/members/{id}"), &Value::Null).await;
+        let (status, _) = instance
+            .send("DELETE", &format!("/api/members/{id}"), &Value::Null)
+            .await;
         assert_eq!(status, StatusCode::NO_CONTENT);
-        let (_, list) = send(&pool, "GET", "/api/members", &Value::Null).await;
-        assert_eq!(list, json!([]));
-        assert_eq!(count(&pool, "mail_outbox", id).await, 0);
+        let (_, list) = instance.send("GET", "/api/members", &Value::Null).await;
+        assert!(
+            list.as_array()
+                .unwrap()
+                .iter()
+                .all(|member| member["id"] != id)
+        );
+        for table in ["mail_outbox", "sessions", "sign_in_links"] {
+            assert_eq!(count(pool, table, id).await, 0, "{table}");
+        }
     }
 
     #[tokio::test]
     async fn delete_an_unknown_member() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (status, _) = send(&pool, "DELETE", "/api/members/999", &Value::Null).await;
+        let instance = instance().await;
+        let (status, _) = instance
+            .send("DELETE", "/api/members/999", &Value::Null)
+            .await;
         assert_eq!(status, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]
     async fn change_an_unknown_member() {
-        let database = fresh_database().await;
-        let pool = database.pool();
+        let instance = instance().await;
         let mut change = ada();
         change["active"] = json!(true);
         change["organizer"] = json!(false);
-        let (status, _) = send(&pool, "PUT", "/api/members/999", &change).await;
+        let (status, _) = instance.send("PUT", "/api/members/999", &change).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
     }
 }

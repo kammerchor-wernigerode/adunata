@@ -169,6 +169,15 @@ impl PublicUrl {
         )
     }
 
+    /// The port of an instance that runs on `localhost`, where browsers share cookies across ports. `None` for every other host.
+    pub fn localhost_port(&self) -> Option<u16> {
+        let uri: Uri = self
+            .base
+            .parse()
+            .expect("public URL was checked at start-up");
+        (uri.host() == Some("localhost")).then(|| uri.port_u16().unwrap_or(80))
+    }
+
     pub fn link(&self, path: &str) -> String {
         format!("{}/{}", self.base, path.trim_start_matches('/'))
     }

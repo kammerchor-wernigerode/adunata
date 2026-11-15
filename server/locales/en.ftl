@@ -38,6 +38,10 @@ status-accepted = Accepted
 status-tentative = Tentative
 status-declined = Declined
 
+sign-in-mail-subject = Your sign-in link for Adunata
+sign-in-mail-body = Hello { $firstName }, open this link within one hour to sign in to Adunata. It works once.
+sign-in-mail-ignore = If you did not ask to sign in, ignore this mail.
+
 language-label = Language
 
 spike-title = Response

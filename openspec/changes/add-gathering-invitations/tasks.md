@@ -32,8 +32,8 @@
 
 ## 5. Sign-in and sessions
 
-- [ ] 5.1 Add the module `access` with sign-in links, their mail in both languages and the confirmation page with a button. Redeem a link in one `UPDATE`. Verify with tests for the scenarios "Successful sign-in", "Link opened by a mail scanner", "Link used twice", "Expired link" and "Unknown address"
-- [ ] 5.2 Add sessions with the cookie name and attributes from design.md, including the port suffix on `localhost`, and the extractor for organizer routes. Verify with tests for the scenarios "Sign out", "Session expires", "Role revoked" and "Request without a session", and with a test that two instances on `localhost` with different ports keep separate sessions
+- [x] 5.1 Add the module `access` with sign-in links, their mail in both languages and the confirmation page with a button. Redeem a link in one `UPDATE`. Verify with tests for the scenarios "Successful sign-in", "Link opened by a mail scanner", "Link used twice", "Expired link" and "Unknown address"
+- [x] 5.2 Add sessions with the cookie name and attributes from design.md, including the port suffix on `localhost`, and the extractor for organizer routes. Verify with tests for the scenarios "Sign out", "Session expires", "Role revoked" and "Request without a session", and with a test that two instances on `localhost` with different ports keep separate sessions
 - [ ] 5.3 Add the limits per mail address and per network address with trusted proxies. Verify with tests for the scenarios "Repeated requests", "Many requests from one network address", "Request through a trusted proxy" and "Header from an untrusted client"
 - [ ] 5.4 Create the first organizer at start-up and add the subcommand `grant-organizer`. Verify with tests for the scenarios "Set up a new instance", "Instance without any organizer", "Instance already has an organizer" and "Every organizer mailbox lost"
 - [ ] 5.5 Add the server slice test that walks every operation of the OpenAPI document and expects status 401 without a session outside the allowlist from design.md. Verify it with a deliberately unprotected route

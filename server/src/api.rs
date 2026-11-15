@@ -26,6 +26,7 @@ fn routes() -> OpenApiRouter<AppState> {
         .merge(localization::router())
         .merge(legal::router())
         .merge(members::router())
+        .merge(access::router())
 }
 
 pub fn router(state: AppState) -> Router {

@@ -29,6 +29,7 @@ import type {
   Member,
   MemberChange,
   NewMember,
+  SignInRequest,
   SpikeResponse,
   ValidationErrors
 } from './model';
@@ -833,6 +834,412 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
         TContext
       > => {
       return useMutation(getDeleteMemberMutationOptions(options), queryClient);
+    }
+
+export type currentSessionResponse200 = {
+  data: Member
+  status: 200
+}
+
+export type currentSessionResponse401 = {
+  data: void
+  status: 401
+}
+
+export type currentSessionResponseSuccess = (currentSessionResponse200) & {
+  headers: Headers;
+};
+export type currentSessionResponseError = (currentSessionResponse401) & {
+  headers: Headers;
+};
+
+export type currentSessionResponse = (currentSessionResponseSuccess | currentSessionResponseError)
+
+export const getCurrentSessionUrl = () => {
+
+
+
+
+  return `/api/session`
+}
+
+export const currentSession = async ( options?: RequestInit): Promise<currentSessionResponse> => {
+
+  const res = await fetch(getCurrentSessionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: currentSessionResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as currentSessionResponse
+}
+
+
+
+
+
+export const getCurrentSessionQueryKey = () => {
+    return [
+    `/api/session`
+    ] as const;
+    }
+
+
+export const getCurrentSessionQueryOptions = <TData = Awaited<ReturnType<typeof currentSession>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof currentSession>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCurrentSessionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof currentSession>>> = ({ signal }) => currentSession({ signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof currentSession>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type CurrentSessionQueryResult = NonNullable<Awaited<ReturnType<typeof currentSession>>>
+export type CurrentSessionQueryError = void
+
+
+export function useCurrentSession<TData = Awaited<ReturnType<typeof currentSession>>, TError = void>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof currentSession>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof currentSession>>,
+          TError,
+          Awaited<ReturnType<typeof currentSession>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCurrentSession<TData = Awaited<ReturnType<typeof currentSession>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof currentSession>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof currentSession>>,
+          TError,
+          Awaited<ReturnType<typeof currentSession>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCurrentSession<TData = Awaited<ReturnType<typeof currentSession>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof currentSession>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCurrentSession<TData = Awaited<ReturnType<typeof currentSession>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof currentSession>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getCurrentSessionQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type signOutResponse204 = {
+  data: void
+  status: 204
+}
+
+export type signOutResponseSuccess = (signOutResponse204) & {
+  headers: Headers;
+};
+;
+
+export type signOutResponse = (signOutResponseSuccess)
+
+export const getSignOutUrl = () => {
+
+
+
+
+  return `/api/session`
+}
+
+export const signOut = async ( options?: RequestInit): Promise<signOutResponse> => {
+
+  const res = await fetch(getSignOutUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: signOutResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as signOutResponse
+}
+
+
+
+
+
+export const getSignOutMutationKey = () => ['signOut'] as const;
+
+export const getSignOutMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signOut>>, TError,void, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof signOut>>, TError,void, TContext> => {
+
+const mutationKey = getSignOutMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof signOut>>, void> = () => {
+
+
+          return  signOut(fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SignOutMutationResult = NonNullable<Awaited<ReturnType<typeof signOut>>>
+
+    export type SignOutMutationError = unknown
+
+
+    export const useSignOut = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signOut>>, TError,void, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof signOut>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSignOutMutationOptions(options), queryClient);
+    }
+
+export type signInResponse201 = {
+  data: Member
+  status: 201
+}
+
+export type signInResponse401 = {
+  data: void
+  status: 401
+}
+
+export type signInResponseSuccess = (signInResponse201) & {
+  headers: Headers;
+};
+export type signInResponseError = (signInResponse401) & {
+  headers: Headers;
+};
+
+export type signInResponse = (signInResponseSuccess | signInResponseError)
+
+export const getSignInUrl = () => {
+
+
+
+
+  return `/api/sessions`
+}
+
+/**
+ * @summary Expects the secret of a sign-in link as `Authorization: Bearer <secret>`.
+ */
+export const signIn = async ( options?: RequestInit): Promise<signInResponse> => {
+
+  const res = await fetch(getSignInUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: signInResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as signInResponse
+}
+
+
+
+
+
+export const getSignInMutationKey = () => ['signIn'] as const;
+
+export const getSignInMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signIn>>, TError,void, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof signIn>>, TError,void, TContext> => {
+
+const mutationKey = getSignInMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof signIn>>, void> = () => {
+
+
+          return  signIn(fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SignInMutationResult = NonNullable<Awaited<ReturnType<typeof signIn>>>
+
+    export type SignInMutationError = void
+
+
+    /** @summary Expects the secret of a sign-in link as `Authorization: Bearer <secret>`. */
+export const useSignIn = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signIn>>, TError,void, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof signIn>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSignInMutationOptions(options), queryClient);
+    }
+
+export type requestSignInResponse202 = {
+  data: void
+  status: 202
+}
+
+export type requestSignInResponseSuccess = (requestSignInResponse202) & {
+  headers: Headers;
+};
+;
+
+export type requestSignInResponse = (requestSignInResponseSuccess)
+
+export const getRequestSignInUrl = () => {
+
+
+
+
+  return `/api/sign-in-requests`
+}
+
+export const requestSignIn = async (signInRequest: SignInRequest, options?: RequestInit): Promise<requestSignInResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+const res = await fetch(getRequestSignInUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(signInRequest)
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: requestSignInResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as requestSignInResponse
+}
+
+
+
+
+
+export const getRequestSignInMutationKey = () => ['requestSignIn'] as const;
+
+export const getRequestSignInMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestSignIn>>, TError,RequestSignInMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof requestSignIn>>, TError,RequestSignInMutationVariables, TContext> => {
+
+const mutationKey = getRequestSignInMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestSignIn>>, RequestSignInMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestSignIn(data,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestSignInMutationResult = NonNullable<Awaited<ReturnType<typeof requestSignIn>>>
+    export type RequestSignInMutationBody = SignInRequest
+    export type RequestSignInMutationError = unknown
+    export type RequestSignInMutationVariables = {data: SignInRequest}
+
+    export const useRequestSignIn = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestSignIn>>, TError,RequestSignInMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof requestSignIn>>,
+        TError,
+        RequestSignInMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRequestSignInMutationOptions(options), queryClient);
     }
 
 export type createResponseResponse201 = {

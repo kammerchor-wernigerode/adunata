@@ -1,11 +1,11 @@
 use std::fmt::Write;
 
+use axum::http::{HeaderMap, header};
 use sha2::{Digest, Sha256};
 
 const SECRET_BYTES: usize = 32;
 
 /// Creates a random secret of 256 bits from the generator of the operating system, written as 64 hexadecimal characters.
-#[cfg_attr(not(test), expect(dead_code, reason = "no link grants access yet"))]
 pub fn generate() -> String {
     let mut bytes = [0; SECRET_BYTES];
     getrandom::fill(&mut bytes).expect("the operating system must provide random numbers");
@@ -13,9 +13,19 @@ pub fn generate() -> String {
 }
 
 /// The SHA-256 hash of a secret, which is all that Adunata stores of it.
-#[cfg_attr(not(test), expect(dead_code, reason = "no link grants access yet"))]
 pub fn hash(secret: &str) -> Vec<u8> {
     Sha256::digest(secret.as_bytes()).to_vec()
+}
+
+/// The secret that a client sends as `Authorization: Bearer <secret>`. Personal links carry it in the fragment, which never reaches the server on its own.
+pub fn from_authorization(headers: &HeaderMap) -> Option<&str> {
+    headers
+        .get(header::AUTHORIZATION)?
+        .to_str()
+        .ok()?
+        .strip_prefix("Bearer ")
+        .map(str::trim)
+        .filter(|secret| !secret.is_empty())
 }
 
 fn hex(bytes: &[u8]) -> String {
