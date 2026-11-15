@@ -146,7 +146,7 @@ fn failure_kind(error: &lettre::transport::smtp::Error) -> String {
 }
 
 async fn mark_sent(connection: &mut PgConnection, id: i64) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE mail_outbox SET sent_at = now(), attempts = attempts + 1 WHERE id = $1")
+    sqlx::query("UPDATE mail_outbox SET sent_at = now(), attempts = attempts + 1, recipient = NULL, subject = NULL, text_body = NULL, html_body = NULL WHERE id = $1")
         .bind(id)
         .execute(connection)
         .await
@@ -160,7 +160,7 @@ async fn schedule_retry(
 ) -> Result<(), sqlx::Error> {
     let attempts = mail.attempts + 1;
     sqlx::query(
-        "UPDATE mail_outbox SET attempts = $2, next_attempt_at = now() + make_interval(secs => LEAST(10 * power(2, $2 - 1), 3600)), failed_at = CASE WHEN $2 >= $3 THEN now() END WHERE id = $1",
+        "UPDATE mail_outbox SET attempts = $2, next_attempt_at = now() + make_interval(secs => LEAST(10 * power(2, $2 - 1), 3600)), failed_at = CASE WHEN $2 >= $3 THEN now() END, recipient = CASE WHEN $2 < $3 THEN recipient END, subject = CASE WHEN $2 < $3 THEN subject END, text_body = CASE WHEN $2 < $3 THEN text_body END, html_body = CASE WHEN $2 < $3 THEN html_body END WHERE id = $1",
     )
     .bind(mail.id)
     .bind(attempts)
@@ -454,6 +454,48 @@ mod tests {
         .unwrap();
         assert_eq!(state(&restarted).await, (1, true, false));
         assert_eq!(mailpit_count(&token).await, 1);
+    }
+
+    async fn content_left(pool: &PgPool) -> bool {
+        sqlx::query_scalar(
+            "SELECT recipient IS NOT NULL OR subject IS NOT NULL OR text_body IS NOT NULL OR html_body IS NOT NULL FROM mail_outbox",
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn accepted_mail_loses_its_content() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        enqueue_test_mail(&pool, &unique_token()).await;
+        assert!(content_left(&pool).await);
+        deliver_due(
+            &pool,
+            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
+        )
+        .await
+        .unwrap();
+        assert_eq!(state(&pool).await, (1, true, false));
+        assert!(!content_left(&pool).await);
+    }
+
+    #[tokio::test]
+    async fn failed_mail_loses_its_content() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        enqueue_test_mail(&pool, &unique_token()).await;
+        for attempt in 1..=3 {
+            assert!(
+                content_left(&pool).await,
+                "content must stay for attempt {attempt}"
+            );
+            make_due(&pool).await;
+            deliver_due(&pool, &delivery(1)).await.unwrap();
+        }
+        assert_eq!(state(&pool).await, (3, false, true));
+        assert!(!content_left(&pool).await);
     }
 
     #[tokio::test]

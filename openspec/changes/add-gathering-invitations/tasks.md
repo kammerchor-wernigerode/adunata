@@ -12,7 +12,7 @@
 ## 2. Mail
 
 - [ ] 2.1 Add the nullable columns `member_id` and `invitation_id` to the outbox, store the bare address in `recipient` and add the display name at delivery. Verify with a test that a mail with a display name arrives in Mailpit with that name
-- [ ] 2.2 Clear recipient, subject and both bodies in the statement that marks a mail as sent or failed. Verify with tests for the scenarios "Accepted mail" and "Failed mail" of the mail-delivery delta
+- [x] 2.2 Clear recipient, subject and both bodies in the statement that marks a mail as sent or failed. Verify with tests for the scenarios "Accepted mail" and "Failed mail" of the mail-delivery delta
 - [ ] 2.3 Move the escaping of entered values from `spike` to `mail` and apply it to every HTML part. Verify with a test for the scenario "Title with markup"
 - [ ] 2.4 Write record 0013 (mail loses its content once its delivery ends), add a line to record 0006 that points to it, list it in arc42 section 9 and add the rules for content and escaping to mail delivery in arc42 section 8. Verify that every link resolves
 
