@@ -19,7 +19,16 @@ An empty variable counts as not set.
 |`ADUNATA_MAIL_SENDER`|yes||The sender of every mail, such as `Adunata <adunata@example.org>`.|
 |`ADUNATA_MAIL_MAX_ATTEMPTS`|no|`8`|How often Adunata tries to deliver a mail before it marks the mail as failed. A whole number from 1 to 100.|
 |`ADUNATA_DEFAULT_LANGUAGE`|no|`en`|Language of mail to recipients without a stored language. One of `de` or `en`.|
+|`ADUNATA_TIME_ZONE`|yes||The time zone of the instance as an IANA name, such as `Europe/Berlin`. Adunata shows times of arrival and departure in it and decides with it when a gathering begins and ends.|
 |`ADUNATA_LISTEN_ADDRESS`|no|`127.0.0.1:8080`|The address and port on which Adunata accepts HTTP requests. Put a reverse proxy with HTTPS in front of it.|
+|`ADUNATA_TRUSTED_PROXIES`|no|`127.0.0.1/32,::1/128`|Comma-separated networks in CIDR notation of the reverse proxies that Adunata trusts. For a request from such a network, Adunata takes the network address of the client from `X-Forwarded-For`. It needs that address to limit sign-in requests per client.|
+|`ADUNATA_RETENTION_COMMENT_DAYS`|no|`30`|Days after the last day of a gathering until Adunata deletes the comments of its responses. A whole number or `never`.|
+|`ADUNATA_RETENTION_RESPONSE_DAYS`|no|`365`|Days after the last day of a gathering until Adunata deletes its invitations together with their responses. The gathering itself stays, but organizers then see it without invitations. A whole number or `never`.|
+|`ADUNATA_PRIVACY_URL`|no||Address of the privacy notice. Every page and every invitation mail links it.|
+|`ADUNATA_IMPRINT_URL`|no||Address of the imprint. Every page and every invitation mail links it.|
+|`ADUNATA_FIRST_ORGANIZER_MAIL`|no||Mail address of the first organizer. If the instance has no organizer at start-up, Adunata creates this member with the organizer role.|
+|`ADUNATA_FIRST_ORGANIZER_FIRST_NAME`|with the mail address||First name of the first organizer.|
+|`ADUNATA_FIRST_ORGANIZER_LAST_NAME`|with the mail address||Last name of the first organizer.|
 
 ## Secrets
 
@@ -37,4 +46,8 @@ ADUNATA_SMTP_HOST=mail.example.org
 ADUNATA_SMTP_USERNAME=adunata@example.org
 ADUNATA_SMTP_PASSWORD_FILE=/run/secrets/adunata-smtp
 ADUNATA_MAIL_SENDER="Adunata <adunata@example.org>"
+ADUNATA_TIME_ZONE=Europe/Berlin
+ADUNATA_FIRST_ORGANIZER_MAIL=organizer@example.org
+ADUNATA_FIRST_ORGANIZER_FIRST_NAME=Ada
+ADUNATA_FIRST_ORGANIZER_LAST_NAME=Lovelace
 ```

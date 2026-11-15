@@ -19,6 +19,26 @@ The client starts in the language the browser prefers among German and English. 
 Mail goes out in the language stored for the recipient. Without one it uses the default language of the instance. The client formats dates with the browser's own date formatting. The server spells out date ranges in mail through the catalog, because Fluent in Rust has no date formatting.
 
 
+## Time
+
+The days of a gathering are dates. Times of arrival and departure are wall-clock times without an offset, such as `2027-03-14T18:00`. The database, the API, the client and mail carry them unchanged, so every view shows the same time. [ADR 0012](../decisions/0012-wall-clock-times-in-the-instance-time-zone.md) records why.
+
+The required setting `ADUNATA_TIME_ZONE` names the time zone of the instance. One function in the module `configuration` turns an instant into the date and wall-clock time of the instance. Every comparison with the present goes through it, such as whether a gathering has begun. Instants such as the end of a session stay `timestamptz` in the database and pass through the same function before they reach the API or a mail. The binary embeds the time zone database, so hosts and images need no zone files.
+
+## Security headers
+
+One layer around the whole router sets these headers on every response, whether it comes from the API or serves the client:
+
+|Header|Value|Effect|
+|-|-|-|
+|`Referrer-Policy`|`no-referrer`|Sites that a page links to never learn its address.|
+|`Content-Security-Policy`|`default-src 'self'; frame-ancestors 'none'`|Pages load scripts, styles, fonts and data from Adunata only and no other site can frame them.|
+|`X-Content-Type-Options`|`nosniff`|Browsers trust the declared content type.|
+
+Every API response also carries `Cache-Control: no-store`, so no cache keeps personal data. The client must therefore ship every script and style as a file and set styles only through the DOM, never as an inline element.
+
+A middleware on `/api` rejects every request with a method other than `GET` or `HEAD` whose `Origin` header differs from the origin of `ADUNATA_PUBLIC_URL`. A page on another origin can therefore not change data through the browser of a signed-in organizer. A request without `Origin` does not come from a browser page and passes. In development the Vite server forwards `/api` and sets `Origin` to the public URL.
+
 ## Persistence and migrations
 
 PostgreSQL holds all data, see [ADR 0004](../decisions/0004-postgresql-as-database.md). Queries are plain SQL that the server sends at runtime. Builds therefore need no database.

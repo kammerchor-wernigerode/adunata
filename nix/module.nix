@@ -32,6 +32,15 @@ in
       description = "IANA time zone of the instance. Adunata shows wall-clock times in it and compares them with the present.";
     };
 
+    trustedProxies = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [
+        "127.0.0.1/32"
+        "::1/128"
+      ];
+      description = "Networks in CIDR notation of the reverse proxies whose X-Forwarded-For header Adunata trusts.";
+    };
+
     listenAddress = lib.mkOption {
       type = lib.types.str;
       default = "127.0.0.1:8080";
@@ -140,6 +149,7 @@ in
         ADUNATA_PUBLIC_URL = cfg.publicUrl;
         ADUNATA_LISTEN_ADDRESS = cfg.listenAddress;
         ADUNATA_TIME_ZONE = cfg.timeZone;
+        ADUNATA_TRUSTED_PROXIES = lib.concatStringsSep "," cfg.trustedProxies;
         ADUNATA_DEFAULT_LANGUAGE = cfg.defaultLanguage;
         ADUNATA_DATABASE_URL = cfg.database.url;
         ADUNATA_SMTP_HOST = cfg.smtp.host;

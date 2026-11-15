@@ -21,6 +21,8 @@ Add Adunata to the inputs of your system flake and import its module:
           services.adunata = {
             enable = true;
             publicUrl = "https://adunata.example.org";
+            timeZone = "Europe/Berlin";
+            trustedProxies = [ "127.0.0.1/32" "::1/128" ];
             mail.sender = "Adunata <adunata@example.org>";
             smtp = {
               host = "mail.example.org";
@@ -49,12 +51,16 @@ services:
     image: ghcr.io/kammerchor-wernigerode/adunata:latest
     ports:
       - "127.0.0.1:8080:8080"
+    networks:
+      - adunata
     environment:
       ADUNATA_PUBLIC_URL: https://adunata.example.org
       ADUNATA_DATABASE_URL: postgres://adunata@postgres/adunata
       ADUNATA_DATABASE_PASSWORD_FILE: /run/secrets/database-password
       ADUNATA_SMTP_HOST: mail.example.org
       ADUNATA_MAIL_SENDER: Adunata <adunata@example.org>
+      ADUNATA_TIME_ZONE: Europe/Berlin
+      ADUNATA_TRUSTED_PROXIES: 172.30.0.1/32
     secrets:
       - database-password
     depends_on:
@@ -68,8 +74,17 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/database-password
     secrets:
       - database-password
+    networks:
+      - adunata
     volumes:
       - postgres:/var/lib/postgresql/data
+
+networks:
+  adunata:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
 
 secrets:
   database-password:
@@ -78,6 +93,8 @@ secrets:
 volumes:
   postgres:
 ```
+
+The reverse proxy on the host reaches Adunata through the published port. Docker forwards these connections from the gateway of the network `adunata`, so `ADUNATA_TRUSTED_PROXIES` names that gateway. A proxy that runs as a container in the same network needs its own address there instead.
 
 ## Release binary
 
