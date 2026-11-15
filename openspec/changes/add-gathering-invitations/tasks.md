@@ -27,7 +27,7 @@
 
 - [x] 4.1 Add the module `members` with its table, the unique mail address ignoring case, the language, the active flag and the organizer role. Verify with tests for the scenarios "Add a member", "Duplicate address", "Change the mail address" and "Deactivate a member"
 - [x] 4.2 Add the one function that revokes the role, deactivates or deletes a member and locks the active organizers with `FOR UPDATE`. Verify with tests for the scenarios "Revoke the last organizer" and "Deactivate or delete the last organizer" and with a test that two concurrent revocations leave one active organizer
-- [ ] 4.3 Delete a member with cascades to everything that references the member. Verify with tests for the scenarios "Delete a member" and "Member deleted while a mail waits" once the referencing tables exist, and extend the test in each later group that adds such a table
+- [x] 4.3 Delete a member with cascades to everything that references the member. Verify with tests for the scenarios "Delete a member" and "Member deleted while a mail waits" once the referencing tables exist, and extend the test in each later group that adds such a table
 - [ ] 4.4 Add `members` to arc42 section 5 and the terms member and organizer role to the glossary where they changed. Verify that every link resolves
 
 ## 5. Sign-in and sessions

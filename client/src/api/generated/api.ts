@@ -736,6 +736,105 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       return useMutation(getChangeMemberMutationOptions(options), queryClient);
     }
 
+export type deleteMemberResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteMemberResponse404 = {
+  data: void
+  status: 404
+}
+
+export type deleteMemberResponse422 = {
+  data: ValidationErrors
+  status: 422
+}
+
+export type deleteMemberResponseSuccess = (deleteMemberResponse204) & {
+  headers: Headers;
+};
+export type deleteMemberResponseError = (deleteMemberResponse404 | deleteMemberResponse422) & {
+  headers: Headers;
+};
+
+export type deleteMemberResponse = (deleteMemberResponseSuccess | deleteMemberResponseError)
+
+export const getDeleteMemberUrl = (id: number,) => {
+
+
+
+
+  return `/api/members/${id}`
+}
+
+export const deleteMember = async (id: number, options?: RequestInit): Promise<deleteMemberResponse> => {
+
+  const res = await fetch(getDeleteMemberUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteMemberResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as deleteMemberResponse
+}
+
+
+
+
+
+export const getDeleteMemberMutationKey = () => ['deleteMember'] as const;
+
+export const getDeleteMemberMutationOptions = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMember>>, TError,DeleteMemberMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMember>>, TError,DeleteMemberMutationVariables, TContext> => {
+
+const mutationKey = getDeleteMemberMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMember>>, DeleteMemberMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteMember(id,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMemberMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMember>>>
+
+    export type DeleteMemberMutationError = void | ValidationErrors
+    export type DeleteMemberMutationVariables = {id: number}
+
+    export const useDeleteMember = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMember>>, TError,DeleteMemberMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMember>>,
+        TError,
+        DeleteMemberMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteMemberMutationOptions(options), queryClient);
+    }
+
 export type createResponseResponse201 = {
   data: SpikeResponse
   status: 201

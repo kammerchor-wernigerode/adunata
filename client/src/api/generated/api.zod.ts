@@ -79,6 +79,13 @@ export const ChangeMemberResponse = zod.object({
 }).describe('A person in the ensemble whom organizers can invite.')
 
 
+export const DeleteMemberParams = zod.object({
+  "id": zod.int().describe('Id of the member')
+})
+
+export const DeleteMemberResponse = zod.void()
+
+
 export const createResponseBodyNameMax = 100;
 
 export const createResponseBodyBedsMin = 0;

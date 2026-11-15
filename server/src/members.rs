@@ -55,7 +55,7 @@ pub struct MemberChange {
 pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(list_members, add_member))
-        .routes(routes!(change_member))
+        .routes(routes!(change_member, delete_member))
 }
 
 #[utoipa::path(
@@ -142,6 +142,45 @@ async fn change_member(
             Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         },
     }
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/members/{id}",
+    params(("id" = i64, Path, description = "Id of the member")),
+    responses(
+        (status = 204, description = "Member deleted together with everything that belongs to the member"),
+        (status = 404, description = "No such member"),
+        (status = 422, description = "The member is the last active organizer", body = crate::validation::ValidationErrors),
+    )
+)]
+async fn delete_member(State(state): State<AppState>, Path(id): Path<i64>) -> Response {
+    match delete_guarded(&state.pool, id).await {
+        Ok(Outcome::Done(())) => StatusCode::NO_CONTENT.into_response(),
+        Ok(Outcome::NotFound) => StatusCode::NOT_FOUND.into_response(),
+        Ok(Outcome::LastOrganizer) => {
+            invalid(vec![field_error("member", ErrorCode::LastOrganizer)])
+        }
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+/// Deletes a member. Foreign keys delete everything that references the member in the same statement.
+async fn delete_guarded(pool: &sqlx::PgPool, id: i64) -> Result<Outcome<()>, sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+    if is_last_organizer(&mut transaction, id).await? {
+        return Ok(Outcome::LastOrganizer);
+    }
+    let deleted = sqlx::query("DELETE FROM members WHERE id = $1")
+        .bind(id)
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected();
+    if deleted == 0 {
+        return Ok(Outcome::NotFound);
+    }
+    transaction.commit().await?;
+    Ok(Outcome::Done(()))
 }
 
 enum Outcome<T> {
@@ -552,6 +591,64 @@ mod tests {
             body,
             json!({ "errors": [{ "field": "organizer", "code": "invalid" }] })
         );
+    }
+
+    #[tokio::test]
+    async fn delete_the_last_organizer() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let only = organizer(&pool, "ada").await;
+        let (status, body) = send(
+            &pool,
+            "DELETE",
+            &format!("/api/members/{}", only["id"]),
+            &Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            body,
+            json!({ "errors": [{ "field": "member", "code": "lastOrganizer" }] })
+        );
+        assert_eq!(active_organizers(&pool).await, 1);
+    }
+
+    async fn count(pool: &sqlx::PgPool, table: &str, member_id: i64) -> i64 {
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT count(*) FROM {table} WHERE member_id = $1"
+        )))
+        .bind(member_id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+
+    /// Covers the scenarios "Delete a member" and "Member deleted while a mail waits". Each table that references a member adds its rows here.
+    #[tokio::test]
+    async fn delete_a_member_with_everything_that_belongs_to_it() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let (_, added) = send(&pool, "POST", "/api/members", &ada()).await;
+        let id = added["id"].as_i64().unwrap();
+        sqlx::query("INSERT INTO mail_outbox (recipient, member_id, subject, text_body, html_body) VALUES ('ada@example.org', $1, 's', 't', 'h')")
+            .bind(id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let (status, _) = send(&pool, "DELETE", &format!("/api/members/{id}"), &Value::Null).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let (_, list) = send(&pool, "GET", "/api/members", &Value::Null).await;
+        assert_eq!(list, json!([]));
+        assert_eq!(count(&pool, "mail_outbox", id).await, 0);
+    }
+
+    #[tokio::test]
+    async fn delete_an_unknown_member() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let (status, _) = send(&pool, "DELETE", "/api/members/999", &Value::Null).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

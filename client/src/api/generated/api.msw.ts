@@ -121,6 +121,16 @@ export const getChangeMemberMockHandler = (overrideResponse?: Member | ((info: P
   }, options)
 }
 
+export const getDeleteMemberMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.delete<{ id: string }>('*/api/members/:id', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
 export const getCreateResponseMockHandler = (overrideResponse?: SpikeResponse | ((info: Parameters<HttpResponseResolver<PathParams, SpikeResponse>>[0]) => Promise<SpikeResponse> | SpikeResponse), options?: RequestHandlerOptions) => {
   return http.post<PathParams, SpikeResponse>('*/api/spike-responses', async (info: Parameters<HttpResponseResolver<PathParams, SpikeResponse>>[0]) => {
 
@@ -139,5 +149,6 @@ export const getAdunataMock = () => [
   getListMembersMockHandler(),
   getAddMemberMockHandler(),
   getChangeMemberMockHandler(),
+  getDeleteMemberMockHandler(),
   getCreateResponseMockHandler()
 ]

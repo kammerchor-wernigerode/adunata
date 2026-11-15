@@ -190,6 +190,39 @@
             }
           }
         }
+      },
+      "delete": {
+        "operationId": "delete_member",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the member",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Member deleted together with everything that belongs to the member"
+          },
+          "404": {
+            "description": "No such member"
+          },
+          "422": {
+            "description": "The member is the last active organizer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/spike-responses": {
