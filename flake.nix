@@ -254,7 +254,7 @@
             PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
             PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
             FONTCONFIG_FILE = pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; };
-            ADUNATA_E2E_URL = "http://127.0.0.1:18080";
+            ADUNATA_E2E_URL = "http://localhost:18080";
             buildPhase = ''
               export HOME="$TMPDIR"
               ${startInstance}

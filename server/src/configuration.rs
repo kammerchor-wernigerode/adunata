@@ -160,6 +160,19 @@ impl PublicUrl {
         parse_public_url(value)
     }
 
+    /// Scheme, host and port, as a browser sends them in the `Origin` header.
+    pub fn origin(&self) -> String {
+        let uri: Uri = self
+            .base
+            .parse()
+            .expect("public URL was checked at start-up");
+        format!(
+            "{}://{}",
+            uri.scheme_str().expect("public URL has a scheme"),
+            uri.authority().expect("public URL has a host")
+        )
+    }
+
     pub fn link(&self, path: &str) -> String {
         format!("{}/{}", self.base, path.trim_start_matches('/'))
     }

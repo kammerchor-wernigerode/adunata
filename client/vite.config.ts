@@ -11,6 +11,11 @@ export default defineConfig({
   server: {
     port: Number(process.env.ADUNATA_VITE_PORT || 5173),
     strictPort: true,
-    proxy: { '/api': `http://${process.env.ADUNATA_LISTEN_ADDRESS || '127.0.0.1:8080'}` },
+    proxy: {
+      '/api': {
+        target: `http://${process.env.ADUNATA_LISTEN_ADDRESS || '127.0.0.1:8080'}`,
+        headers: { origin: new URL(process.env.ADUNATA_PUBLIC_URL || 'http://localhost:8080').origin },
+      },
+    },
   },
 })
