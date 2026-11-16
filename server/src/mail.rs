@@ -86,7 +86,7 @@ pub async fn run(pool: PgPool, delivery: Delivery, interval: Duration) {
 }
 
 /// Delivers due mail, each in its own transaction, so a mail the server accepted stays marked as sent whatever happens to the next one.
-async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Error> {
+pub async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Error> {
     for _ in 0..BATCH_SIZE {
         let mut transaction = pool.begin().await?;
         let pending: Option<PendingMail> = sqlx::query_as(
@@ -219,7 +219,7 @@ mod tests {
 
     fn unique_token() -> String {
         format!(
-            "spike{}x{}",
+            "mail{}x{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         )

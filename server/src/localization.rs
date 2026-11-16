@@ -85,13 +85,6 @@ impl Localizer {
     }
 }
 
-/// Picks the language of a mail: the recipient's stored language if Adunata supports it, otherwise the default of the instance.
-pub fn mail_language<'a>(stored: Option<&'a str>, default: &'a str) -> &'a str {
-    stored
-        .filter(|language| is_supported(language))
-        .unwrap_or(default)
-}
-
 pub fn is_supported(language: &str) -> bool {
     CATALOGS.iter().any(|(locale, _)| *locale == language)
 }
@@ -154,24 +147,24 @@ mod tests {
 
     fn beds(localizer: &Localizer, locale: &str, count: u8) -> String {
         let mut args = FluentArgs::new();
-        args.set("beds", count);
-        localizer.message(locale, "beds-needed", &args)
+        args.set("count", count);
+        localizer.message(locale, "overview-beds-need", &args)
     }
 
     #[test]
     fn plural_forms_in_english() {
         let localizer = Localizer::new();
-        assert_eq!(beds(&localizer, "en", 0), "0 beds needed.");
-        assert_eq!(beds(&localizer, "en", 1), "One bed needed.");
-        assert_eq!(beds(&localizer, "en", 2), "2 beds needed.");
+        assert_eq!(beds(&localizer, "en", 0), "needs 0");
+        assert_eq!(beds(&localizer, "en", 1), "needs one");
+        assert_eq!(beds(&localizer, "en", 2), "needs 2");
     }
 
     #[test]
     fn plural_forms_in_german() {
         let localizer = Localizer::new();
-        assert_eq!(beds(&localizer, "de", 0), "0 Betten benötigt.");
-        assert_eq!(beds(&localizer, "de", 1), "Ein Bett benötigt.");
-        assert_eq!(beds(&localizer, "de", 2), "2 Betten benötigt.");
+        assert_eq!(beds(&localizer, "de", 0), "braucht 0");
+        assert_eq!(beds(&localizer, "de", 1), "braucht eins");
+        assert_eq!(beds(&localizer, "de", 2), "braucht 2");
     }
 
     #[test]
@@ -229,7 +222,7 @@ mod tests {
             .unwrap();
         assert_eq!(german.status(), StatusCode::OK);
         let body = to_bytes(german.into_body(), usize::MAX).await.unwrap();
-        assert!(String::from_utf8_lossy(&body).contains("Betten benötigt"));
+        assert!(String::from_utf8_lossy(&body).contains("Betten angeboten"));
         let french = app
             .oneshot(
                 Request::get("/api/catalogs/fr")
@@ -256,18 +249,7 @@ mod tests {
     }
 
     #[test]
-    fn recipient_with_a_stored_language() {
-        assert_eq!(mail_language(Some("en"), "de"), "en");
-    }
-
-    #[test]
-    fn recipient_without_a_stored_language() {
-        assert_eq!(mail_language(None, "de"), "de");
-        assert_eq!(mail_language(Some("fr"), "de"), "de");
-    }
-
-    #[test]
     fn unknown_language_falls_back_to_english() {
-        assert_eq!(beds(&Localizer::new(), "fr", 2), "2 beds needed.");
+        assert_eq!(beds(&Localizer::new(), "fr", 2), "needs 2");
     }
 }

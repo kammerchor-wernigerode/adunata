@@ -395,32 +395,3 @@ export const RequestSignInBody = zod.object({
 }).describe('The mail address for which someone asks for a sign-in link.')
 
 export const RequestSignInResponse = zod.void()
-
-
-export const createResponseBodyNameMax = 100;
-
-export const createResponseBodyBedsMin = 0;
-export const createResponseBodyBedsMax = 20;
-
-
-
-export const CreateResponseBody = zod.object({
-  "name": zod.string().min(1).max(createResponseBodyNameMax),
-  "attendance": zod.enum(['accepted', 'tentative', 'declined']),
-  "arrival": zod.iso.date().nullish(),
-  "beds": zod.int().min(createResponseBodyBedsMin).max(createResponseBodyBedsMax)
-})
-
-export const createResponseResponseNameMax = 100;
-
-export const createResponseResponseBedsMin = 0;
-export const createResponseResponseBedsMax = 20;
-
-
-
-export const CreateResponseResponse = zod.object({
-  "name": zod.string().min(1).max(createResponseResponseNameMax),
-  "attendance": zod.enum(['accepted', 'tentative', 'declined']),
-  "arrival": zod.iso.date().nullish(),
-  "beds": zod.int().min(createResponseResponseBedsMin).max(createResponseResponseBedsMax)
-})

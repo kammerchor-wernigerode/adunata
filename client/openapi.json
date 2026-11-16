@@ -795,55 +795,10 @@
           }
         }
       }
-    },
-    "/api/spike-responses": {
-      "post": {
-        "operationId": "create_response",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SpikeResponse"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Response stored",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SpikeResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Response invalid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationErrors"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
     "schemas": {
-      "Attendance": {
-        "type": "string",
-        "enum": [
-          "accepted",
-          "tentative",
-          "declined"
-        ]
-      },
       "Attendee": {
         "type": "object",
         "description": "A member who accepted or accepted tentatively, as other invited members see them.",
@@ -1542,37 +1497,6 @@
         "properties": {
           "mail": {
             "type": "string"
-          }
-        }
-      },
-      "SpikeResponse": {
-        "type": "object",
-        "required": [
-          "name",
-          "attendance",
-          "beds"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 100,
-            "minLength": 1
-          },
-          "attendance": {
-            "$ref": "#/components/schemas/Attendance"
-          },
-          "arrival": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "beds": {
-            "type": "integer",
-            "format": "int32",
-            "maximum": 20,
-            "minimum": 0
           }
         }
       },

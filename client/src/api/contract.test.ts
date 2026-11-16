@@ -1,35 +1,31 @@
 import { describe, expect, it } from 'vitest'
-import { CreateResponseBody } from './generated/api.zod'
-import type { SpikeResponse } from './generated/model'
+import { AnswerBody } from './generated/api.zod'
+import type { ResponseValues } from './generated/model'
 
-const valid: SpikeResponse = {
-  name: 'Ada',
-  attendance: 'accepted',
-  arrival: '2027-03-14',
-  beds: 2,
+const valid: ResponseValues = {
+  status: 'accepted',
+  arrival: '2027-03-14T18:00',
+  departure: null,
+  beds: 'offer',
+  bedCount: 2,
+  comment: null,
 }
 
 describe('generated contract', () => {
   it('accepts a complete response', () => {
-    expect(CreateResponseBody.safeParse(valid).success).toBe(true)
+    expect(AnswerBody.safeParse(valid).success).toBe(true)
   })
 
-  it('accepts a missing or null optional date', () => {
-    const { arrival: _, ...withoutArrival } = valid
-    expect(CreateResponseBody.safeParse(withoutArrival).success).toBe(true)
-    expect(CreateResponseBody.safeParse({ ...valid, arrival: null }).success).toBe(true)
-  })
-
-  it('rejects a malformed date', () => {
-    expect(CreateResponseBody.safeParse({ ...valid, arrival: '14.03.2027' }).success).toBe(false)
+  it('accepts missing optional values', () => {
+    expect(AnswerBody.safeParse({ status: 'declined' }).success).toBe(true)
   })
 
   it('rejects a value outside the enum', () => {
-    expect(CreateResponseBody.safeParse({ ...valid, attendance: 'maybe' }).success).toBe(false)
+    expect(AnswerBody.safeParse({ ...valid, status: 'maybe' }).success).toBe(false)
   })
 
-  it('rejects a fractional or out-of-range integer', () => {
-    expect(CreateResponseBody.safeParse({ ...valid, beds: 1.5 }).success).toBe(false)
-    expect(CreateResponseBody.safeParse({ ...valid, beds: 21 }).success).toBe(false)
+  it('rejects a fractional or out-of-range bed count', () => {
+    expect(AnswerBody.safeParse({ ...valid, bedCount: 1.5 }).success).toBe(false)
+    expect(AnswerBody.safeParse({ ...valid, bedCount: 21 }).success).toBe(false)
   })
 })

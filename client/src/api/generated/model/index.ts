@@ -5,7 +5,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export * from './attendance';
 export * from './attendee';
 export * from './attendees';
 export * from './beds';
@@ -34,7 +33,6 @@ export * from './overviewRow';
 export * from './responseStatus';
 export * from './responseValues';
 export * from './signInRequest';
-export * from './spikeResponse';
 export * from './status';
 export * from './totals';
 export * from './validationErrors';

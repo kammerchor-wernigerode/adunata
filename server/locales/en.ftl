@@ -1,19 +1,3 @@
-beds-needed =
-    { $beds ->
-        [one] One bed needed.
-       *[other] { $beds } beds needed.
-    }
-
-attendance =
-    { $attendance ->
-        [accepted] accepted
-        [tentative] tentatively accepted
-       *[declined] declined
-    }
-
-response-mail-subject = Response from { $name }
-response-mail-body = { $name } { attendance } the invitation to the gathering from { $span }.
-
 date-span-same-month = { $month } { $startDay }–{ $endDay }, { $year }
 date-span-same-year = { $startMonth } { $startDay } – { $endMonth } { $endDay }, { $year }
 date-span-across-years = { $startMonth } { $startDay }, { $startYear } – { $endMonth } { $endDay }, { $endYear }
@@ -259,16 +243,6 @@ language-name-en = English
 
 language-label = Language
 
-spike-title = Response
-spike-name = Name
-spike-attendance = Attendance
-spike-attendance-accepted = Accepted
-spike-attendance-tentative = Tentative
-spike-attendance-declined = Declined
-spike-arrival = Arrival
-spike-beds = Beds
-spike-save = Save
-spike-saved = Saved response of { $name }.
 
 error-required = Enter a name.
 error-too-long = The name is too long.

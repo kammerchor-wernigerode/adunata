@@ -633,6 +633,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn invitation_succeeds_while_the_mail_server_is_down() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let (_, cookie) = signed_in_organizer(&pool).await;
+        member(&pool, "Clara", "de").await;
+        let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+        let (status, _) = invite(&pool, &cookie, weekend, json!({})).await;
+        assert_eq!(status, StatusCode::CREATED);
+        let unreachable = mail::Delivery {
+            transport: mail::transport(&crate::configuration::Smtp {
+                host: "127.0.0.1".to_owned(),
+                port: 1,
+                encryption: crate::configuration::Encryption::None,
+                username: None,
+                password: None,
+            })
+            .unwrap(),
+            sender: "Adunata <adunata@example.org>".parse().unwrap(),
+            max_attempts: 8,
+        };
+        mail::deliver_due(&pool, &unreachable).await.unwrap();
+        let waiting: i64 = sqlx::query_scalar("SELECT count(*) FROM mail_outbox WHERE sent_at IS NULL AND failed_at IS NULL AND recipient IS NOT NULL")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            waiting, 2,
+            "the mail waits in the outbox until the server is reachable again"
+        );
+        assert_eq!(invitations(&pool, weekend).await, vec!["Clara", "Root"]);
+    }
+
+    #[tokio::test]
     async fn invite_a_subset() {
         let database = fresh_database().await;
         let pool = database.pool();

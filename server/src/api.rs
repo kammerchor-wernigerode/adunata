@@ -8,14 +8,12 @@ use crate::access::SignInLimiter;
 use crate::configuration::{InstanceTimeZone, LegalLinks, Network, PublicUrl};
 use crate::{
     access, gatherings, health, invitations, legal, localization, members, responses, serving,
-    spike,
 };
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
     pub public_url: PublicUrl,
-    pub default_language: String,
     pub legal_links: LegalLinks,
     pub trusted_proxies: Vec<Network>,
     pub sign_in_limiter: SignInLimiter,
@@ -29,7 +27,6 @@ struct ApiDoc;
 fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::with_openapi(ApiDoc::openapi())
         .merge(health::router())
-        .merge(spike::router())
         .merge(localization::router())
         .merge(legal::router())
         .merge(members::router())
@@ -63,7 +60,6 @@ pub mod testing {
         AppState {
             pool,
             public_url: PublicUrl::parse(PUBLIC_URL).expect("test URL must be valid"),
-            default_language: "de".to_owned(),
             legal_links: LegalLinks::default(),
             trusted_proxies: vec![Network::parse("127.0.0.1/32").expect("loopback is a network")],
             sign_in_limiter: SignInLimiter::default(),
@@ -82,15 +78,14 @@ mod tests {
 
     use super::*;
 
-    /// Operations that answer without an organizer session: health, catalogs, the links every page shows, sign-in and sign-out, the routes behind an invitation link and the spike until feature modules replace it.
-    const PUBLIC: [&str; 9] = [
+    /// Operations that answer without an organizer session: health, catalogs, the links every page shows, sign-in and sign-out and the routes behind an invitation link.
+    const PUBLIC: [&str; 8] = [
         "GET /api/health",
         "GET /api/catalogs/{locale}",
         "GET /api/legal-links",
         "POST /api/sign-in-requests",
         "POST /api/sessions",
         "DELETE /api/session",
-        "POST /api/spike-responses",
         "GET /api/invitation",
         "PUT /api/invitation/response",
     ];

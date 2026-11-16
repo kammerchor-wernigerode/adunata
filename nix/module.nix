@@ -76,7 +76,7 @@ in
         "en"
       ];
       default = "en";
-      description = "Language of mail to recipients without a stored language.";
+      description = "Language of the first organizer and of members that grant-organizer creates.";
     };
 
     database = {

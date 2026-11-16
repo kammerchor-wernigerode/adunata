@@ -1,4 +1,4 @@
-import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, Navigate } from '@tanstack/react-router'
 import { RequireOrganizer } from '@/access/RequireOrganizer'
 import { SignInPage } from '@/access/SignInPage'
 import { EditGatheringPage, NewGatheringPage } from '@/gatherings/GatheringFormPage'
@@ -9,14 +9,13 @@ import { Frame } from '@/layout/Frame'
 import { EditMemberPage, NewMemberPage } from '@/members/MemberFormPage'
 import { MemberListPage } from '@/members/MemberListPage'
 import { ResponsePage } from '@/responses/ResponsePage'
-import { SpikePage } from '@/spike/SpikePage'
 
 const rootRoute = createRootRoute({ component: Frame })
 
-const spikeRoute = createRoute({
+const startRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: SpikePage,
+  component: () => <Navigate to="/gatherings" />,
 })
 
 const signInRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sign-in', component: SignInPage })
@@ -66,7 +65,7 @@ const invitationRoute = createRoute({
 })
 
 export const routeTree = rootRoute.addChildren([
-  spikeRoute,
+  startRoute,
   signInRoute,
   responseRoute,
   organizerRoute.addChildren([

@@ -37,7 +37,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
   test(`controls stand out from the page in ${colorScheme} mode`, async ({ page }) => {
     await page.emulateMedia({ colorScheme })
     await page.goto('/')
-    const input = page.locator('input[type="text"], input:not([type])').first()
+    const input = page.locator('main input').first()
     await expect(input).toBeVisible()
     const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
 

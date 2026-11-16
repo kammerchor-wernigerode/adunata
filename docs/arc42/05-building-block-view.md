@@ -23,13 +23,11 @@ flowchart LR
     localization[localization]
     mail[mail]
     members[members]
-    spike[spike]
     serving[serving]
     validation[validation]
   end
   client -- JSON over HTTP --> api
   client -- loads files --> clientModule
-  api --> spike
   api --> localization
   api --> health
   api --> legal
@@ -58,11 +56,7 @@ flowchart LR
   members --> database
   members --> localization
   members --> validation
-  spike --> validation
   mail --> members
-  spike --> database
-  spike --> mail
-  spike --> localization
   mail --> database
   database --> postgres[(PostgreSQL)]
   mail --> smtp[Mail server]
@@ -85,7 +79,6 @@ flowchart LR
 |members|Keeps the member list with the organizer role. It refuses every change that would leave the instance without an active organizer, and deleting a member deletes everything that references the member.|The member routes and functions that other modules use to read members.|
 |responses|Stores the response to each invitation with status, period of presence, beds and comment. It serves the response page of a member, the answers of organizers on a member's behalf and the overview with totals. Its hourly task applies the retention periods.|The routes behind a personal link, the response and overview routes for organizers and the retention task.|
 |serving|Accepts connections and lets requests in progress finish when the service manager stops the process.|Serving the router until a termination signal arrives.|
-|spike|An example form that exercises the stack from client to mail. Feature modules replace it.|The route for storing a response.|
 |validation|Describes rejected fields the same way for every module.|The types of a field error and the response with status 422.|
 
 The rules for module boundaries are in [ADR 0007](../decisions/0007-modular-monolith.md).

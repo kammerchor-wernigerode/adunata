@@ -19,7 +19,6 @@ import type {
 } from 'msw';
 
 import {
-  Attendance,
   Beds,
   Cause,
   ChangedBy,
@@ -45,8 +44,7 @@ import type {
   NewMember,
   Overview,
   ResponseValues,
-  SignInRequest,
-  SpikeResponse
+  SignInRequest
 } from './model';
 
 
@@ -89,8 +87,6 @@ export const getChangeMemberResponseMock = (overrideResponse: Partial<Extract<Me
 export const getCurrentSessionResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
 
 export const getSignInResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
-
-export const getCreateResponseResponseMock = (overrideResponse: Partial<Extract<SpikeResponse, object>> = {}): SpikeResponse => ({name: faker.string.alpha({length: {min: 1, max: 100}}), attendance: faker.helpers.arrayElement(Object.values(Attendance)), arrival: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 10), null]), beds: faker.number.int({min: 0, max: 20}), ...overrideResponse})
 
 
 export const getCatalogMockHandler = (overrideResponse?: string | ((info: Parameters<HttpResponseResolver<{ locale: string }>>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
@@ -369,18 +365,6 @@ export const getRequestSignInMockHandler = (overrideResponse?: void | ((info: Pa
       })
   }, options)
 }
-
-export const getCreateResponseMockHandler = (overrideResponse?: SpikeResponse | ((info: Parameters<HttpResponseResolver<PathParams, SpikeResponse>>[0]) => Promise<SpikeResponse> | SpikeResponse), options?: RequestHandlerOptions) => {
-  return http.post<PathParams, SpikeResponse>('*/api/spike-responses', async (info: Parameters<HttpResponseResolver<PathParams, SpikeResponse>>[0]) => {
-
-
-    return HttpResponse.json(overrideResponse !== undefined
-    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
-    : getCreateResponseResponseMock(),
-      { status: 201
-      })
-  }, options)
-}
 export const getAdunataMock = () => [
   getCatalogMockHandler(),
   getListGatheringsMockHandler(),
@@ -405,6 +389,5 @@ export const getAdunataMock = () => [
   getCurrentSessionMockHandler(),
   getSignOutMockHandler(),
   getSignInMockHandler(),
-  getRequestSignInMockHandler(),
-  getCreateResponseMockHandler()
+  getRequestSignInMockHandler()
 ]

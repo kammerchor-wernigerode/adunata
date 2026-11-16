@@ -9,7 +9,6 @@ import {
 } from '@faker-js/faker';
 
 import {
-  Attendance,
   Beds,
   Cause,
   ChangedBy,
@@ -30,8 +29,7 @@ import type {
   LegalLinks,
   Member,
   Overview,
-  ResponseValues,
-  SpikeResponse
+  ResponseValues
 } from './model';
 
 
@@ -74,6 +72,4 @@ export const getChangeMemberResponseMock = (overrideResponse: Partial<Extract<Me
 export const getCurrentSessionResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
 
 export const getSignInResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
-
-export const getCreateResponseResponseMock = (overrideResponse: Partial<Extract<SpikeResponse, object>> = {}): SpikeResponse => ({name: faker.string.alpha({length: {min: 1, max: 100}}), attendance: faker.helpers.arrayElement(Object.values(Attendance)), arrival: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 10), null]), beds: faker.number.int({min: 0, max: 20}), ...overrideResponse})
 

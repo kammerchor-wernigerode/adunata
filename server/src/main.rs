@@ -13,7 +13,6 @@ mod members;
 mod responses;
 mod secret;
 mod serving;
-mod spike;
 #[cfg(test)]
 mod test_logs;
 mod validation;
@@ -176,7 +175,6 @@ async fn serve() {
     let state = api::AppState {
         pool,
         public_url: configuration.public_url,
-        default_language: configuration.default_language,
         legal_links: configuration.legal_links,
         trusted_proxies: configuration.trusted_proxies,
         sign_in_limiter: access::SignInLimiter::default(),

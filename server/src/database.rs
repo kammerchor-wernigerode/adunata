@@ -185,7 +185,8 @@ mod tests {
     async fn start_against_an_empty_database() {
         let database = empty_database().await;
         let pool = connect(database.options()).await.unwrap();
-        assert!(table_exists(&pool, "spike_responses").await);
+        assert!(!table_exists(&pool, "spike_responses").await);
+        assert!(table_exists(&pool, "responses").await);
         assert!(table_exists(&pool, "mail_outbox").await);
     }
 
