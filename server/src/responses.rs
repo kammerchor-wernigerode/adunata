@@ -11,8 +11,9 @@ use utoipa_axum::routes;
 
 use crate::access::Organizer;
 use crate::api::AppState;
+use crate::gatherings;
 use crate::gatherings::Gathering;
-use crate::invitations::{self, PersonalLink};
+use crate::invitations::{self, MailState, PersonalLink};
 use crate::validation::{ErrorCode, FieldError, field_error, invalid};
 
 time::serde::format_description!(iso_date, Date, "[year]-[month]-[day]");
@@ -271,6 +272,172 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(invitation_page))
         .routes(routes!(answer))
         .routes(routes!(answer_for_member))
+        .routes(routes!(overview))
+}
+
+/// Where an invitation stands. Without a response it is pending.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum InvitationStatus {
+    Pending,
+    Accepted,
+    Tentative,
+    Declined,
+}
+
+/// One invitation in the overview with its response.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OverviewRow {
+    pub invitation_id: i64,
+    pub first_name: String,
+    pub last_name: String,
+    pub status: InvitationStatus,
+    #[serde(with = "wall_clock::option")]
+    #[schema(value_type = Option<String>, example = "2027-03-14T18:00")]
+    pub arrival: Option<PrimitiveDateTime>,
+    #[serde(with = "wall_clock::option")]
+    #[schema(value_type = Option<String>, example = "2027-03-16T15:00")]
+    pub departure: Option<PrimitiveDateTime>,
+    pub beds: Option<Beds>,
+    pub bed_count: Option<i16>,
+    pub comment: Option<String>,
+    pub changed_by: Option<ChangedBy>,
+    /// When the response changed last, as wall-clock time of the instance.
+    #[serde(with = "wall_clock::option")]
+    #[schema(value_type = Option<String>, example = "2027-02-20T09:30")]
+    pub changed_at: Option<PrimitiveDateTime>,
+    /// Whether the stated period lies partly or wholly outside the days of the gathering, after organizers changed them.
+    pub outside_span: bool,
+    pub link_active: bool,
+    pub mail: Option<MailState>,
+}
+
+/// Counts per status and the beds that attending members need and offer.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Totals {
+    pub accepted: i64,
+    pub tentative: i64,
+    pub declined: i64,
+    pub pending: i64,
+    pub beds_needed: i64,
+    pub beds_offered: i64,
+}
+
+/// Everything organizers plan a gathering with.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct Overview {
+    pub rows: Vec<OverviewRow>,
+    pub totals: Totals,
+}
+
+#[derive(sqlx::FromRow)]
+struct StoredResponse {
+    invitation_id: i64,
+    status: Status,
+    arrival: Option<PrimitiveDateTime>,
+    departure: Option<PrimitiveDateTime>,
+    beds: Option<Beds>,
+    bed_count: Option<i16>,
+    comment: Option<String>,
+    changed_by: ChangedBy,
+    changed_at: time::OffsetDateTime,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/gatherings/{id}/overview",
+    params(("id" = i64, Path, description = "Id of the gathering")),
+    responses(
+        (status = 200, description = "Every invitation with its response and the totals", body = Overview),
+        (status = 401, description = "No valid organizer session"),
+        (status = 404, description = "No such gathering"),
+    )
+)]
+async fn overview(_: Organizer, State(state): State<AppState>, Path(id): Path<i64>) -> Response {
+    let Ok(mut connection) = state.pool.acquire().await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    match build_overview(&mut connection, &state, id).await {
+        Ok(Some(overview)) => Json(overview).into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+async fn build_overview(
+    connection: &mut PgConnection,
+    state: &AppState,
+    gathering_id: i64,
+) -> Result<Option<Overview>, sqlx::Error> {
+    let Some(gathering) =
+        gatherings::find(connection, gathering_id, state.time_zone.today()).await?
+    else {
+        return Ok(None);
+    };
+    let invitations = invitations::of_gathering(connection, gathering_id).await?;
+    let responses: Vec<StoredResponse> = sqlx::query_as(
+        "SELECT responses.invitation_id, status, arrival, departure, beds, bed_count, comment, changed_by, changed_at FROM responses JOIN invitations ON invitations.id = responses.invitation_id WHERE invitations.gathering_id = $1",
+    )
+    .bind(gathering_id)
+    .fetch_all(connection)
+    .await?;
+    let mut totals = Totals::default();
+    let rows = invitations
+        .into_iter()
+        .map(|invitation| {
+            let response = responses
+                .iter()
+                .find(|response| response.invitation_id == invitation.id);
+            let row = OverviewRow {
+                invitation_id: invitation.id,
+                first_name: invitation.first_name,
+                last_name: invitation.last_name,
+                status: response.map_or(InvitationStatus::Pending, |response| {
+                    match response.status {
+                        Status::Accepted => InvitationStatus::Accepted,
+                        Status::Tentative => InvitationStatus::Tentative,
+                        Status::Declined => InvitationStatus::Declined,
+                    }
+                }),
+                arrival: response.and_then(|response| response.arrival),
+                departure: response.and_then(|response| response.departure),
+                beds: response.and_then(|response| response.beds),
+                bed_count: response.and_then(|response| response.bed_count),
+                comment: response.and_then(|response| response.comment.clone()),
+                changed_by: response.map(|response| response.changed_by),
+                changed_at: response
+                    .map(|response| state.time_zone.wall_clock(response.changed_at)),
+                outside_span: response.is_some_and(|response| {
+                    [response.arrival, response.departure]
+                        .into_iter()
+                        .flatten()
+                        .any(|time| !within(time, &gathering))
+                }),
+                link_active: invitation.link_active,
+                mail: invitation.mail,
+            };
+            count(&mut totals, &row);
+            row
+        })
+        .collect();
+    Ok(Some(Overview { rows, totals }))
+}
+
+fn count(totals: &mut Totals, row: &OverviewRow) {
+    match row.status {
+        InvitationStatus::Pending => totals.pending += 1,
+        InvitationStatus::Accepted => totals.accepted += 1,
+        InvitationStatus::Tentative => totals.tentative += 1,
+        InvitationStatus::Declined => totals.declined += 1,
+    }
+    let count = i64::from(row.bed_count.unwrap_or(0));
+    match row.beds {
+        Some(Beds::Need) => totals.beds_needed += count,
+        Some(Beds::Offer) => totals.beds_offered += count,
+        _ => {}
+    }
 }
 
 #[utoipa::path(
@@ -904,6 +1071,156 @@ mod tests {
         move_start(&pool, -3, -1).await;
         let (_, page) = open(&pool, Some(&secret)).await;
         assert_eq!(page["attendees"], Value::Null);
+    }
+
+    async fn overview_of(pool: &PgPool) -> Value {
+        let organizer: i64 = sqlx::query_scalar("SELECT id FROM members WHERE organizer")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+        let cookie = crate::access::testing::session_cookie(pool, organizer).await;
+        let gathering_id: i64 = sqlx::query_scalar("SELECT id FROM gatherings")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+        let (status, overview) = send(
+            api::testing::state(pool.clone()),
+            &cookie,
+            "GET",
+            &format!("/api/gatherings/{gathering_id}/overview"),
+            &Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        overview
+    }
+
+    #[tokio::test]
+    async fn plan_beds() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        gathering_with(
+            &pool,
+            &[
+                ("Anna", None, None),
+                ("Ben", None, None),
+                ("Felix", None, None),
+                ("Moritz", Some("declined"), None),
+            ],
+        )
+        .await;
+        for (name, beds, count) in [
+            ("Anna", "need", 1),
+            ("Ben", "need", 1),
+            ("Felix", "offer", 3),
+        ] {
+            sqlx::query("INSERT INTO responses (invitation_id, status, beds, bed_count, changed_by) SELECT invitations.id, 'accepted', $2, $3, 'member' FROM invitations JOIN members ON members.id = invitations.member_id WHERE members.first_name = $1")
+                .bind(name)
+                .bind(beds)
+                .bind(count)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let overview = overview_of(&pool).await;
+        assert_eq!(
+            overview["totals"],
+            json!({ "accepted": 3, "tentative": 0, "declined": 1, "pending": 1, "bedsNeeded": 2, "bedsOffered": 3 })
+        );
+        let anna = overview["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["firstName"] == "Anna")
+            .unwrap()
+            .clone();
+        assert_eq!(
+            (
+                anna["status"].clone(),
+                anna["beds"].clone(),
+                anna["bedCount"].clone(),
+                anna["changedBy"].clone()
+            ),
+            (json!("accepted"), json!("need"), json!(1), json!("member"))
+        );
+        assert!(anna["changedAt"].as_str().unwrap().len() == 16, "{anna}");
+    }
+
+    #[tokio::test]
+    async fn no_period_stated() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        answer(
+            &pool,
+            &secret,
+            &json!({ "status": "accepted", "beds": "none" }),
+        )
+        .await;
+        let overview = overview_of(&pool).await;
+        let clara = &overview["rows"][0];
+        assert_eq!(
+            (
+                clara["arrival"].clone(),
+                clara["departure"].clone(),
+                clara["outsideSpan"].clone()
+            ),
+            (Value::Null, Value::Null, json!(false))
+        );
+    }
+
+    #[tokio::test]
+    async fn shorten_a_gathering() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        let day = first_day(&pool).await;
+        answer(
+            &pool,
+            &secret,
+            &json!({ "status": "accepted", "arrival": format!("{day}T18:00"), "beds": "none" }),
+        )
+        .await;
+        let organizer: i64 = sqlx::query_scalar("SELECT id FROM members WHERE organizer")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let cookie = crate::access::testing::session_cookie(&pool, organizer).await;
+        let gathering_id: i64 = sqlx::query_scalar("SELECT id FROM gatherings")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let today = crate::configuration::InstanceTimeZone::parse("Europe/Berlin")
+            .unwrap()
+            .today();
+        let shorter = json!({ "title": "Probenwochenende", "location": "Kloster Drübeck", "firstDay": (today + time::Duration::days(11)).to_string(), "lastDay": (today + time::Duration::days(12)).to_string() });
+        let (status, _) = send(
+            api::testing::state(pool.clone()),
+            &cookie,
+            "PUT",
+            &format!("/api/gatherings/{gathering_id}"),
+            &shorter,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let overview = overview_of(&pool).await;
+        assert_eq!(overview["rows"][0]["status"], "accepted");
+        assert_eq!(overview["rows"][0]["arrival"], format!("{day}T18:00"));
+        assert_eq!(overview["rows"][0]["outsideSpan"], true);
+    }
+
+    #[tokio::test]
+    async fn failed_mail_appears_at_its_invitation() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        invited(&pool, 10, 12).await;
+        sqlx::query("UPDATE mail_outbox SET failed_at = now(), attempts = 8, recipient = NULL, subject = NULL, text_body = NULL, html_body = NULL")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let overview = overview_of(&pool).await;
+        assert_eq!(overview["rows"][0]["mail"], "failed");
+        assert_eq!(overview["rows"][0]["linkActive"], true);
     }
 
     #[tokio::test]

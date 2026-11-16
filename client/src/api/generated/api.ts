@@ -36,6 +36,7 @@ import type {
   Member,
   MemberChange,
   NewMember,
+  Overview,
   ResponseValues,
   SignInRequest,
   SpikeResponse,
@@ -996,6 +997,131 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       > => {
       return useMutation(getInviteMutationOptions(options), queryClient);
     }
+
+export type overviewResponse200 = {
+  data: Overview
+  status: 200
+}
+
+export type overviewResponse401 = {
+  data: void
+  status: 401
+}
+
+export type overviewResponse404 = {
+  data: void
+  status: 404
+}
+
+export type overviewResponseSuccess = (overviewResponse200) & {
+  headers: Headers;
+};
+export type overviewResponseError = (overviewResponse401 | overviewResponse404) & {
+  headers: Headers;
+};
+
+export type overviewResponse = (overviewResponseSuccess | overviewResponseError)
+
+export const getOverviewUrl = (id: number,) => {
+
+
+
+
+  return `/api/gatherings/${id}/overview`
+}
+
+export const overview = async (id: number, options?: RequestInit): Promise<overviewResponse> => {
+
+  const res = await fetch(getOverviewUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: overviewResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as overviewResponse
+}
+
+
+
+
+
+export const getOverviewQueryKey = (id: number,) => {
+    return [
+    `/api/gatherings/${id}/overview`
+    ] as const;
+    }
+
+
+export const getOverviewQueryOptions = <TData = Awaited<ReturnType<typeof overview>>, TError = void>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof overview>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getOverviewQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof overview>>> = ({ signal }) => overview(id, { signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof overview>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type OverviewQueryResult = NonNullable<Awaited<ReturnType<typeof overview>>>
+export type OverviewQueryError = void
+
+
+export function useOverview<TData = Awaited<ReturnType<typeof overview>>, TError = void>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof overview>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof overview>>,
+          TError,
+          Awaited<ReturnType<typeof overview>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOverview<TData = Awaited<ReturnType<typeof overview>>, TError = void>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof overview>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof overview>>,
+          TError,
+          Awaited<ReturnType<typeof overview>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOverview<TData = Awaited<ReturnType<typeof overview>>, TError = void>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof overview>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOverview<TData = Awaited<ReturnType<typeof overview>>, TError = void>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof overview>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getOverviewQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export type healthResponse200 = {
   data: Health

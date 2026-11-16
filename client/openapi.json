@@ -313,6 +313,41 @@
         }
       }
     },
+    "/api/gatherings/{id}/overview": {
+      "get": {
+        "operationId": "overview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the gathering",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every invitation with its response and the totals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such gathering"
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "operationId": "health",
@@ -865,6 +900,14 @@
           "database"
         ]
       },
+      "ChangedBy": {
+        "type": "string",
+        "description": "Who changed a response last.",
+        "enum": [
+          "member",
+          "organizer"
+        ]
+      },
       "ErrorCode": {
         "type": "string",
         "description": "Why a field was rejected. The client turns each code into a message from the catalog.",
@@ -1125,6 +1168,16 @@
           }
         }
       },
+      "InvitationStatus": {
+        "type": "string",
+        "description": "Where an invitation stands. Without a response it is pending.",
+        "enum": [
+          "pending",
+          "accepted",
+          "tentative",
+          "declined"
+        ]
+      },
       "Invited": {
         "type": "object",
         "description": "How many members Adunata invited.",
@@ -1301,6 +1354,124 @@
           }
         }
       },
+      "Overview": {
+        "type": "object",
+        "description": "Everything organizers plan a gathering with.",
+        "required": [
+          "rows",
+          "totals"
+        ],
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverviewRow"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/Totals"
+          }
+        }
+      },
+      "OverviewRow": {
+        "type": "object",
+        "description": "One invitation in the overview with its response.",
+        "required": [
+          "invitationId",
+          "firstName",
+          "lastName",
+          "status",
+          "outsideSpan",
+          "linkActive"
+        ],
+        "properties": {
+          "invitationId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InvitationStatus"
+          },
+          "arrival": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "2027-03-14T18:00"
+          },
+          "departure": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "2027-03-16T15:00"
+          },
+          "beds": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Beds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bedCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changedBy": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChangedBy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the response changed last, as wall-clock time of the instance.",
+            "example": "2027-02-20T09:30"
+          },
+          "outsideSpan": {
+            "type": "boolean",
+            "description": "Whether the stated period lies partly or wholly outside the days of the gathering, after organizers changed them."
+          },
+          "linkActive": {
+            "type": "boolean"
+          },
+          "mail": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MailState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "ResponseValues": {
         "type": "object",
         "description": "The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.",
@@ -1402,6 +1573,44 @@
           "ready",
           "unavailable"
         ]
+      },
+      "Totals": {
+        "type": "object",
+        "description": "Counts per status and the beds that attending members need and offer.",
+        "required": [
+          "accepted",
+          "tentative",
+          "declined",
+          "pending",
+          "bedsNeeded",
+          "bedsOffered"
+        ],
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tentative": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "declined": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pending": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bedsNeeded": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bedsOffered": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
       },
       "ValidationErrors": {
         "type": "object",

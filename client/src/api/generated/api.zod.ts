@@ -136,6 +136,38 @@ export const InviteResponse = zod.object({
 }).describe('How many members Adunata invited.')
 
 
+export const OverviewParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const OverviewResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "invitationId": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'tentative', 'declined']).describe('Where an invitation stands. Without a response it is pending.'),
+  "arrival": zod.string().nullish(),
+  "departure": zod.string().nullish(),
+  "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
+  "bedCount": zod.int().nullish(),
+  "comment": zod.string().nullish(),
+  "changedBy": zod.union([zod.enum(['member', 'organizer']).describe('Who changed a response last.'),zod.null()]).optional(),
+  "changedAt": zod.string().nullish().describe('When the response changed last, as wall-clock time of the instance.'),
+  "outsideSpan": zod.boolean().describe('Whether the stated period lies partly or wholly outside the days of the gathering, after organizers changed them.'),
+  "linkActive": zod.boolean(),
+  "mail": zod.union([zod.enum(['waiting', 'sent', 'failed']).describe('Where the newest mail of an invitation stands.'),zod.null()]).optional()
+}).describe('One invitation in the overview with its response.')),
+  "totals": zod.object({
+  "accepted": zod.int(),
+  "tentative": zod.int(),
+  "declined": zod.int(),
+  "pending": zod.int(),
+  "bedsNeeded": zod.int(),
+  "bedsOffered": zod.int()
+}).describe('Counts per status and the beds that attending members need and offer.')
+}).describe('Everything organizers plan a gathering with.')
+
+
 export const HealthResponse = zod.object({
   "status": zod.enum(['ready', 'unavailable']),
   "cause": zod.union([zod.enum(['database']),zod.null()]).optional()
