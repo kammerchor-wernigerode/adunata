@@ -418,19 +418,20 @@ async fn build_overview(
         return Ok(None);
     };
     let invitations = invitations::of_gathering(connection, gathering_id).await?;
-    let responses: Vec<StoredResponse> = sqlx::query_as(
+    let responses: std::collections::HashMap<i64, StoredResponse> = sqlx::query_as::<_, StoredResponse>(
         "SELECT responses.invitation_id, status, arrival, departure, beds, bed_count, comment, changed_by, changed_at FROM responses JOIN invitations ON invitations.id = responses.invitation_id WHERE invitations.gathering_id = $1",
     )
     .bind(gathering_id)
     .fetch_all(connection)
-    .await?;
+    .await?
+    .into_iter()
+    .map(|response| (response.invitation_id, response))
+    .collect();
     let mut totals = Totals::default();
     let rows = invitations
         .into_iter()
         .map(|invitation| {
-            let response = responses
-                .iter()
-                .find(|response| response.invitation_id == invitation.id);
+            let response = responses.get(&invitation.id);
             let row = OverviewRow {
                 invitation_id: invitation.id,
                 first_name: invitation.first_name,
