@@ -12,6 +12,11 @@ The requirements live as capabilities in [`openspec/specs/`](../../openspec/spec
 |[localization](../../openspec/specs/localization/spec.md)|Languages of the client and of mail, catalogs and date formats|
 |[mail-delivery](../../openspec/specs/mail-delivery/spec.md)|Sending mail through the outbox with encryption and retries|
 |[service-operation](../../openspec/specs/service-operation/spec.md)|Installing, starting, migrating, monitoring and stopping an instance|
+|[organizer-access](../../openspec/changes/add-gathering-invitations/specs/organizer-access/spec.md)|Signing in and out as an organizer and granting the organizer role|
+|[member-roster](../../openspec/changes/add-gathering-invitations/specs/member-roster/spec.md)|The list of members that organizers keep|
+|[gatherings](../../openspec/changes/add-gathering-invitations/specs/gatherings/spec.md)|Creating, editing and cancelling gatherings|
+|[invitations](../../openspec/changes/add-gathering-invitations/specs/invitations/spec.md)|Inviting members to a gathering and managing their personal links|
+|[responses](../../openspec/changes/add-gathering-invitations/specs/responses/spec.md)|How members answer, what they see of others and what organizers see|
 
 ## Quality goals
 
