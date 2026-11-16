@@ -28,6 +28,7 @@ import type {
   GatheringInput,
   GatheringList,
   Health,
+  InvitationPage,
   InvitationRequest,
   Invited,
   LegalLinks,
@@ -878,6 +879,133 @@ export function useHealth<TData = Awaited<ReturnType<typeof health>>, TError = H
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getHealthQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type invitationPageResponse200 = {
+  data: InvitationPage
+  status: 200
+}
+
+export type invitationPageResponse404 = {
+  data: void
+  status: 404
+}
+
+export type invitationPageResponseSuccess = (invitationPageResponse200) & {
+  headers: Headers;
+};
+export type invitationPageResponseError = (invitationPageResponse404) & {
+  headers: Headers;
+};
+
+export type invitationPageResponse = (invitationPageResponseSuccess | invitationPageResponseError)
+
+export const getInvitationPageUrl = () => {
+
+
+
+
+  return `/api/invitation`
+}
+
+/**
+ * @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`.
+ */
+export const invitationPage = async ( options?: RequestInit): Promise<invitationPageResponse> => {
+
+  const res = await fetch(getInvitationPageUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: invitationPageResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as invitationPageResponse
+}
+
+
+
+
+
+export const getInvitationPageQueryKey = () => {
+    return [
+    `/api/invitation`
+    ] as const;
+    }
+
+
+export const getInvitationPageQueryOptions = <TData = Awaited<ReturnType<typeof invitationPage>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof invitationPage>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getInvitationPageQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof invitationPage>>> = ({ signal }) => invitationPage({ signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof invitationPage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type InvitationPageQueryResult = NonNullable<Awaited<ReturnType<typeof invitationPage>>>
+export type InvitationPageQueryError = void
+
+
+/** @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`. */
+export function useInvitationPage<TData = Awaited<ReturnType<typeof invitationPage>>, TError = void>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof invitationPage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof invitationPage>>,
+          TError,
+          Awaited<ReturnType<typeof invitationPage>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/** @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`. */
+export function useInvitationPage<TData = Awaited<ReturnType<typeof invitationPage>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof invitationPage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof invitationPage>>,
+          TError,
+          Awaited<ReturnType<typeof invitationPage>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/** @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`. */
+export function useInvitationPage<TData = Awaited<ReturnType<typeof invitationPage>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof invitationPage>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/** @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`. */
+export function useInvitationPage<TData = Awaited<ReturnType<typeof invitationPage>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof invitationPage>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getInvitationPageQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

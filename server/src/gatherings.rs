@@ -66,10 +66,6 @@ impl Gathering {
     }
 
     /// Whether the first day has begun in the time zone of the instance.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "no response depends on the start yet")
-    )]
     pub fn has_begun(&self, today: Date) -> bool {
         self.first_day <= today
     }

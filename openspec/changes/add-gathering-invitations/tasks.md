@@ -50,7 +50,7 @@
 ## 7. Invitations and personal links
 
 - [x] 7.1 Add the module `invitations` with invitations, the hash of each secret and the invitation mail in both languages with the links to privacy notice and imprint. Verify with tests for the scenarios "Invite everyone", "Invite a subset", "Member added later", "Ended gathering" and "Mail content"
-- [ ] 7.2 Resolve an invitation from the header `Authorization: Bearer` through an extractor for `responses`. Verify with tests for the scenarios "Open a valid link", "Guessed link", "Open after the gathering" and "Request with a personal link"
+- [x] 7.2 Resolve an invitation from the header `Authorization: Bearer` through an extractor for `responses`. Verify with tests for the scenarios "Open a valid link", "Guessed link", "Open after the gathering" and "Request with a personal link"
 - [ ] 7.3 Add resend and revoke. Verify with tests for the scenarios "Resend", "Old link after resend" and "Revoke without resend"
 - [ ] 7.4 Cancel a gathering together with the mail to every invited member in one transaction. Verify with tests for the scenarios "Cancellation mail", "Cancelled gathering takes no invitations" and "Member opens a cancelled gathering"
 - [ ] 7.5 Add the client actions to invite, resend, revoke and cancel and the page that reads the secret from the fragment. Verify with client slice tests with axe and with a test that the page sends the secret only in the header

@@ -21,6 +21,7 @@ import type {
 import {
   Attendance,
   Cause,
+  LinkState,
   Status
 } from './model';
 import type {
@@ -28,6 +29,7 @@ import type {
   GatheringInput,
   GatheringList,
   Health,
+  InvitationPage,
   InvitationRequest,
   Invited,
   LegalLinks,
@@ -52,6 +54,8 @@ export const getChangeGatheringResponseMock = (overrideResponse: Partial<Extract
 export const getInviteResponseMock = (overrideResponse: Partial<Extract<Invited, object>> = {}): Invited => ({count: faker.number.int({min: 0}), ...overrideResponse})
 
 export const getHealthResponseMock = (overrideResponse: Partial<Extract<Health, object>> = {}): Health => ({status: faker.helpers.arrayElement(Object.values(Status)), cause: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Cause)),null,]), ...overrideResponse})
+
+export const getInvitationPageResponseMock = (overrideResponse: Partial<Extract<InvitationPage, object>> = {}): InvitationPage => ({firstName: faker.string.alpha({length: {min: 10, max: 20}}), gathering: {title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10)}, state: faker.helpers.arrayElement(Object.values(LinkState)), ...overrideResponse})
 
 export const getLegalLinksResponseMock = (overrideResponse: Partial<Extract<LegalLinks, object>> = {}): LegalLinks => ({privacyUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), imprintUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
 
@@ -148,6 +152,18 @@ export const getHealthMockHandler = (overrideResponse?: Health | ((info: Paramet
     return HttpResponse.json(overrideResponse !== undefined
     ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
     : getHealthResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getInvitationPageMockHandler = (overrideResponse?: InvitationPage | ((info: Parameters<HttpResponseResolver>[0]) => Promise<InvitationPage> | InvitationPage), options?: RequestHandlerOptions) => {
+  return http.get('*/api/invitation', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getInvitationPageResponseMock(),
       { status: 200
       })
   }, options)
@@ -274,6 +290,7 @@ export const getAdunataMock = () => [
   getChangeGatheringMockHandler(),
   getInviteMockHandler(),
   getHealthMockHandler(),
+  getInvitationPageMockHandler(),
   getLegalLinksMockHandler(),
   getListMembersMockHandler(),
   getAddMemberMockHandler(),

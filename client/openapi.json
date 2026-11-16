@@ -269,6 +269,27 @@
         }
       }
     },
+    "/api/invitation": {
+      "get": {
+        "summary": "Expects the secret of the personal link as `Authorization: Bearer <secret>`.",
+        "operationId": "invitation_page",
+        "responses": {
+          "200": {
+            "description": "The gathering and the state of the link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The link is unknown or revoked"
+          }
+        }
+      }
+    },
     "/api/legal-links": {
       "get": {
         "operationId": "legal_links",
@@ -720,6 +741,26 @@
           }
         }
       },
+      "InvitationPage": {
+        "type": "object",
+        "description": "The response page of one invitation as its member sees it.",
+        "required": [
+          "firstName",
+          "gathering",
+          "state"
+        ],
+        "properties": {
+          "firstName": {
+            "type": "string"
+          },
+          "gathering": {
+            "$ref": "#/components/schemas/InvitedGathering"
+          },
+          "state": {
+            "$ref": "#/components/schemas/LinkState"
+          }
+        }
+      },
       "InvitationRequest": {
         "type": "object",
         "description": "Which members to invite. Without ids Adunata invites every active member who is not invited yet.",
@@ -749,6 +790,38 @@
           }
         }
       },
+      "InvitedGathering": {
+        "type": "object",
+        "description": "What a member sees of the gathering on the response page.",
+        "required": [
+          "title",
+          "location",
+          "firstDay",
+          "lastDay"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "firstDay": {
+            "type": "string",
+            "format": "date"
+          },
+          "lastDay": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
       "LegalLinks": {
         "type": "object",
         "description": "Addresses of the privacy notice and the imprint that every page links. A missing address means the operator set none.",
@@ -766,6 +839,16 @@
             ]
           }
         }
+      },
+      "LinkState": {
+        "type": "string",
+        "description": "Whether a member can still answer through the personal link.",
+        "enum": [
+          "open",
+          "begun",
+          "ended",
+          "cancelled"
+        ]
       },
       "Member": {
         "type": "object",

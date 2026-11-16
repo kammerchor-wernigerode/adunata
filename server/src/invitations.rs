@@ -1,8 +1,9 @@
 use std::fmt::Write;
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{FromRequestParts, Path, State};
 use axum::http::StatusCode;
+use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use fluent_bundle::FluentArgs;
 use serde::{Deserialize, Serialize};
@@ -20,6 +21,59 @@ use crate::mail::{self, Mail};
 use crate::members::{self, Member};
 use crate::secret;
 use crate::validation::{ErrorCode, field_error, invalid};
+
+/// An invitation opened through its personal link. The `responses` module takes it as an argument, so a request without a valid secret in `Authorization: Bearer` fails with status 404 before any handler runs. An unknown and a revoked secret fail alike and reveal no gathering or member.
+pub struct PersonalLink {
+    #[expect(dead_code, reason = "no response is stored yet")]
+    pub invitation_id: i64,
+    pub gathering: Gathering,
+    pub member: Member,
+}
+
+impl FromRequestParts<AppState> for PersonalLink {
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let secret = secret::from_authorization(&parts.headers).ok_or(StatusCode::NOT_FOUND)?;
+        let mut connection = state
+            .pool
+            .acquire()
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        resolve(&mut connection, secret, state.time_zone.today())
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .ok_or(StatusCode::NOT_FOUND)
+    }
+}
+
+async fn resolve(
+    connection: &mut PgConnection,
+    secret: &str,
+    today: time::Date,
+) -> Result<Option<PersonalLink>, sqlx::Error> {
+    let found: Option<(i64, i64, i64)> = sqlx::query_as(
+        "SELECT id, gathering_id, member_id FROM invitations WHERE secret_hash = $1",
+    )
+    .bind(secret::hash(secret))
+    .fetch_optional(&mut *connection)
+    .await?;
+    let Some((invitation_id, gathering_id, member_id)) = found else {
+        return Ok(None);
+    };
+    let gathering = gatherings::find(connection, gathering_id, today).await?;
+    let member = members::find(connection, member_id).await?;
+    Ok(gathering
+        .zip(member)
+        .map(|(gathering, member)| PersonalLink {
+            invitation_id,
+            gathering,
+            member,
+        }))
+}
 
 /// Which members to invite. Without ids Adunata invites every active member who is not invited yet.
 #[derive(Clone, Debug, Default, Deserialize, ToSchema)]

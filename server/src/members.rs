@@ -245,6 +245,15 @@ pub async fn active_organizer_by_mail(
         .await
 }
 
+/// The member with this id, active or not.
+pub async fn find(connection: &mut PgConnection, id: i64) -> Result<Option<Member>, sqlx::Error> {
+    let query = format!("SELECT {COLUMNS} FROM members WHERE id = $1");
+    sqlx::query_as(sqlx::AssertSqlSafe(query))
+        .bind(id)
+        .fetch_optional(connection)
+        .await
+}
+
 /// The member with this id if the member is active and holds the organizer role.
 pub async fn active_organizer(
     connection: &mut PgConnection,

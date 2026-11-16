@@ -10,9 +10,12 @@ mod legal;
 mod localization;
 mod mail;
 mod members;
+mod responses;
 mod secret;
 mod serving;
 mod spike;
+#[cfg(test)]
+mod test_logs;
 mod validation;
 
 use std::time::Duration;

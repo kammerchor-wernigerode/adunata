@@ -188,6 +188,7 @@ mod tests {
 
     use super::*;
     use crate::database::testing::fresh_database;
+    use crate::test_logs::captured_logs;
 
     static NEXT: AtomicU32 = AtomicU32::new(0);
 
@@ -286,36 +287,6 @@ mod tests {
         assert_eq!(mailpit_count(&token).await, 1);
     }
 
-    #[derive(Clone, Default)]
-    struct CapturedLogs(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
-
-    impl std::io::Write for CapturedLogs {
-        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            self.0.lock().unwrap().extend_from_slice(bytes);
-            Ok(bytes.len())
-        }
-
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-
-    /// Captures the logs of every test in this binary. A thread-local subscriber would miss events whose callsites other test threads registered first.
-    fn captured_logs() -> &'static CapturedLogs {
-        static LOGS: std::sync::OnceLock<CapturedLogs> = std::sync::OnceLock::new();
-        LOGS.get_or_init(|| {
-            let logs = CapturedLogs::default();
-            let writer = logs.clone();
-            let subscriber = tracing_subscriber::fmt()
-                .json()
-                .with_writer(move || writer.clone())
-                .finish();
-            tracing::subscriber::set_global_default(subscriber)
-                .expect("no other test may set a global subscriber");
-            logs
-        })
-    }
-
     #[tokio::test]
     async fn log_a_failed_mail_delivery() {
         let logs = captured_logs();
@@ -329,7 +300,7 @@ mod tests {
             .unwrap();
         deliver_due(&pool, &delivery(1)).await.unwrap();
 
-        let output = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+        let output = logs.text();
         let entries: Vec<serde_json::Value> = output
             .lines()
             .map(|line| serde_json::from_str(line).unwrap())
@@ -403,7 +374,7 @@ mod tests {
         deliver_due(&pool, &encrypted).await.unwrap();
         assert_eq!(state(&pool).await, (1, false, false));
         assert_eq!(mailpit_count(&token).await, 0);
-        let output = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+        let output = logs.text();
         let reasons: Vec<String> = output
             .lines()
             .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())

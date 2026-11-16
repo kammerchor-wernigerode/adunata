@@ -120,6 +120,22 @@ export const HealthResponse = zod.object({
 }).describe('Whether the instance can serve requests. It holds no personal data and no configuration values.')
 
 
+/**
+ * @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`.
+ */
+export const InvitationPageResponse = zod.object({
+  "firstName": zod.string(),
+  "gathering": zod.object({
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date()
+}).describe('What a member sees of the gathering on the response page.'),
+  "state": zod.enum(['open', 'begun', 'ended', 'cancelled']).describe('Whether a member can still answer through the personal link.')
+}).describe('The response page of one invitation as its member sees it.')
+
+
 export const LegalLinksResponse = zod.object({
   "privacyUrl": zod.string().nullish(),
   "imprintUrl": zod.string().nullish()

@@ -7,7 +7,8 @@ use utoipa_axum::router::OpenApiRouter;
 use crate::access::SignInLimiter;
 use crate::configuration::{InstanceTimeZone, LegalLinks, Network, PublicUrl};
 use crate::{
-    access, gatherings, health, invitations, legal, localization, members, serving, spike,
+    access, gatherings, health, invitations, legal, localization, members, responses, serving,
+    spike,
 };
 
 #[derive(Clone)]
@@ -35,6 +36,7 @@ fn routes() -> OpenApiRouter<AppState> {
         .merge(access::router())
         .merge(gatherings::router())
         .merge(invitations::router())
+        .merge(responses::router())
 }
 
 pub fn router(state: AppState) -> Router {
@@ -81,7 +83,7 @@ mod tests {
     use super::*;
 
     /// Operations that answer without an organizer session: health, catalogs, the links every page shows, sign-in and sign-out, the routes behind an invitation link and the spike until feature modules replace it.
-    const PUBLIC: [&str; 7] = [
+    const PUBLIC: [&str; 8] = [
         "GET /api/health",
         "GET /api/catalogs/{locale}",
         "GET /api/legal-links",
@@ -89,6 +91,7 @@ mod tests {
         "POST /api/sessions",
         "DELETE /api/session",
         "POST /api/spike-responses",
+        "GET /api/invitation",
     ];
 
     /// Replaces each path parameter such as `{id}` with `1`.

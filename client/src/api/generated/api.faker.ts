@@ -11,12 +11,14 @@ import {
 import {
   Attendance,
   Cause,
+  LinkState,
   Status
 } from './model';
 import type {
   Gathering,
   GatheringList,
   Health,
+  InvitationPage,
   Invited,
   LegalLinks,
   Member,
@@ -37,6 +39,8 @@ export const getChangeGatheringResponseMock = (overrideResponse: Partial<Extract
 export const getInviteResponseMock = (overrideResponse: Partial<Extract<Invited, object>> = {}): Invited => ({count: faker.number.int({min: 0}), ...overrideResponse})
 
 export const getHealthResponseMock = (overrideResponse: Partial<Extract<Health, object>> = {}): Health => ({status: faker.helpers.arrayElement(Object.values(Status)), cause: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Cause)),null,]), ...overrideResponse})
+
+export const getInvitationPageResponseMock = (overrideResponse: Partial<Extract<InvitationPage, object>> = {}): InvitationPage => ({firstName: faker.string.alpha({length: {min: 10, max: 20}}), gathering: {title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10)}, state: faker.helpers.arrayElement(Object.values(LinkState)), ...overrideResponse})
 
 export const getLegalLinksResponseMock = (overrideResponse: Partial<Extract<LegalLinks, object>> = {}): LegalLinks => ({privacyUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), imprintUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
 
