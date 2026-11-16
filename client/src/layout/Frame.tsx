@@ -58,6 +58,11 @@ function OrganizerNavigation() {
     <nav aria-label={translate('nav-label')}>
       <ul className="flex flex-wrap gap-4">
         <li>
+          <Link to="/gatherings" className={item}>
+            {translate('nav-gatherings')}
+          </Link>
+        </li>
+        <li>
           <Link to="/members" className={item}>
             {translate('nav-members')}
           </Link>

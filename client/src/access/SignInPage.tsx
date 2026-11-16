@@ -67,7 +67,7 @@ function ConfirmSignIn({ secret, onRequestNew }: { secret: string; onRequestNew:
     }
     window.history.replaceState(null, '', window.location.pathname)
     await queryClient.invalidateQueries({ queryKey: getCurrentSessionQueryKey() })
-    await navigate({ to: '/members' })
+    await navigate({ to: '/gatherings' })
   }
 
   function requestNew() {

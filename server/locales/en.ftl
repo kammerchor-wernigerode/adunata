@@ -56,6 +56,25 @@ sign-in-confirm = Sign in
 sign-in-invalid = This link was already used or has expired.
 sign-in-request-new = Request a new link
 
+nav-gatherings = Gatherings
+gatherings-title = Gatherings
+gatherings-create = Create gathering
+gatherings-upcoming = Upcoming
+gatherings-past = Past
+gatherings-none = None yet.
+gathering-new-title = Create gathering
+gathering-edit-title = Edit { $title }
+gathering-edit = Edit gathering
+gathering-title = Title
+gathering-location = Location
+gathering-description = Description
+gathering-first-day = First day
+gathering-last-day = Last day
+gathering-save = Save
+gathering-cancelled = Cancelled
+error-last-day-before-first-day = The last day cannot lie before the first day.
+error-gathering-ended = This gathering has ended and can no longer change.
+
 members-title = Members
 members-add = Add member
 members-search = Search by name or mail address

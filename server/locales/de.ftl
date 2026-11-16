@@ -56,6 +56,25 @@ sign-in-confirm = Anmelden
 sign-in-invalid = Dieser Link wurde schon benutzt oder ist abgelaufen.
 sign-in-request-new = Neuen Link anfordern
 
+nav-gatherings = Treffen
+gatherings-title = Treffen
+gatherings-create = Treffen anlegen
+gatherings-upcoming = Kommende
+gatherings-past = Vergangene
+gatherings-none = Noch keine.
+gathering-new-title = Treffen anlegen
+gathering-edit-title = { $title } bearbeiten
+gathering-edit = Treffen bearbeiten
+gathering-title = Titel
+gathering-location = Ort
+gathering-description = Beschreibung
+gathering-first-day = Erster Tag
+gathering-last-day = Letzter Tag
+gathering-save = Speichern
+gathering-cancelled = Abgesagt
+error-last-day-before-first-day = Der letzte Tag kann nicht vor dem ersten liegen.
+error-gathering-ended = Dieses Treffen ist vorbei und lässt sich nicht mehr ändern.
+
 members-title = Mitglieder
 members-add = Mitglied hinzufügen
 members-search = Nach Name oder Mailadresse suchen

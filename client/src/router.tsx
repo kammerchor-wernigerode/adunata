@@ -1,6 +1,9 @@
 import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
 import { RequireOrganizer } from '@/access/RequireOrganizer'
 import { SignInPage } from '@/access/SignInPage'
+import { EditGatheringPage, NewGatheringPage } from '@/gatherings/GatheringFormPage'
+import { GatheringListPage } from '@/gatherings/GatheringListPage'
+import { GatheringPage } from '@/gatherings/GatheringPage'
 import { Frame } from '@/layout/Frame'
 import { EditMemberPage, NewMemberPage } from '@/members/MemberFormPage'
 import { MemberListPage } from '@/members/MemberListPage'
@@ -28,10 +31,42 @@ const editMemberRoute = createRoute({
   component: EditMemberPage,
 })
 
+const gatheringListRoute = createRoute({
+  getParentRoute: () => organizerRoute,
+  path: '/gatherings',
+  component: GatheringListPage,
+})
+
+const newGatheringRoute = createRoute({
+  getParentRoute: () => organizerRoute,
+  path: '/gatherings/new',
+  component: NewGatheringPage,
+})
+
+const gatheringRoute = createRoute({
+  getParentRoute: () => organizerRoute,
+  path: '/gatherings/$gatheringId',
+  component: GatheringPage,
+})
+
+const editGatheringRoute = createRoute({
+  getParentRoute: () => organizerRoute,
+  path: '/gatherings/$gatheringId/edit',
+  component: EditGatheringPage,
+})
+
 export const routeTree = rootRoute.addChildren([
   spikeRoute,
   signInRoute,
-  organizerRoute.addChildren([memberListRoute, newMemberRoute, editMemberRoute]),
+  organizerRoute.addChildren([
+    gatheringListRoute,
+    newGatheringRoute,
+    gatheringRoute,
+    editGatheringRoute,
+    memberListRoute,
+    newMemberRoute,
+    editMemberRoute,
+  ]),
 ])
 
 export const router = createRouter({ routeTree })
