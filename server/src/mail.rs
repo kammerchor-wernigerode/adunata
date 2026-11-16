@@ -90,7 +90,7 @@ pub async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx:
     for _ in 0..BATCH_SIZE {
         let mut transaction = pool.begin().await?;
         let pending: Option<PendingMail> = sqlx::query_as(
-            "SELECT outbox.id, outbox.recipient, members.first_name || ' ' || members.last_name AS recipient_name, outbox.subject, outbox.text_body, outbox.html_body, outbox.attempts FROM mail_outbox outbox LEFT JOIN members ON members.id = outbox.member_id WHERE outbox.sent_at IS NULL AND outbox.failed_at IS NULL AND outbox.next_attempt_at <= now() ORDER BY outbox.id LIMIT 1 FOR UPDATE OF outbox SKIP LOCKED",
+            "SELECT outbox.id, COALESCE(members.mail, outbox.recipient) AS recipient, members.first_name || ' ' || members.last_name AS recipient_name, outbox.subject, outbox.text_body, outbox.html_body, outbox.attempts FROM mail_outbox outbox LEFT JOIN members ON members.id = outbox.member_id WHERE outbox.sent_at IS NULL AND outbox.failed_at IS NULL AND outbox.next_attempt_at <= now() ORDER BY outbox.id LIMIT 1 FOR UPDATE OF outbox SKIP LOCKED",
         )
         .fetch_optional(&mut *transaction)
         .await?;
@@ -583,6 +583,44 @@ mod tests {
         let message = mailpit_message(&token).await;
         assert_eq!(message["To"][0]["Name"], "Ada Lovelace");
         assert_eq!(message["To"][0]["Address"], "ada@example.org");
+    }
+
+    #[tokio::test]
+    async fn mail_waiting_for_a_member_goes_to_the_current_address() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let token = unique_token();
+        let member_id: i64 = sqlx::query_scalar(
+            "INSERT INTO members (first_name, last_name, mail, language) VALUES ('Ada', 'Lovelace', 'old@example.org', 'en') RETURNING id",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let mut connection = pool.acquire().await.unwrap();
+        let mail = Mail {
+            recipient: "old@example.org".to_owned(),
+            member_id: Some(member_id),
+            invitation_id: None,
+            subject: format!("Moved {token}"),
+            text: token.clone(),
+            html: format!("<p>{token}</p>"),
+        };
+        enqueue(&mut connection, &mail).await.unwrap();
+        drop(connection);
+        sqlx::query("UPDATE members SET mail = 'new@example.org'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        deliver_due(
+            &pool,
+            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            mailpit_message(&token).await["To"][0]["Address"],
+            "new@example.org"
+        );
     }
 
     #[test]
