@@ -26,6 +26,13 @@ The quality goals in [Introduction and goals](01-introduction-and-goals.md) name
 |-|-|-|-|-|
 |Memory under load|The statically linked release binary runs on Linux next to PostgreSQL and Mailpit.|10 connections send the form and load the client for 30 seconds.|Peak resident memory of Adunata stays below 150 MB. The latest measurement was 5 MB.|The check `memory` in [`flake.nix`](../../flake.nix)|
 
+## Accessibility
+
+|Scenario|Context|Stimulus|Response|Verified by|
+|-|-|-|-|-|
+|Member form at 200 % on a phone|A member with low vision opens the personal link on a phone 390 px wide with the text enlarged to 200 %.|The member answers.|The response form and the overview scroll only vertically, axe finds no violation in light or dark mode and no control breaks the Content Security Policy.|[`client/e2e/invitation.e2e.ts`](../../client/e2e/invitation.e2e.ts)|
+|Calendar by keyboard|A member uses a keyboard and a screen reader.|The member picks the day of arrival.|The calendar offers only the days of the gathering, moves with the arrow keys and names its grid and each day.|`operates the calendar by keyboard and offers only the days of the gathering` in [`client/src/responses/ResponsePage.test.tsx`](../../client/src/responses/ResponsePage.test.tsx)|
+
 ## Localization
 
 |Scenario|Context|Stimulus|Response|Verified by|

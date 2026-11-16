@@ -142,7 +142,7 @@ Tests run at several levels. Each level checks what the level below cannot see. 
 |Server slice|An API handler called in process with real routing against a real PostgreSQL. Each test gets its own empty database with all migrations applied and drops it afterwards. Mail goes to a real Mailpit.|`duplicate_address` in [`server/src/members.rs`](../../server/src/members.rs)|
 |Client slice|A component against the API mocks that Orval generates, driven like a user would. Accessibility checks with axe run on rendered components.|[`client/src/members/Members.test.tsx`](../../client/src/members/Members.test.tsx)|
 |Contract|The committed OpenAPI document matches the server. The generated client code matches the document.|The check `contract` in [`flake.nix`](../../flake.nix)|
-|End to end|A few complete flows in a browser against the real binary, PostgreSQL and Mailpit, with accessibility checks by axe. Runs on Linux.|[`client/e2e/language.e2e.ts`](../../client/e2e/language.e2e.ts)|
+|End to end|A few complete flows in a browser against the real binary, PostgreSQL and Mailpit, with accessibility checks by axe in light and dark mode, contrast of controls and reflow at 390 px with 200 % text. Runs on Linux.|[`client/e2e/invitation.e2e.ts`](../../client/e2e/invitation.e2e.ts)|
 |NixOS VM|Each supported installation, meaning the NixOS module, the OCI image and the release binary with its example unit, starts in a virtual machine, migrates the database, reports healthy and serves the client. Runs on Linux with KVM.|[`nix/test.nix`](../../nix/test.nix)|
 
 The check `memory` in [`flake.nix`](../../flake.nix) measures peak memory of the release build under load on Linux and fails above 150 MB.

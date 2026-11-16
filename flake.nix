@@ -164,7 +164,7 @@
             };
           };
 
-          # Starts PostgreSQL, Mailpit and the release binary on port 18080 and leaves the binary's PID in $adunataPid.
+          # Starts PostgreSQL, Mailpit and the release binary on port 18080 with the organizer organizer@example.org and leaves the binary's PID in $adunataPid.
           startInstance = ''
             export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata
             mkdir -p "$PGHOST"
@@ -175,6 +175,8 @@
               ADUNATA_LISTEN_ADDRESS=127.0.0.1:18080 ADUNATA_PUBLIC_URL=http://localhost:18080 \
               ADUNATA_SMTP_HOST=127.0.0.1 ADUNATA_SMTP_PORT=11025 ADUNATA_SMTP_ENCRYPTION=none \
               ADUNATA_MAIL_SENDER="Adunata <adunata@example.org>" ADUNATA_TIME_ZONE=Europe/Berlin \
+              ADUNATA_FIRST_ORGANIZER_MAIL=organizer@example.org ADUNATA_FIRST_ORGANIZER_FIRST_NAME=Ada \
+              ADUNATA_FIRST_ORGANIZER_LAST_NAME=Lovelace \
               ${staticServer}/bin/adunata serve &
             adunataPid=$!
             for _ in $(seq 100); do (echo > /dev/tcp/127.0.0.1/18080) 2>/dev/null && break; sleep 0.1; done
@@ -261,6 +263,7 @@
             PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
             FONTCONFIG_FILE = pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; };
             ADUNATA_E2E_URL = "http://localhost:18080";
+            ADUNATA_E2E_MAILPIT_URL = "http://127.0.0.1:18025";
             buildPhase = ''
               export HOME="$TMPDIR"
               ${startInstance}
