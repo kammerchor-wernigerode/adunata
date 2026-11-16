@@ -28,6 +28,7 @@ import type {
   GatheringInput,
   GatheringList,
   Health,
+  Invitation,
   InvitationPage,
   InvitationRequest,
   Invited,
@@ -652,6 +653,126 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       return useMutation(getChangeGatheringMutationOptions(options), queryClient);
     }
 
+export type listInvitationsResponse200 = {
+  data: Invitation[]
+  status: 200
+}
+
+export type listInvitationsResponse401 = {
+  data: void
+  status: 401
+}
+
+export type listInvitationsResponseSuccess = (listInvitationsResponse200) & {
+  headers: Headers;
+};
+export type listInvitationsResponseError = (listInvitationsResponse401) & {
+  headers: Headers;
+};
+
+export type listInvitationsResponse = (listInvitationsResponseSuccess | listInvitationsResponseError)
+
+export const getListInvitationsUrl = (id: number,) => {
+
+
+
+
+  return `/api/gatherings/${id}/invitations`
+}
+
+export const listInvitations = async (id: number, options?: RequestInit): Promise<listInvitationsResponse> => {
+
+  const res = await fetch(getListInvitationsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listInvitationsResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as listInvitationsResponse
+}
+
+
+
+
+
+export const getListInvitationsQueryKey = (id: number,) => {
+    return [
+    `/api/gatherings/${id}/invitations`
+    ] as const;
+    }
+
+
+export const getListInvitationsQueryOptions = <TData = Awaited<ReturnType<typeof listInvitations>>, TError = void>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInvitations>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInvitationsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInvitations>>> = ({ signal }) => listInvitations(id, { signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInvitations>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListInvitationsQueryResult = NonNullable<Awaited<ReturnType<typeof listInvitations>>>
+export type ListInvitationsQueryError = void
+
+
+export function useListInvitations<TData = Awaited<ReturnType<typeof listInvitations>>, TError = void>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInvitations>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listInvitations>>,
+          TError,
+          Awaited<ReturnType<typeof listInvitations>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListInvitations<TData = Awaited<ReturnType<typeof listInvitations>>, TError = void>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInvitations>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listInvitations>>,
+          TError,
+          Awaited<ReturnType<typeof listInvitations>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListInvitations<TData = Awaited<ReturnType<typeof listInvitations>>, TError = void>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInvitations>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListInvitations<TData = Awaited<ReturnType<typeof listInvitations>>, TError = void>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInvitations>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListInvitationsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type inviteResponse201 = {
   data: Invited
   status: 201
@@ -1017,6 +1138,209 @@ export function useInvitationPage<TData = Awaited<ReturnType<typeof invitationPa
 
 
 
+
+export type resendResponse204 = {
+  data: void
+  status: 204
+}
+
+export type resendResponse401 = {
+  data: void
+  status: 401
+}
+
+export type resendResponse404 = {
+  data: void
+  status: 404
+}
+
+export type resendResponse422 = {
+  data: ValidationErrors
+  status: 422
+}
+
+export type resendResponseSuccess = (resendResponse204) & {
+  headers: Headers;
+};
+export type resendResponseError = (resendResponse401 | resendResponse404 | resendResponse422) & {
+  headers: Headers;
+};
+
+export type resendResponse = (resendResponseSuccess | resendResponseError)
+
+export const getResendUrl = (id: number,) => {
+
+
+
+
+  return `/api/invitations/${id}/resend`
+}
+
+export const resend = async (id: number, options?: RequestInit): Promise<resendResponse> => {
+
+  const res = await fetch(getResendUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: resendResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as resendResponse
+}
+
+
+
+
+
+export const getResendMutationKey = () => ['resend'] as const;
+
+export const getResendMutationOptions = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resend>>, TError,ResendMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof resend>>, TError,ResendMutationVariables, TContext> => {
+
+const mutationKey = getResendMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resend>>, ResendMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  resend(id,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResendMutationResult = NonNullable<Awaited<ReturnType<typeof resend>>>
+
+    export type ResendMutationError = void | ValidationErrors
+    export type ResendMutationVariables = {id: number}
+
+    export const useResend = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resend>>, TError,ResendMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof resend>>,
+        TError,
+        ResendMutationVariables,
+        TContext
+      > => {
+      return useMutation(getResendMutationOptions(options), queryClient);
+    }
+
+export type revokeResponse204 = {
+  data: void
+  status: 204
+}
+
+export type revokeResponse401 = {
+  data: void
+  status: 401
+}
+
+export type revokeResponse404 = {
+  data: void
+  status: 404
+}
+
+export type revokeResponseSuccess = (revokeResponse204) & {
+  headers: Headers;
+};
+export type revokeResponseError = (revokeResponse401 | revokeResponse404) & {
+  headers: Headers;
+};
+
+export type revokeResponse = (revokeResponseSuccess | revokeResponseError)
+
+export const getRevokeUrl = (id: number,) => {
+
+
+
+
+  return `/api/invitations/${id}/revocation`
+}
+
+export const revoke = async (id: number, options?: RequestInit): Promise<revokeResponse> => {
+
+  const res = await fetch(getRevokeUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: revokeResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as revokeResponse
+}
+
+
+
+
+
+export const getRevokeMutationKey = () => ['revoke'] as const;
+
+export const getRevokeMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revoke>>, TError,RevokeMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof revoke>>, TError,RevokeMutationVariables, TContext> => {
+
+const mutationKey = getRevokeMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revoke>>, RevokeMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  revoke(id,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeMutationResult = NonNullable<Awaited<ReturnType<typeof revoke>>>
+
+    export type RevokeMutationError = void
+    export type RevokeMutationVariables = {id: number}
+
+    export const useRevoke = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revoke>>, TError,RevokeMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof revoke>>,
+        TError,
+        RevokeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRevokeMutationOptions(options), queryClient);
+    }
 
 export type legalLinksResponse200 = {
   data: LegalLinks

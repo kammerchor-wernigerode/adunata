@@ -97,6 +97,21 @@ export const ChangeGatheringResponse = zod.object({
 }).describe('A span of days on which the ensemble meets, as organizers see it.')
 
 
+export const ListInvitationsParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const ListInvitationsResponseItem = zod.object({
+  "id": zod.int(),
+  "memberId": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "linkActive": zod.boolean().describe('Whether the personal link works. Revoking clears it until the next resend.'),
+  "mail": zod.union([zod.enum(['waiting', 'sent', 'failed']).describe('Where the newest mail of an invitation stands.'),zod.null()]).optional()
+}).describe('One invitation as organizers manage it.')
+export const ListInvitationsResponse = zod.array(ListInvitationsResponseItem)
+
+
 export const InviteParams = zod.object({
   "id": zod.int().describe('Id of the gathering')
 })
@@ -134,6 +149,20 @@ export const InvitationPageResponse = zod.object({
 }).describe('What a member sees of the gathering on the response page.'),
   "state": zod.enum(['open', 'begun', 'ended', 'cancelled']).describe('Whether a member can still answer through the personal link.')
 }).describe('The response page of one invitation as its member sees it.')
+
+
+export const ResendParams = zod.object({
+  "id": zod.int().describe('Id of the invitation')
+})
+
+export const ResendResponse = zod.void()
+
+
+export const RevokeParams = zod.object({
+  "id": zod.int().describe('Id of the invitation')
+})
+
+export const RevokeResponse = zod.void()
 
 
 export const LegalLinksResponse = zod.object({

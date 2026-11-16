@@ -89,8 +89,147 @@ pub struct Invited {
     pub count: usize,
 }
 
+/// Where the newest mail of an invitation stands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema, sqlx::Type)]
+#[serde(rename_all = "camelCase")]
+#[sqlx(type_name = "text", rename_all = "lowercase")]
+pub enum MailState {
+    Waiting,
+    Sent,
+    Failed,
+}
+
+/// One invitation as organizers manage it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct Invitation {
+    pub id: i64,
+    pub member_id: i64,
+    pub first_name: String,
+    pub last_name: String,
+    /// Whether the personal link works. Revoking clears it until the next resend.
+    pub link_active: bool,
+    pub mail: Option<MailState>,
+}
+
 pub fn router() -> OpenApiRouter<AppState> {
-    OpenApiRouter::new().routes(routes!(invite))
+    OpenApiRouter::new()
+        .routes(routes!(list_invitations, invite))
+        .routes(routes!(resend))
+        .routes(routes!(revoke))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/gatherings/{id}/invitations",
+    params(("id" = i64, Path, description = "Id of the gathering")),
+    responses(
+        (status = 200, description = "Every invitation of the gathering, sorted by last name", body = Vec<Invitation>),
+        (status = 401, description = "No valid organizer session"),
+    )
+)]
+async fn list_invitations(
+    _: Organizer,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Response {
+    let Ok(mut connection) = state.pool.acquire().await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    match of_gathering(&mut connection, id).await {
+        Ok(invitations) => Json(invitations).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+/// Every invitation of a gathering with its member and the state of its newest mail.
+pub async fn of_gathering(
+    connection: &mut PgConnection,
+    gathering_id: i64,
+) -> Result<Vec<Invitation>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT invitations.id, members.id AS member_id, members.first_name, members.last_name, invitations.secret_hash IS NOT NULL AS link_active, (SELECT CASE WHEN sent_at IS NOT NULL THEN 'sent' WHEN failed_at IS NOT NULL THEN 'failed' ELSE 'waiting' END FROM mail_outbox WHERE invitation_id = invitations.id ORDER BY id DESC LIMIT 1) AS mail FROM invitations JOIN members ON members.id = invitations.member_id WHERE gathering_id = $1 ORDER BY lower(members.last_name), lower(members.first_name), invitations.id",
+    )
+    .bind(gathering_id)
+    .fetch_all(connection)
+    .await
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/invitations/{id}/resend",
+    params(("id" = i64, Path, description = "Id of the invitation")),
+    responses(
+        (status = 204, description = "New link created, the old one revoked and the mail queued"),
+        (status = 401, description = "No valid organizer session"),
+        (status = 404, description = "No such invitation"),
+        (status = 422, description = "The gathering is cancelled or has ended", body = crate::validation::ValidationErrors),
+    )
+)]
+async fn resend(_: Organizer, State(state): State<AppState>, Path(id): Path<i64>) -> Response {
+    match resend_invitation(&state, id).await {
+        Ok(Outcome::Done(())) => StatusCode::NO_CONTENT.into_response(),
+        Ok(Outcome::NotFound) => StatusCode::NOT_FOUND.into_response(),
+        Ok(Outcome::Closed(code)) => invalid(vec![field_error("gathering", code)]),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+/// Stores the hash of a new secret in place of the old one, so the old link stops working in the same transaction, and queues a mail with the new link.
+async fn resend_invitation(state: &AppState, id: i64) -> Result<Outcome<()>, sqlx::Error> {
+    let mut transaction = state.pool.begin().await?;
+    let found: Option<(i64, i64)> =
+        sqlx::query_as("SELECT gathering_id, member_id FROM invitations WHERE id = $1 FOR UPDATE")
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?;
+    let Some((gathering_id, member_id)) = found else {
+        return Ok(Outcome::NotFound);
+    };
+    let gathering = match open_gathering(&mut transaction, gathering_id, state).await? {
+        Ok(gathering) => gathering,
+        Err(Outcome::Closed(code)) => return Ok(Outcome::Closed(code)),
+        Err(_) => return Ok(Outcome::NotFound),
+    };
+    let Some(member) = members::find(&mut transaction, member_id).await? else {
+        return Ok(Outcome::NotFound);
+    };
+    let secret = secret::generate();
+    sqlx::query("UPDATE invitations SET secret_hash = $2 WHERE id = $1")
+        .bind(id)
+        .bind(secret::hash(&secret))
+        .execute(&mut *transaction)
+        .await?;
+    let link = personal_link(&state.public_url, &secret);
+    mail::enqueue(
+        &mut transaction,
+        &invitation_mail(&member, &gathering, &link, &state.legal_links, id),
+    )
+    .await?;
+    transaction.commit().await?;
+    Ok(Outcome::Done(()))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/invitations/{id}/revocation",
+    params(("id" = i64, Path, description = "Id of the invitation")),
+    responses(
+        (status = 204, description = "The link no longer works, and no mail goes out"),
+        (status = 401, description = "No valid organizer session"),
+        (status = 404, description = "No such invitation"),
+    )
+)]
+async fn revoke(_: Organizer, State(state): State<AppState>, Path(id): Path<i64>) -> StatusCode {
+    match sqlx::query("UPDATE invitations SET secret_hash = NULL WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await
+    {
+        Ok(result) if result.rows_affected() == 0 => StatusCode::NOT_FOUND,
+        Ok(_) => StatusCode::NO_CONTENT,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
 }
 
 #[utoipa::path(
@@ -426,6 +565,141 @@ mod tests {
             vec!["Clara", "Johannes", "Root"]
         );
         assert_eq!(mails(&pool).await, 3);
+    }
+
+    async fn invitation_secret(pool: &PgPool) -> String {
+        let text: String = sqlx::query_scalar("SELECT text_body FROM mail_outbox WHERE invitation_id IS NOT NULL ORDER BY id DESC LIMIT 1")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+        let start = text.find("/invitation#").unwrap() + "/invitation#".len();
+        text[start..start + 64].to_owned()
+    }
+
+    async fn opens(pool: &PgPool, secret: &str) -> bool {
+        let mut connection = pool.acquire().await.unwrap();
+        resolve(
+            &mut connection,
+            secret,
+            time::OffsetDateTime::now_utc().date(),
+        )
+        .await
+        .unwrap()
+        .is_some()
+    }
+
+    async fn one_invitation(pool: &PgPool, cookie: &str) -> (i64, Value) {
+        let clara = member(pool, "Clara", "de").await;
+        let weekend = gathering(pool, "Probenwochenende", 10, 12).await;
+        invite(pool, cookie, weekend, json!({ "memberIds": [clara] })).await;
+        let (_, list) = send(
+            api::testing::state(pool.clone()),
+            cookie,
+            "GET",
+            &format!("/api/gatherings/{weekend}/invitations"),
+            &Value::Null,
+        )
+        .await;
+        (weekend, list[0].clone())
+    }
+
+    #[tokio::test]
+    async fn resend() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let (_, cookie) = signed_in_organizer(&pool).await;
+        let (_, invitation) = one_invitation(&pool, &cookie).await;
+        assert_eq!(invitation["firstName"], "Clara");
+        assert_eq!(invitation["linkActive"], true);
+        assert_eq!(invitation["mail"], "waiting");
+        let old = invitation_secret(&pool).await;
+        let (status, _) = send(
+            api::testing::state(pool.clone()),
+            &cookie,
+            "POST",
+            &format!("/api/invitations/{}/resend", invitation["id"]),
+            &Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let new = invitation_secret(&pool).await;
+        assert_ne!(old, new);
+        assert_eq!(mails(&pool).await, 2);
+        assert!(opens(&pool, &new).await);
+    }
+
+    #[tokio::test]
+    async fn old_link_after_resend() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let (_, cookie) = signed_in_organizer(&pool).await;
+        let (_, invitation) = one_invitation(&pool, &cookie).await;
+        let old = invitation_secret(&pool).await;
+        send(
+            api::testing::state(pool.clone()),
+            &cookie,
+            "POST",
+            &format!("/api/invitations/{}/resend", invitation["id"]),
+            &Value::Null,
+        )
+        .await;
+        assert!(!opens(&pool, &old).await);
+    }
+
+    #[tokio::test]
+    async fn revoke_without_resend() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let (_, cookie) = signed_in_organizer(&pool).await;
+        let (weekend, invitation) = one_invitation(&pool, &cookie).await;
+        let secret = invitation_secret(&pool).await;
+        let (status, _) = send(
+            api::testing::state(pool.clone()),
+            &cookie,
+            "POST",
+            &format!("/api/invitations/{}/revocation", invitation["id"]),
+            &Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert!(!opens(&pool, &secret).await);
+        assert_eq!(mails(&pool).await, 1);
+        let (_, list) = send(
+            api::testing::state(pool.clone()),
+            &cookie,
+            "GET",
+            &format!("/api/gatherings/{weekend}/invitations"),
+            &Value::Null,
+        )
+        .await;
+        assert_eq!(list[0]["linkActive"], false);
+    }
+
+    #[tokio::test]
+    async fn no_resend_after_the_gathering() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let (_, cookie) = signed_in_organizer(&pool).await;
+        let (weekend, invitation) = one_invitation(&pool, &cookie).await;
+        sqlx::query("UPDATE gatherings SET first_day = CURRENT_DATE - 3, last_day = CURRENT_DATE - 1 WHERE id = $1")
+            .bind(weekend)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let (status, body) = send(
+            api::testing::state(pool.clone()),
+            &cookie,
+            "POST",
+            &format!("/api/invitations/{}/resend", invitation["id"]),
+            &Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            body,
+            json!({ "errors": [{ "field": "gathering", "code": "ended" }] })
+        );
+        assert_eq!(mails(&pool).await, 1);
     }
 
     #[tokio::test]

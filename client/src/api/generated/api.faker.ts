@@ -12,12 +12,14 @@ import {
   Attendance,
   Cause,
   LinkState,
+  MailState,
   Status
 } from './model';
 import type {
   Gathering,
   GatheringList,
   Health,
+  Invitation,
   InvitationPage,
   Invited,
   LegalLinks,
@@ -35,6 +37,8 @@ export const getCreateGatheringResponseMock = (overrideResponse: Partial<Extract
 export const getGetGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
 
 export const getChangeGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
+
+export const getListInvitationsResponseMock = (): Invitation[] => (Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.number.int(), memberId: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), linkActive: faker.datatype.boolean(), mail: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(MailState)),null,])})))
 
 export const getInviteResponseMock = (overrideResponse: Partial<Extract<Invited, object>> = {}): Invited => ({count: faker.number.int({min: 0}), ...overrideResponse})
 

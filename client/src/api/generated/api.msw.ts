@@ -22,6 +22,7 @@ import {
   Attendance,
   Cause,
   LinkState,
+  MailState,
   Status
 } from './model';
 import type {
@@ -29,6 +30,7 @@ import type {
   GatheringInput,
   GatheringList,
   Health,
+  Invitation,
   InvitationPage,
   InvitationRequest,
   Invited,
@@ -50,6 +52,8 @@ export const getCreateGatheringResponseMock = (overrideResponse: Partial<Extract
 export const getGetGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
 
 export const getChangeGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
+
+export const getListInvitationsResponseMock = (): Invitation[] => (Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.number.int(), memberId: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), linkActive: faker.datatype.boolean(), mail: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(MailState)),null,])})))
 
 export const getInviteResponseMock = (overrideResponse: Partial<Extract<Invited, object>> = {}): Invited => ({count: faker.number.int({min: 0}), ...overrideResponse})
 
@@ -133,6 +137,18 @@ export const getChangeGatheringMockHandler = (overrideResponse?: Gathering | ((i
   }, options)
 }
 
+export const getListInvitationsMockHandler = (overrideResponse?: Invitation[] | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<Invitation[]> | Invitation[]), options?: RequestHandlerOptions) => {
+  return http.get<{ id: string }>('*/api/gatherings/:id/invitations', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getListInvitationsResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
 export const getInviteMockHandler = (overrideResponse?: Invited | ((info: Parameters<HttpResponseResolver<{ id: string }, InvitationRequest>>[0]) => Promise<Invited> | Invited), options?: RequestHandlerOptions) => {
   return http.post<{ id: string }, InvitationRequest>('*/api/gatherings/:id/invitations', async (info: Parameters<HttpResponseResolver<{ id: string }, InvitationRequest>>[0]) => {
 
@@ -165,6 +181,26 @@ export const getInvitationPageMockHandler = (overrideResponse?: InvitationPage |
     ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
     : getInvitationPageResponseMock(),
       { status: 200
+      })
+  }, options)
+}
+
+export const getResendMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<{ id: string }>('*/api/invitations/:id/resend', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
+export const getRevokeMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<{ id: string }>('*/api/invitations/:id/revocation', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
       })
   }, options)
 }
@@ -288,9 +324,12 @@ export const getAdunataMock = () => [
   getCreateGatheringMockHandler(),
   getGetGatheringMockHandler(),
   getChangeGatheringMockHandler(),
+  getListInvitationsMockHandler(),
   getInviteMockHandler(),
   getHealthMockHandler(),
   getInvitationPageMockHandler(),
+  getResendMockHandler(),
+  getRevokeMockHandler(),
   getLegalLinksMockHandler(),
   getListMembersMockHandler(),
   getAddMemberMockHandler(),
