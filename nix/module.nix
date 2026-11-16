@@ -32,6 +32,34 @@ in
       description = "IANA time zone of the instance. Adunata shows wall-clock times in it and compares them with the present.";
     };
 
+    retention = {
+      commentDays = lib.mkOption {
+        type = lib.types.either lib.types.ints.unsigned (lib.types.enum [ "never" ]);
+        default = 30;
+        description = "Days after the last day of a gathering until Adunata clears the comments of its responses, or never.";
+      };
+
+      responseDays = lib.mkOption {
+        type = lib.types.either lib.types.ints.unsigned (lib.types.enum [ "never" ]);
+        default = 365;
+        description = "Days after the last day of a gathering until Adunata deletes its invitations and responses, or never.";
+      };
+    };
+
+    privacyUrl = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "https://choir.example.org/privacy";
+      description = "Address of the privacy notice that every page and every invitation mail links.";
+    };
+
+    imprintUrl = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "https://choir.example.org/imprint";
+      description = "Address of the imprint that every page and every invitation mail links.";
+    };
+
     firstOrganizer = lib.mkOption {
       type = lib.types.nullOr (
         lib.types.submodule {
@@ -173,6 +201,8 @@ in
         ADUNATA_LISTEN_ADDRESS = cfg.listenAddress;
         ADUNATA_TIME_ZONE = cfg.timeZone;
         ADUNATA_TRUSTED_PROXIES = lib.concatStringsSep "," cfg.trustedProxies;
+        ADUNATA_RETENTION_COMMENT_DAYS = toString cfg.retention.commentDays;
+        ADUNATA_RETENTION_RESPONSE_DAYS = toString cfg.retention.responseDays;
         ADUNATA_DEFAULT_LANGUAGE = cfg.defaultLanguage;
         ADUNATA_DATABASE_URL = cfg.database.url;
         ADUNATA_SMTP_HOST = cfg.smtp.host;
@@ -182,6 +212,8 @@ in
         ADUNATA_MAIL_MAX_ATTEMPTS = toString cfg.mail.maxAttempts;
       }
       // lib.optionalAttrs (cfg.smtp.username != null) { ADUNATA_SMTP_USERNAME = cfg.smtp.username; }
+      // lib.optionalAttrs (cfg.privacyUrl != null) { ADUNATA_PRIVACY_URL = cfg.privacyUrl; }
+      // lib.optionalAttrs (cfg.imprintUrl != null) { ADUNATA_IMPRINT_URL = cfg.imprintUrl; }
       // lib.optionalAttrs (cfg.firstOrganizer != null) {
         ADUNATA_FIRST_ORGANIZER_MAIL = cfg.firstOrganizer.mail;
         ADUNATA_FIRST_ORGANIZER_FIRST_NAME = cfg.firstOrganizer.firstName;
