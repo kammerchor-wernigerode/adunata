@@ -152,10 +152,13 @@
             tag = "latest";
             config = {
               Cmd = [
-                "${staticServer}/bin/adunata"
+                "adunata"
                 "serve"
               ];
-              Env = [ "ADUNATA_LISTEN_ADDRESS=0.0.0.0:8080" ];
+              Env = [
+                "ADUNATA_LISTEN_ADDRESS=0.0.0.0:8080"
+                "PATH=${staticServer}/bin"
+              ];
               ExposedPorts."8080/tcp" = { };
               User = "65534:65534";
             };

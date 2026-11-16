@@ -9,6 +9,14 @@ The quality goals in [Introduction and goals](01-introduction-and-goals.md) name
 |Invalid configuration|An operator starts a new instance.|Two required settings are missing and one has the wrong format.|Adunata exits with status 1 before it opens a port or touches the database. The log names all three settings in one entry each. It shows no secret value.|[`server/tests/startup.rs`](../../server/tests/startup.rs) and `several_settings_missing` in [`server/src/configuration.rs`](../../server/src/configuration.rs)|
 |Mail server outage|The mail server of the ensemble is unreachable for a few minutes.|An organizer triggers a mail during the outage.|The action succeeds. The mail waits in the outbox and arrives once the server is reachable again.|`action_succeeds_while_the_mail_server_is_down` in [`server/src/spike.rs`](../../server/src/spike.rs) and `mail_server_comes_back` in [`server/src/mail.rs`](../../server/src/mail.rs)|
 
+## Security
+
+|Scenario|Context|Stimulus|Response|Verified by|
+|-|-|-|-|-|
+|Unknown address at sign-in|Someone tries to learn who organizes the ensemble.|A sign-in link is requested for an address that belongs to no active organizer.|Adunata answers exactly as for an organizer and sends no mail.|`unknown_address` in [`server/src/access.rs`](../../server/src/access.rs)|
+|Request from another origin|An organizer is signed in and visits a page on another origin.|That page makes the browser send a request that changes data.|Adunata rejects it with status 403 and changes nothing.|`request_from_another_origin` in [`server/src/access.rs`](../../server/src/access.rs)|
+|Organizer route without a session|A developer adds an organizer route and forgets the extractor.|The slice tests run.|The test that calls every operation without a session names the route and fails.|`every_organizer_operation_requires_a_session` in [`server/src/api.rs`](../../server/src/api.rs)|
+
 ## Efficiency
 
 |Scenario|Context|Stimulus|Response|Verified by|

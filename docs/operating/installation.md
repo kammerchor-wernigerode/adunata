@@ -116,6 +116,24 @@ systemctl daemon-reload
 systemctl enable --now adunata
 ```
 
+## First organizer
+
+Set `ADUNATA_FIRST_ORGANIZER_MAIL` with both names, as the [configuration reference](configuration.md) describes. On NixOS set `services.adunata.firstOrganizer`. When Adunata starts and finds no active organizer, it creates this member with the organizer role. The organizer then opens the instance, enters the address and signs in with the link from the mail. Once an organizer exists, Adunata ignores the settings.
+
+## Commands
+
+The binary runs the server with `adunata serve`, which the image, the example unit and the NixOS module call. `adunata --help` lists every command and `adunata help <command>` explains one. A command exits with status 0 on success, 1 when it fails at runtime, such as with an invalid configuration or an unreachable database, and 2 on wrong arguments.
+
+### Recover organizer access
+
+An operator who lost access to every organizer mailbox makes another member an organizer:
+
+```sh
+adunata grant-organizer organizer@example.org Ada Lovelace
+```
+
+The command reads the same settings as the server, connects to the database and makes the member with that address an active organizer. It creates the member with both names if no member has the address. In a container run it with `docker compose exec adunata adunata grant-organizer …` or the equivalent of your platform. On NixOS and with the release binary run it as the service user with the settings of the service.
+
 ## Updates
 
 Install the newer release the same way and restart the service. Adunata applies pending database migrations on start. It refuses to start against a database that a newer release has already migrated, so going back to an older release needs a database backup from before the update.

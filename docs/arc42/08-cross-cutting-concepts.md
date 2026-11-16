@@ -19,6 +19,16 @@ The client starts in the language the browser prefers among German and English. 
 Mail goes out in the language stored for the recipient. Without one it uses the default language of the instance. The client formats dates with the browser's own date formatting. The server spells out date ranges in mail through the catalog, because Fluent in Rust has no date formatting.
 
 
+## Authentication and authorization
+
+Members never sign in. They reach their invitation through a personal link. Organizers sign in with a single-use link by mail, see [ADR 0010](../decisions/0010-sign-in-by-mail-link.md) and the [runtime view](06-runtime-view.md#sign-in).
+
+The module `access` owns sign-in, sessions and the first organizer. Other modules protect a route by taking the extractor `Organizer` as an argument. It loads the session from the cookie with its member and answers with status 401 unless the member is active and holds the organizer role. Revoking the role or deactivating a member therefore ends every session at the next request. The client sends a visitor without a session to the sign-in page.
+
+A slice test in [`server/src/api.rs`](../../server/src/api.rs) calls every operation of the OpenAPI document without a session and expects status 401. Only health, catalogs, the legal links, sign-in and sign-out, the routes behind an invitation link and the spike are exempt. A new route that forgets the extractor fails this test.
+
+Sign-in requests are limited to three links per hour per address and 20 requests per hour per network address. Behind a trusted proxy the network address is the rightmost entry of `X-Forwarded-For` that is no trusted proxy.
+
 ## Time
 
 The days of a gathering are dates. Times of arrival and departure are wall-clock times without an offset, such as `2027-03-14T18:00`. The database, the API, the client and mail carry them unchanged, so every view shows the same time. [ADR 0012](../decisions/0012-wall-clock-times-in-the-instance-time-zone.md) records why.
