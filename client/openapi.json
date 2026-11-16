@@ -41,6 +41,152 @@
         }
       }
     },
+    "/api/gatherings": {
+      "get": {
+        "operationId": "list_gatherings",
+        "responses": {
+          "200": {
+            "description": "Upcoming and past gatherings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatheringList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          }
+        }
+      },
+      "post": {
+        "operationId": "create_gathering",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatheringInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Gathering created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Gathering"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "422": {
+            "description": "Gathering invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gatherings/{id}": {
+      "get": {
+        "operationId": "get_gathering",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the gathering",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The gathering",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Gathering"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such gathering"
+          }
+        }
+      },
+      "put": {
+        "operationId": "change_gathering",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the gathering",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatheringInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Gathering changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Gathering"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such gathering"
+          },
+          "422": {
+            "description": "Change invalid or the gathering has ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "operationId": "health",
@@ -369,7 +515,9 @@
           "tooLarge",
           "taken",
           "invalid",
-          "lastOrganizer"
+          "lastOrganizer",
+          "beforeFirstDay",
+          "ended"
         ]
       },
       "FieldError": {
@@ -391,6 +539,106 @@
               "null"
             ],
             "description": "The stored value that a taken value collides with, such as a mail address that differs only in case."
+          }
+        }
+      },
+      "Gathering": {
+        "type": "object",
+        "description": "A span of days on which the ensemble meets, as organizers see it.",
+        "required": [
+          "id",
+          "title",
+          "location",
+          "firstDay",
+          "lastDay",
+          "cancelled",
+          "ended"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "firstDay": {
+            "type": "string",
+            "format": "date"
+          },
+          "lastDay": {
+            "type": "string",
+            "format": "date"
+          },
+          "cancelled": {
+            "type": "boolean"
+          },
+          "ended": {
+            "type": "boolean",
+            "description": "Whether the last day has passed in the time zone of the instance."
+          }
+        }
+      },
+      "GatheringInput": {
+        "type": "object",
+        "description": "What an organizer enters for a gathering.",
+        "required": [
+          "title",
+          "location",
+          "firstDay",
+          "lastDay"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "firstDay": {
+            "type": "string",
+            "format": "date"
+          },
+          "lastDay": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "GatheringList": {
+        "type": "object",
+        "description": "Gatherings split at the present. Upcoming ones come first, ordered by first day. Past ones follow with the latest first.",
+        "required": [
+          "upcoming",
+          "past"
+        ],
+        "properties": {
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Gathering"
+            }
+          },
+          "past": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Gathering"
+            }
           }
         }
       },

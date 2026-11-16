@@ -13,6 +13,90 @@ export const CatalogParams = zod.object({
 export const CatalogResponse = zod.string()
 
 
+export const ListGatheringsResponse = zod.object({
+  "upcoming": zod.array(zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date(),
+  "cancelled": zod.boolean(),
+  "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
+}).describe('A span of days on which the ensemble meets, as organizers see it.')),
+  "past": zod.array(zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date(),
+  "cancelled": zod.boolean(),
+  "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
+}).describe('A span of days on which the ensemble meets, as organizers see it.'))
+}).describe('Gatherings split at the present. Upcoming ones come first, ordered by first day. Past ones follow with the latest first.')
+
+
+export const CreateGatheringBody = zod.object({
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date()
+}).describe('What an organizer enters for a gathering.')
+
+export const CreateGatheringResponse = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date(),
+  "cancelled": zod.boolean(),
+  "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
+}).describe('A span of days on which the ensemble meets, as organizers see it.')
+
+
+export const GetGatheringParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const GetGatheringResponse = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date(),
+  "cancelled": zod.boolean(),
+  "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
+}).describe('A span of days on which the ensemble meets, as organizers see it.')
+
+
+export const ChangeGatheringParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const ChangeGatheringBody = zod.object({
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date()
+}).describe('What an organizer enters for a gathering.')
+
+export const ChangeGatheringResponse = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date(),
+  "cancelled": zod.boolean(),
+  "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
+}).describe('A span of days on which the ensemble meets, as organizers see it.')
+
+
 export const HealthResponse = zod.object({
   "status": zod.enum(['ready', 'unavailable']),
   "cause": zod.union([zod.enum(['database']),zod.null()]).optional()

@@ -24,7 +24,6 @@ pub struct Configuration {
     pub mail_sender: Mailbox,
     pub mail_max_attempts: i32,
     pub default_language: String,
-    #[expect(dead_code, reason = "nothing compares with the present yet")]
     pub time_zone: InstanceTimeZone,
     pub trusted_proxies: Vec<Network>,
     #[cfg_attr(not(test), expect(dead_code, reason = "no personal data expires yet"))]
@@ -185,11 +184,12 @@ impl InstanceTimeZone {
         jiff::tz::TimeZone::get(name).ok().map(|zone| Self { zone })
     }
 
+    /// The current date in the time zone of the instance.
+    pub fn today(&self) -> Date {
+        self.wall_clock(OffsetDateTime::now_utc()).date()
+    }
+
     /// Turns an instant into the date and wall-clock time of the instance.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "nothing compares with the present yet")
-    )]
     pub fn wall_clock(&self, instant: OffsetDateTime) -> PrimitiveDateTime {
         let timestamp = jiff::Timestamp::new(
             instant.unix_timestamp(),

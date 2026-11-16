@@ -18,4 +18,6 @@ export const ErrorCode = {
   taken: 'taken',
   invalid: 'invalid',
   lastOrganizer: 'lastOrganizer',
+  beforeFirstDay: 'beforeFirstDay',
+  ended: 'ended',
 } as const;

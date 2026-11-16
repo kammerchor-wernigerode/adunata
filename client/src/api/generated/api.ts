@@ -24,6 +24,9 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  Gathering,
+  GatheringInput,
+  GatheringList,
   Health,
   LegalLinks,
   Member,
@@ -168,6 +171,483 @@ export function useCatalog<TData = Awaited<ReturnType<typeof catalog>>, TError =
 
 
 
+
+export type listGatheringsResponse200 = {
+  data: GatheringList
+  status: 200
+}
+
+export type listGatheringsResponse401 = {
+  data: void
+  status: 401
+}
+
+export type listGatheringsResponseSuccess = (listGatheringsResponse200) & {
+  headers: Headers;
+};
+export type listGatheringsResponseError = (listGatheringsResponse401) & {
+  headers: Headers;
+};
+
+export type listGatheringsResponse = (listGatheringsResponseSuccess | listGatheringsResponseError)
+
+export const getListGatheringsUrl = () => {
+
+
+
+
+  return `/api/gatherings`
+}
+
+export const listGatherings = async ( options?: RequestInit): Promise<listGatheringsResponse> => {
+
+  const res = await fetch(getListGatheringsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listGatheringsResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as listGatheringsResponse
+}
+
+
+
+
+
+export const getListGatheringsQueryKey = () => {
+    return [
+    `/api/gatherings`
+    ] as const;
+    }
+
+
+export const getListGatheringsQueryOptions = <TData = Awaited<ReturnType<typeof listGatherings>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listGatherings>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListGatheringsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listGatherings>>> = ({ signal }) => listGatherings({ signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listGatherings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListGatheringsQueryResult = NonNullable<Awaited<ReturnType<typeof listGatherings>>>
+export type ListGatheringsQueryError = void
+
+
+export function useListGatherings<TData = Awaited<ReturnType<typeof listGatherings>>, TError = void>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listGatherings>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGatherings>>,
+          TError,
+          Awaited<ReturnType<typeof listGatherings>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListGatherings<TData = Awaited<ReturnType<typeof listGatherings>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listGatherings>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGatherings>>,
+          TError,
+          Awaited<ReturnType<typeof listGatherings>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListGatherings<TData = Awaited<ReturnType<typeof listGatherings>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listGatherings>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListGatherings<TData = Awaited<ReturnType<typeof listGatherings>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listGatherings>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListGatheringsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type createGatheringResponse201 = {
+  data: Gathering
+  status: 201
+}
+
+export type createGatheringResponse401 = {
+  data: void
+  status: 401
+}
+
+export type createGatheringResponse422 = {
+  data: ValidationErrors
+  status: 422
+}
+
+export type createGatheringResponseSuccess = (createGatheringResponse201) & {
+  headers: Headers;
+};
+export type createGatheringResponseError = (createGatheringResponse401 | createGatheringResponse422) & {
+  headers: Headers;
+};
+
+export type createGatheringResponse = (createGatheringResponseSuccess | createGatheringResponseError)
+
+export const getCreateGatheringUrl = () => {
+
+
+
+
+  return `/api/gatherings`
+}
+
+export const createGathering = async (gatheringInput: GatheringInput, options?: RequestInit): Promise<createGatheringResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+const res = await fetch(getCreateGatheringUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(gatheringInput)
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: createGatheringResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as createGatheringResponse
+}
+
+
+
+
+
+export const getCreateGatheringMutationKey = () => ['createGathering'] as const;
+
+export const getCreateGatheringMutationOptions = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGathering>>, TError,CreateGatheringMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof createGathering>>, TError,CreateGatheringMutationVariables, TContext> => {
+
+const mutationKey = getCreateGatheringMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createGathering>>, CreateGatheringMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createGathering(data,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateGatheringMutationResult = NonNullable<Awaited<ReturnType<typeof createGathering>>>
+    export type CreateGatheringMutationBody = GatheringInput
+    export type CreateGatheringMutationError = void | ValidationErrors
+    export type CreateGatheringMutationVariables = {data: GatheringInput}
+
+    export const useCreateGathering = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGathering>>, TError,CreateGatheringMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createGathering>>,
+        TError,
+        CreateGatheringMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateGatheringMutationOptions(options), queryClient);
+    }
+
+export type getGatheringResponse200 = {
+  data: Gathering
+  status: 200
+}
+
+export type getGatheringResponse401 = {
+  data: void
+  status: 401
+}
+
+export type getGatheringResponse404 = {
+  data: void
+  status: 404
+}
+
+export type getGatheringResponseSuccess = (getGatheringResponse200) & {
+  headers: Headers;
+};
+export type getGatheringResponseError = (getGatheringResponse401 | getGatheringResponse404) & {
+  headers: Headers;
+};
+
+export type getGatheringResponse = (getGatheringResponseSuccess | getGatheringResponseError)
+
+export const getGetGatheringUrl = (id: number,) => {
+
+
+
+
+  return `/api/gatherings/${id}`
+}
+
+export const getGathering = async (id: number, options?: RequestInit): Promise<getGatheringResponse> => {
+
+  const res = await fetch(getGetGatheringUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getGatheringResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as getGatheringResponse
+}
+
+
+
+
+
+export const getGetGatheringQueryKey = (id: number,) => {
+    return [
+    `/api/gatherings/${id}`
+    ] as const;
+    }
+
+
+export const getGetGatheringQueryOptions = <TData = Awaited<ReturnType<typeof getGathering>>, TError = void>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGathering>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGatheringQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGathering>>> = ({ signal }) => getGathering(id, { signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGathering>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetGatheringQueryResult = NonNullable<Awaited<ReturnType<typeof getGathering>>>
+export type GetGatheringQueryError = void
+
+
+export function useGetGathering<TData = Awaited<ReturnType<typeof getGathering>>, TError = void>(
+ id: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGathering>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getGathering>>,
+          TError,
+          Awaited<ReturnType<typeof getGathering>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetGathering<TData = Awaited<ReturnType<typeof getGathering>>, TError = void>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGathering>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getGathering>>,
+          TError,
+          Awaited<ReturnType<typeof getGathering>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetGathering<TData = Awaited<ReturnType<typeof getGathering>>, TError = void>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGathering>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetGathering<TData = Awaited<ReturnType<typeof getGathering>>, TError = void>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getGathering>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetGatheringQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type changeGatheringResponse200 = {
+  data: Gathering
+  status: 200
+}
+
+export type changeGatheringResponse401 = {
+  data: void
+  status: 401
+}
+
+export type changeGatheringResponse404 = {
+  data: void
+  status: 404
+}
+
+export type changeGatheringResponse422 = {
+  data: ValidationErrors
+  status: 422
+}
+
+export type changeGatheringResponseSuccess = (changeGatheringResponse200) & {
+  headers: Headers;
+};
+export type changeGatheringResponseError = (changeGatheringResponse401 | changeGatheringResponse404 | changeGatheringResponse422) & {
+  headers: Headers;
+};
+
+export type changeGatheringResponse = (changeGatheringResponseSuccess | changeGatheringResponseError)
+
+export const getChangeGatheringUrl = (id: number,) => {
+
+
+
+
+  return `/api/gatherings/${id}`
+}
+
+export const changeGathering = async (id: number,
+    gatheringInput: GatheringInput, options?: RequestInit): Promise<changeGatheringResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+const res = await fetch(getChangeGatheringUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(gatheringInput)
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: changeGatheringResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as changeGatheringResponse
+}
+
+
+
+
+
+export const getChangeGatheringMutationKey = () => ['changeGathering'] as const;
+
+export const getChangeGatheringMutationOptions = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeGathering>>, TError,ChangeGatheringMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof changeGathering>>, TError,ChangeGatheringMutationVariables, TContext> => {
+
+const mutationKey = getChangeGatheringMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeGathering>>, ChangeGatheringMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  changeGathering(id,data,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeGatheringMutationResult = NonNullable<Awaited<ReturnType<typeof changeGathering>>>
+    export type ChangeGatheringMutationBody = GatheringInput
+    export type ChangeGatheringMutationError = void | ValidationErrors
+    export type ChangeGatheringMutationVariables = {id: number;data: GatheringInput}
+
+    export const useChangeGathering = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeGathering>>, TError,ChangeGatheringMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof changeGathering>>,
+        TError,
+        ChangeGatheringMutationVariables,
+        TContext
+      > => {
+      return useMutation(getChangeGatheringMutationOptions(options), queryClient);
+    }
 
 export type healthResponse200 = {
   data: Health

@@ -24,6 +24,9 @@ import {
   Status
 } from './model';
 import type {
+  Gathering,
+  GatheringInput,
+  GatheringList,
   Health,
   LegalLinks,
   Member,
@@ -35,6 +38,14 @@ import type {
 
 
 export const getCatalogResponseMock = (): string => (faker.word.sample())
+
+export const getListGatheringsResponseMock = (overrideResponse: Partial<Extract<GatheringList, object>> = {}): GatheringList => ({upcoming: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean()})), past: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean()})), ...overrideResponse})
+
+export const getCreateGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
+
+export const getGetGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
+
+export const getChangeGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
 
 export const getHealthResponseMock = (overrideResponse: Partial<Extract<Health, object>> = {}): Health => ({status: faker.helpers.arrayElement(Object.values(Status)), cause: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Cause)),null,]), ...overrideResponse})
 
@@ -61,6 +72,54 @@ export const getCatalogMockHandler = (overrideResponse?: string | ((info: Parame
     : getCatalogResponseMock();
     const textBody = typeof resolvedBody === 'string' ? resolvedBody : JSON.stringify(resolvedBody ?? null);
     return HttpResponse.text(textBody,
+      { status: 200
+      })
+  }, options)
+}
+
+export const getListGatheringsMockHandler = (overrideResponse?: GatheringList | ((info: Parameters<HttpResponseResolver>[0]) => Promise<GatheringList> | GatheringList), options?: RequestHandlerOptions) => {
+  return http.get('*/api/gatherings', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getListGatheringsResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getCreateGatheringMockHandler = (overrideResponse?: Gathering | ((info: Parameters<HttpResponseResolver<PathParams, GatheringInput>>[0]) => Promise<Gathering> | Gathering), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, GatheringInput>('*/api/gatherings', async (info: Parameters<HttpResponseResolver<PathParams, GatheringInput>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getCreateGatheringResponseMock(),
+      { status: 201
+      })
+  }, options)
+}
+
+export const getGetGatheringMockHandler = (overrideResponse?: Gathering | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<Gathering> | Gathering), options?: RequestHandlerOptions) => {
+  return http.get<{ id: string }>('*/api/gatherings/:id', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getGetGatheringResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getChangeGatheringMockHandler = (overrideResponse?: Gathering | ((info: Parameters<HttpResponseResolver<{ id: string }, GatheringInput>>[0]) => Promise<Gathering> | Gathering), options?: RequestHandlerOptions) => {
+  return http.put<{ id: string }, GatheringInput>('*/api/gatherings/:id', async (info: Parameters<HttpResponseResolver<{ id: string }, GatheringInput>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getChangeGatheringResponseMock(),
       { status: 200
       })
   }, options)
@@ -193,6 +252,10 @@ export const getCreateResponseMockHandler = (overrideResponse?: SpikeResponse | 
 }
 export const getAdunataMock = () => [
   getCatalogMockHandler(),
+  getListGatheringsMockHandler(),
+  getCreateGatheringMockHandler(),
+  getGetGatheringMockHandler(),
+  getChangeGatheringMockHandler(),
   getHealthMockHandler(),
   getLegalLinksMockHandler(),
   getListMembersMockHandler(),

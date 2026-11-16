@@ -5,8 +5,8 @@ use utoipa::openapi::OpenApi as Document;
 use utoipa_axum::router::OpenApiRouter;
 
 use crate::access::SignInLimiter;
-use crate::configuration::{LegalLinks, Network, PublicUrl};
-use crate::{access, health, legal, localization, members, serving, spike};
+use crate::configuration::{InstanceTimeZone, LegalLinks, Network, PublicUrl};
+use crate::{access, gatherings, health, legal, localization, members, serving, spike};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -16,6 +16,7 @@ pub struct AppState {
     pub legal_links: LegalLinks,
     pub trusted_proxies: Vec<Network>,
     pub sign_in_limiter: SignInLimiter,
+    pub time_zone: InstanceTimeZone,
 }
 
 #[derive(OpenApi)]
@@ -30,6 +31,7 @@ fn routes() -> OpenApiRouter<AppState> {
         .merge(legal::router())
         .merge(members::router())
         .merge(access::router())
+        .merge(gatherings::router())
 }
 
 pub fn router(state: AppState) -> Router {
@@ -48,7 +50,7 @@ pub mod testing {
 
     use super::AppState;
     use crate::access::SignInLimiter;
-    use crate::configuration::{LegalLinks, Network, PublicUrl};
+    use crate::configuration::{InstanceTimeZone, LegalLinks, Network, PublicUrl};
 
     pub const PUBLIC_URL: &str = "https://adunata.example.org";
 
@@ -60,6 +62,8 @@ pub mod testing {
             legal_links: LegalLinks::default(),
             trusted_proxies: vec![Network::parse("127.0.0.1/32").expect("loopback is a network")],
             sign_in_limiter: SignInLimiter::default(),
+            time_zone: InstanceTimeZone::parse("Europe/Berlin")
+                .expect("Berlin is a known time zone"),
         }
     }
 }
