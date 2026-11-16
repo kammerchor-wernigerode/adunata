@@ -6,15 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Page } from '@/layout/Page'
+import { useFragmentSecret } from '@/responses/personalLink'
 import { useTranslate } from '@/l10n/translate'
 
-/** The sign-in link carries its secret in the fragment, which the browser never sends to the server. */
-function linkSecret(): string {
-  return window.location.hash.slice(1)
-}
-
 export function SignInPage() {
-  const [secret, setSecret] = useState(linkSecret)
+  const [secret, setSecret] = useFragmentSecret()
   return secret ? <ConfirmSignIn secret={secret} onRequestNew={() => setSecret('')} /> : <RequestSignIn />
 }
 

@@ -67,4 +67,13 @@ describe('sign-in page', () => {
     await screen.findByRole('heading', { level: 1, name: 'Sign in' })
     expect(router.state.location.pathname).toBe('/sign-in')
   })
+
+  it('follows a sign-in link opened while the page is open', async () => {
+    signedOut()
+    renderApp('/sign-in')
+    expect(await screen.findByLabelText('Mail address')).toBeTruthy()
+    window.location.hash = 'abc123'
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy()
+  })
 })
