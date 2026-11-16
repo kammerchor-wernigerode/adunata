@@ -164,6 +164,55 @@ overview-period-start = start
 overview-period-end = end
 overview-outside-span = outside the days
 
+response-question = Are you coming, { $firstName }?
+response-question-for = Is { $name } coming?
+response-status-accepted = Yes
+response-status-tentative = Maybe
+response-status-declined = No
+response-when = When are you there?
+response-arrival = Arrival
+response-departure = Departure
+response-arrival-day = Day of arrival
+response-departure-day = Day of departure
+response-arrival-months = Months for arrival
+response-departure-months = Months for departure
+response-choose-day = Choose a day
+response-arrival-time = Time of arrival
+response-departure-time = Time of departure
+response-when-hint = { $days ->
+        [one] Without a time we plan you for the whole day.
+       *[other] Without times we plan you for all { $days } days.
+    }
+response-beds = Overnight stay
+response-beds-need = I need a bed
+response-beds-offer = I offer beds
+response-beds-none = Neither
+response-bed-count = How many?
+response-comment = Comment
+response-comment-hint = Only organizers read your comment.
+response-save = Save response
+response-saved = Response saved. You can change it until { $day }.
+response-saved-for = Response of { $name } saved.
+response-visibility = Other invited members see your name and whether you come.
+response-yours = Your response
+response-error-beds = Choose whether you need or offer beds.
+response-error-bed-count = State how many beds, from 1 to 20.
+response-error-bed-count-too-large = State at most 20 beds.
+response-error-comment-too-long = The comment can have at most 2000 characters.
+response-error-departure-before-arrival = Departure cannot lie before arrival.
+response-error-time = Choose a time within the days of the gathering in steps of 30 minutes.
+response-error-day-and-time = Choose both a day and a time.
+attendees-title = { $tentative ->
+        [0] Coming: { $accepted }
+       *[other] Coming: { $accepted }, maybe { $tentative }
+    }
+attendees-more = and { $count } more
+attendees-others = Declined: { $declined }. No response yet: { $pending }.
+invitation-page-title = Invitation of { $name }
+invitation-changed-by-member = changed by the member on { $at }
+invitation-changed-by-organizer = changed by an organizer on { $at }
+invitation-link-title = Personal link
+
 members-title = Members
 members-add = Add member
 members-search = Search by name or mail address

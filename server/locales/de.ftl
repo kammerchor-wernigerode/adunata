@@ -164,6 +164,55 @@ overview-period-start = Beginn
 overview-period-end = Ende
 overview-outside-span = außerhalb der Tage
 
+response-question = Kommst du, { $firstName }?
+response-question-for = Kommt { $name }?
+response-status-accepted = Ja
+response-status-tentative = Vielleicht
+response-status-declined = Nein
+response-when = Wann bist du da?
+response-arrival = Anreise
+response-departure = Abreise
+response-arrival-day = Tag der Anreise
+response-departure-day = Tag der Abreise
+response-arrival-months = Monate für die Anreise
+response-departure-months = Monate für die Abreise
+response-choose-day = Tag wählen
+response-arrival-time = Uhrzeit der Anreise
+response-departure-time = Uhrzeit der Abreise
+response-when-hint = { $days ->
+        [one] Ohne Uhrzeit planen wir dich für den ganzen Tag ein.
+       *[other] Ohne Angabe planen wir dich für alle { $days } Tage ein.
+    }
+response-beds = Übernachtung
+response-beds-need = Ich brauche ein Bett
+response-beds-offer = Ich biete Betten an
+response-beds-none = Nichts davon
+response-bed-count = Wie viele?
+response-comment = Kommentar
+response-comment-hint = Nur Organisatoren lesen deinen Kommentar.
+response-save = Antwort speichern
+response-saved = Antwort gespeichert. Du kannst sie bis { $day } ändern.
+response-saved-for = Antwort von { $name } gespeichert.
+response-visibility = Andere Eingeladene sehen deinen Namen und ob du kommst.
+response-yours = Deine Antwort
+response-error-beds = Wähle, ob du Betten brauchst oder anbietest.
+response-error-bed-count = Gib an, wie viele Betten, von 1 bis 20.
+response-error-bed-count-too-large = Gib höchstens 20 Betten an.
+response-error-comment-too-long = Der Kommentar darf höchstens 2000 Zeichen haben.
+response-error-departure-before-arrival = Die Abreise kann nicht vor der Anreise liegen.
+response-error-time = Wähle eine Uhrzeit innerhalb der Tage des Treffens in Schritten von 30 Minuten.
+response-error-day-and-time = Wähle Tag und Uhrzeit.
+attendees-title = { $tentative ->
+        [0] Dabei sind { $accepted }
+       *[other] Dabei sind { $accepted }, vielleicht { $tentative }
+    }
+attendees-more = und { $count } weitere
+attendees-others = Abgesagt: { $declined }. Noch keine Antwort: { $pending }.
+invitation-page-title = Einladung von { $name }
+invitation-changed-by-member = vom Mitglied geändert am { $at }
+invitation-changed-by-organizer = von Organisatoren geändert am { $at }
+invitation-link-title = Persönlicher Link
+
 members-title = Mitglieder
 members-add = Mitglied hinzufügen
 members-search = Nach Name oder Mailadresse suchen

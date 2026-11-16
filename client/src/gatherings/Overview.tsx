@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { Check, Circle, CircleQuestionMark, X, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { getOverviewQueryKey, resend, useOverview } from '@/api/generated/api'
@@ -100,7 +101,13 @@ function OverviewTable({ gathering, rows }: { gathering: Gathering; rows: Overvi
               <td className={`${cell} font-semibold`}>
                 <span className={label}>{translate('overview-column-name')}</span>
                 <span>
-                  {row.firstName} {row.lastName}
+                  <Link
+                    to="/gatherings/$gatheringId/invitations/$invitationId"
+                    params={{ gatheringId: String(gathering.id), invitationId: String(row.invitationId) }}
+                    className="text-foreground underline underline-offset-4"
+                  >
+                    {row.firstName} {row.lastName}
+                  </Link>
                   <MailNotice row={row} gathering={gathering} />
                 </span>
               </td>

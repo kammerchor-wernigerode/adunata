@@ -4,6 +4,7 @@ import { SignInPage } from '@/access/SignInPage'
 import { EditGatheringPage, NewGatheringPage } from '@/gatherings/GatheringFormPage'
 import { GatheringListPage } from '@/gatherings/GatheringListPage'
 import { GatheringPage } from '@/gatherings/GatheringPage'
+import { InvitationPage } from '@/gatherings/InvitationPage'
 import { Frame } from '@/layout/Frame'
 import { EditMemberPage, NewMemberPage } from '@/members/MemberFormPage'
 import { MemberListPage } from '@/members/MemberListPage'
@@ -58,6 +59,12 @@ const editGatheringRoute = createRoute({
   component: EditGatheringPage,
 })
 
+const invitationRoute = createRoute({
+  getParentRoute: () => organizerRoute,
+  path: '/gatherings/$gatheringId/invitations/$invitationId',
+  component: InvitationPage,
+})
+
 export const routeTree = rootRoute.addChildren([
   spikeRoute,
   signInRoute,
@@ -67,6 +74,7 @@ export const routeTree = rootRoute.addChildren([
     newGatheringRoute,
     gatheringRoute,
     editGatheringRoute,
+    invitationRoute,
     memberListRoute,
     newMemberRoute,
     editMemberRoute,

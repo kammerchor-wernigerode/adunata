@@ -27,5 +27,7 @@ export function renderApp(path: string) {
 
 export async function violations(container: HTMLElement): Promise<string[]> {
   const results = await axe.run(container)
-  return results.violations.map((violation) => `${violation.id}: ${violation.help}`)
+  return results.violations.map(
+    (violation) => `${violation.id}: ${violation.help} at ${violation.nodes.map((node) => node.target.join(' ')).join(', ')}`,
+  )
 }
