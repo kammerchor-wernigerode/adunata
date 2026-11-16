@@ -250,6 +250,20 @@ pub async fn cancel(
         .map(|row| Gathering::from_row(row, today)))
 }
 
+/// The gathering with this id, judged against the given date. Locks its row until the transaction ends, so a cancellation and an invitation of the same gathering cannot interleave.
+pub async fn find_for_update(
+    connection: &mut PgConnection,
+    id: i64,
+    today: Date,
+) -> Result<Option<Gathering>, sqlx::Error> {
+    let query = format!("SELECT {COLUMNS} FROM gatherings WHERE id = $1 FOR UPDATE");
+    Ok(sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(query))
+        .bind(id)
+        .fetch_optional(connection)
+        .await?
+        .map(|row| Gathering::from_row(row, today)))
+}
+
 /// The gathering with this id, judged against the given date.
 pub async fn find(
     connection: &mut PgConnection,

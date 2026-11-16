@@ -369,13 +369,15 @@ enum Outcome<T> {
     Closed(ErrorCode),
 }
 
-/// Finds a gathering that still takes invitations, or tells why it does not.
+/// Finds and locks a gathering that still takes invitations, or tells why it does not.
 async fn open_gathering(
     connection: &mut PgConnection,
     id: i64,
     state: &AppState,
 ) -> Result<Result<Gathering, Outcome<usize>>, sqlx::Error> {
-    let Some(gathering) = gatherings::find(connection, id, state.time_zone.today()).await? else {
+    let Some(gathering) =
+        gatherings::find_for_update(connection, id, state.time_zone.today()).await?
+    else {
         return Ok(Err(Outcome::NotFound));
     };
     if gathering.cancelled {
@@ -903,6 +905,50 @@ mod tests {
             ),
             "{}",
             mail.text
+        );
+    }
+
+    #[tokio::test]
+    async fn cancellation_waits_for_an_invitation_in_progress() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        signed_in_organizer(&pool).await;
+        let clara = member(&pool, "Clara", "de").await;
+        let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+        let state = api::testing::state(pool.clone());
+
+        let mut transaction = pool.begin().await.unwrap();
+        assert!(
+            open_gathering(&mut transaction, weekend, &state)
+                .await
+                .unwrap()
+                .is_ok()
+        );
+        let cancellation = tokio::spawn({
+            let state = state.clone();
+            async move { cancel_gathering(&state, weekend).await }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        sqlx::query("INSERT INTO invitations (gathering_id, member_id) VALUES ($1, $2)")
+            .bind(weekend)
+            .bind(clara)
+            .execute(&mut *transaction)
+            .await
+            .unwrap();
+        transaction.commit().await.unwrap();
+        assert!(matches!(
+            cancellation.await.unwrap().unwrap(),
+            Outcome::Done(())
+        ));
+
+        let cancellation_mails: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM mail_outbox WHERE subject LIKE 'Abgesagt%'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            cancellation_mails, 1,
+            "the member invited meanwhile hears of the cancellation"
         );
     }
 
