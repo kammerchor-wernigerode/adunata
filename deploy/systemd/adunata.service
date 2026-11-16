@@ -10,7 +10,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/adunata
+ExecStart=/usr/local/bin/adunata serve
 EnvironmentFile=/etc/adunata/adunata.env
 LoadCredential=database-password:/etc/adunata/database-password
 LoadCredential=smtp-password:/etc/adunata/smtp-password

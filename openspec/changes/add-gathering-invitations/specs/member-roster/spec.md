@@ -32,11 +32,11 @@ An organizer SHALL be able to deactivate a member and to activate the member aga
 - **THEN** the member stays in the list as inactive and is not invited to new gatherings
 
 ### Requirement: Delete members
-An organizer SHALL be able to delete a member. Adunata SHALL then delete the member together with all of the member's invitations and responses.
+An organizer SHALL be able to delete a member. Adunata SHALL then delete the member together with all of the member's invitations, responses, sessions, sign-in links and mail in the outbox.
 
 #### Scenario: Delete a member
 - **WHEN** an organizer deletes a member
-- **THEN** the member, the member's invitations and the member's responses are gone and the member's invitation links no longer work
+- **THEN** the member, the member's invitations, responses, sessions and queued mail are gone and the member's invitation links no longer work
 
 ### Requirement: Member list
 Adunata SHALL show organizers the members sorted by last name, with a filter for active and inactive members and a search by name or mail address.

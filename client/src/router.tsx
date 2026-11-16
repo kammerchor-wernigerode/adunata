@@ -1,26 +1,86 @@
-import { createRootRoute, createRoute, createRouter, Outlet } from '@tanstack/react-router'
-import { LanguageSwitcher } from '@/l10n/LanguageSwitcher'
-import { SpikeForm } from '@/spike/SpikeForm'
+import { createRootRoute, createRoute, createRouter, Navigate } from '@tanstack/react-router'
+import { RequireOrganizer } from '@/access/RequireOrganizer'
+import { SignInPage } from '@/access/SignInPage'
+import { EditGatheringPage, NewGatheringPage } from '@/gatherings/GatheringFormPage'
+import { GatheringListPage } from '@/gatherings/GatheringListPage'
+import { GatheringPage } from '@/gatherings/GatheringPage'
+import { InvitationPage } from '@/gatherings/InvitationPage'
+import { Frame } from '@/layout/Frame'
+import { EditMemberPage, NewMemberPage } from '@/members/MemberFormPage'
+import { MemberListPage } from '@/members/MemberListPage'
+import { ResponsePage } from '@/responses/ResponsePage'
 
-const rootRoute = createRootRoute({
-  component: () => (
-    <main className="p-6">
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Adunata</h1>
-        <LanguageSwitcher />
-      </header>
-      <Outlet />
-    </main>
-  ),
-})
+const rootRoute = createRootRoute({ component: Frame })
 
-const spikeRoute = createRoute({
+const startRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: SpikeForm,
+  component: () => <Navigate to="/gatherings" />,
 })
 
-export const router = createRouter({ routeTree: rootRoute.addChildren([spikeRoute]) })
+const signInRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sign-in', component: SignInPage })
+
+const responseRoute = createRoute({ getParentRoute: () => rootRoute, path: '/invitation', component: ResponsePage })
+
+const organizerRoute = createRoute({ getParentRoute: () => rootRoute, id: 'organizer', component: RequireOrganizer })
+
+const memberListRoute = createRoute({ getParentRoute: () => organizerRoute, path: '/members', component: MemberListPage })
+
+const newMemberRoute = createRoute({ getParentRoute: () => organizerRoute, path: '/members/new', component: NewMemberPage })
+
+const editMemberRoute = createRoute({
+  getParentRoute: () => organizerRoute,
+  path: '/members/$memberId',
+  component: EditMemberPage,
+})
+
+const gatheringListRoute = createRoute({
+  getParentRoute: () => organizerRoute,
+  path: '/gatherings',
+  component: GatheringListPage,
+})
+
+const newGatheringRoute = createRoute({
+  getParentRoute: () => organizerRoute,
+  path: '/gatherings/new',
+  component: NewGatheringPage,
+})
+
+const gatheringRoute = createRoute({
+  getParentRoute: () => organizerRoute,
+  path: '/gatherings/$gatheringId',
+  component: GatheringPage,
+})
+
+const editGatheringRoute = createRoute({
+  getParentRoute: () => organizerRoute,
+  path: '/gatherings/$gatheringId/edit',
+  component: EditGatheringPage,
+})
+
+const invitationRoute = createRoute({
+  getParentRoute: () => organizerRoute,
+  path: '/gatherings/$gatheringId/invitations/$invitationId',
+  component: InvitationPage,
+})
+
+export const routeTree = rootRoute.addChildren([
+  startRoute,
+  signInRoute,
+  responseRoute,
+  organizerRoute.addChildren([
+    gatheringListRoute,
+    newGatheringRoute,
+    gatheringRoute,
+    editGatheringRoute,
+    invitationRoute,
+    memberListRoute,
+    newMemberRoute,
+    editMemberRoute,
+  ]),
+])
+
+export const router = createRouter({ routeTree })
 
 declare module '@tanstack/react-router' {
   interface Register {

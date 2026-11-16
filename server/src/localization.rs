@@ -50,22 +50,39 @@ impl Localizer {
             .unwrap_or_else(|| id.to_owned())
     }
 
+    /// Spells out the days of a gathering, such as 14.–16. März 2027 or 30. April – 2. Mai 2027.
     pub fn date_span(&self, locale: &str, start: Date, end: Date) -> String {
+        let month = |date: Date| {
+            self.message(
+                locale,
+                &format!("month-{}", u8::from(date.month())),
+                &FluentArgs::new(),
+            )
+        };
         let mut args = FluentArgs::new();
+        if start == end {
+            args.set("day", start.day());
+            args.set("month", month(start));
+            args.set("year", start.year());
+            return self.message(locale, "date-single-day", &args);
+        }
         args.set("startDay", start.day());
         args.set("endDay", end.day());
+        args.set("startMonth", month(start));
+        args.set("endMonth", month(end));
+        args.set("month", month(start));
         args.set("year", start.year());
-        let month_id = format!("month-{}", u8::from(start.month()));
-        args.set("month", self.message(locale, &month_id, &FluentArgs::new()));
-        self.message(locale, "date-span-same-month", &args)
+        args.set("startYear", start.year());
+        args.set("endYear", end.year());
+        let id = if start.year() != end.year() {
+            "date-span-across-years"
+        } else if start.month() != end.month() {
+            "date-span-same-year"
+        } else {
+            "date-span-same-month"
+        };
+        self.message(locale, id, &args)
     }
-}
-
-/// Picks the language of a mail: the recipient's stored language if Adunata supports it, otherwise the default of the instance.
-pub fn mail_language<'a>(stored: Option<&'a str>, default: &'a str) -> &'a str {
-    stored
-        .filter(|language| is_supported(language))
-        .unwrap_or(default)
 }
 
 pub fn is_supported(language: &str) -> bool {
@@ -130,24 +147,24 @@ mod tests {
 
     fn beds(localizer: &Localizer, locale: &str, count: u8) -> String {
         let mut args = FluentArgs::new();
-        args.set("beds", count);
-        localizer.message(locale, "beds-needed", &args)
+        args.set("count", count);
+        localizer.message(locale, "overview-beds-need", &args)
     }
 
     #[test]
     fn plural_forms_in_english() {
         let localizer = Localizer::new();
-        assert_eq!(beds(&localizer, "en", 0), "0 beds needed.");
-        assert_eq!(beds(&localizer, "en", 1), "One bed needed.");
-        assert_eq!(beds(&localizer, "en", 2), "2 beds needed.");
+        assert_eq!(beds(&localizer, "en", 0), "needs 0");
+        assert_eq!(beds(&localizer, "en", 1), "needs one");
+        assert_eq!(beds(&localizer, "en", 2), "needs 2");
     }
 
     #[test]
     fn plural_forms_in_german() {
         let localizer = Localizer::new();
-        assert_eq!(beds(&localizer, "de", 0), "0 Betten benötigt.");
-        assert_eq!(beds(&localizer, "de", 1), "Ein Bett benötigt.");
-        assert_eq!(beds(&localizer, "de", 2), "2 Betten benötigt.");
+        assert_eq!(beds(&localizer, "de", 0), "braucht 0");
+        assert_eq!(beds(&localizer, "de", 1), "braucht eins");
+        assert_eq!(beds(&localizer, "de", 2), "braucht 2");
     }
 
     #[test]
@@ -156,6 +173,31 @@ mod tests {
         let (start, end) = (date!(2027 - 03 - 14), date!(2027 - 03 - 16));
         assert_eq!(localizer.date_span("de", start, end), "14.–16. März 2027");
         assert_eq!(localizer.date_span("en", start, end), "March 14–16, 2027");
+    }
+
+    #[test]
+    fn date_span_across_months_and_years() {
+        let localizer = Localizer::new();
+        let (april, may) = (date!(2027 - 04 - 30), date!(2027 - 05 - 02));
+        assert_eq!(
+            localizer.date_span("de", april, may),
+            "30. April – 2. Mai 2027"
+        );
+        assert_eq!(
+            localizer.date_span("en", april, may),
+            "April 30 – May 2, 2027"
+        );
+        let (december, january) = (date!(2026 - 12 - 30), date!(2027 - 01 - 02));
+        assert_eq!(
+            localizer.date_span("de", december, january),
+            "30. Dezember 2026 – 2. Januar 2027"
+        );
+        assert_eq!(
+            localizer.date_span("en", december, january),
+            "December 30, 2026 – January 2, 2027"
+        );
+        assert_eq!(localizer.date_span("de", april, april), "30. April 2027");
+        assert_eq!(localizer.date_span("en", april, april), "April 30, 2027");
     }
 
     #[tokio::test]
@@ -180,7 +222,7 @@ mod tests {
             .unwrap();
         assert_eq!(german.status(), StatusCode::OK);
         let body = to_bytes(german.into_body(), usize::MAX).await.unwrap();
-        assert!(String::from_utf8_lossy(&body).contains("Betten benötigt"));
+        assert!(String::from_utf8_lossy(&body).contains("Betten angeboten"));
         let french = app
             .oneshot(
                 Request::get("/api/catalogs/fr")
@@ -207,18 +249,7 @@ mod tests {
     }
 
     #[test]
-    fn recipient_with_a_stored_language() {
-        assert_eq!(mail_language(Some("en"), "de"), "en");
-    }
-
-    #[test]
-    fn recipient_without_a_stored_language() {
-        assert_eq!(mail_language(None, "de"), "de");
-        assert_eq!(mail_language(Some("fr"), "de"), "de");
-    }
-
-    #[test]
     fn unknown_language_falls_back_to_english() {
-        assert_eq!(beds(&Localizer::new(), "fr", 2), "2 beds needed.");
+        assert_eq!(beds(&Localizer::new(), "fr", 2), "needs 2");
     }
 }

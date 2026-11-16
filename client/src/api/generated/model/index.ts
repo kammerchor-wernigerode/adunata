@@ -5,11 +5,34 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export * from './attendance';
+export * from './attendee';
+export * from './attendees';
+export * from './beds';
 export * from './cause';
+export * from './changedBy';
 export * from './errorCode';
 export * from './fieldError';
+export * from './gathering';
+export * from './gatheringInput';
+export * from './gatheringList';
 export * from './health';
-export * from './spikeResponse';
+export * from './invitation';
+export * from './invitationPage';
+export * from './invitationRequest';
+export * from './invitationStatus';
+export * from './invited';
+export * from './invitedGathering';
+export * from './legalLinks';
+export * from './linkState';
+export * from './mailState';
+export * from './member';
+export * from './memberChange';
+export * from './newMember';
+export * from './overview';
+export * from './overviewRow';
+export * from './responseStatus';
+export * from './responseValues';
+export * from './signInRequest';
 export * from './status';
+export * from './totals';
 export * from './validationErrors';

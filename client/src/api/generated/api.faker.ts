@@ -9,19 +9,67 @@ import {
 } from '@faker-js/faker';
 
 import {
-  Attendance,
+  Beds,
   Cause,
+  ChangedBy,
+  InvitationStatus,
+  LinkState,
+  MailState,
+  ResponseStatus,
   Status
 } from './model';
 import type {
+  Attendees,
+  Gathering,
+  GatheringList,
   Health,
-  SpikeResponse
+  Invitation,
+  InvitationPage,
+  Invited,
+  LegalLinks,
+  Member,
+  Overview,
+  ResponseValues
 } from './model';
 
 
 export const getCatalogResponseMock = (): string => (faker.word.sample())
 
+export const getListGatheringsResponseMock = (overrideResponse: Partial<Extract<GatheringList, object>> = {}): GatheringList => ({upcoming: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean()})), past: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean()})), ...overrideResponse})
+
+export const getCreateGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
+
+export const getGetGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
+
+export const getChangeGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
+
+export const getListInvitationsResponseMock = (): Invitation[] => (Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.number.int(), memberId: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), linkActive: faker.datatype.boolean(), mail: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(MailState)),null,])})))
+
+export const getInviteResponseMock = (overrideResponse: Partial<Extract<Invited, object>> = {}): Invited => ({count: faker.number.int({min: 0}), ...overrideResponse})
+
+export const getOverviewResponseMock = (overrideResponse: Partial<Extract<Overview, object>> = {}): Overview => ({rows: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({invitationId: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), status: faker.helpers.arrayElement(Object.values(InvitationStatus)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int(), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), changedBy: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(ChangedBy)),null,]), changedAt: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), outsideSpan: faker.datatype.boolean(), linkActive: faker.datatype.boolean(), mail: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(MailState)),null,])})), totals: {accepted: faker.number.int(), tentative: faker.number.int(), declined: faker.number.int(), pending: faker.number.int(), bedsNeeded: faker.number.int(), bedsOffered: faker.number.int()}, ...overrideResponse})
+
 export const getHealthResponseMock = (overrideResponse: Partial<Extract<Health, object>> = {}): Health => ({status: faker.helpers.arrayElement(Object.values(Status)), cause: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Cause)),null,]), ...overrideResponse})
 
-export const getCreateResponseResponseMock = (overrideResponse: Partial<Extract<SpikeResponse, object>> = {}): SpikeResponse => ({name: faker.string.alpha({length: {min: 1, max: 100}}), attendance: faker.helpers.arrayElement(Object.values(Attendance)), arrival: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 10), null]), beds: faker.number.int({min: 0, max: 20}), ...overrideResponse})
+export const getInvitationPageResponseResponseValuesMock = (overrideResponse: Partial<ResponseValues> = {}): ResponseValues => ({...{status: faker.helpers.arrayElement(Object.values(ResponseStatus)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int({min: 1, max: 20}), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 2000}}), null])}, ...overrideResponse});
+
+export const getInvitationPageResponseAttendeesMock = (overrideResponse: Partial<Attendees> = {}): Attendees => ({...{coming: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({name: faker.string.alpha({length: {min: 10, max: 20}}), status: faker.helpers.arrayElement(Object.values(ResponseStatus))})), declined: faker.number.int(), pending: faker.number.int()}, ...overrideResponse});
+
+export const getInvitationPageResponseMock = (overrideResponse: Partial<Extract<InvitationPage, object>> = {}): InvitationPage => ({firstName: faker.string.alpha({length: {min: 10, max: 20}}), gathering: {title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10)}, state: faker.helpers.arrayElement(Object.values(LinkState)), response: faker.helpers.arrayElement([{...getInvitationPageResponseResponseValuesMock()},null,]), attendees: faker.helpers.arrayElement([{...getInvitationPageResponseAttendeesMock()},null,]), ...overrideResponse})
+
+export const getAnswerResponseMock = (overrideResponse: Partial<Extract<ResponseValues, object>> = {}): ResponseValues => ({status: faker.helpers.arrayElement(Object.values(ResponseStatus)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int({min: 1, max: 20}), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 2000}}), null]), ...overrideResponse})
+
+export const getAnswerForMemberResponseMock = (overrideResponse: Partial<Extract<ResponseValues, object>> = {}): ResponseValues => ({status: faker.helpers.arrayElement(Object.values(ResponseStatus)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int({min: 1, max: 20}), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 2000}}), null]), ...overrideResponse})
+
+export const getLegalLinksResponseMock = (overrideResponse: Partial<Extract<LegalLinks, object>> = {}): LegalLinks => ({privacyUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), imprintUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
+
+export const getListMembersResponseMock = (): Member[] => (Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean()})))
+
+export const getAddMemberResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
+
+export const getChangeMemberResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
+
+export const getCurrentSessionResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
+
+export const getSignInResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
 

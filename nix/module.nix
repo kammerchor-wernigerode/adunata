@@ -26,6 +26,72 @@ in
       description = "The address under which people reach the instance. Every link in a mail starts with it.";
     };
 
+    timeZone = lib.mkOption {
+      type = lib.types.str;
+      example = "Europe/Berlin";
+      description = "IANA time zone of the instance. Adunata shows wall-clock times in it and compares them with the present.";
+    };
+
+    retention = {
+      commentDays = lib.mkOption {
+        type = lib.types.either lib.types.ints.unsigned (lib.types.enum [ "never" ]);
+        default = 30;
+        description = "Days after the last day of a gathering until Adunata clears the comments of its responses, or never.";
+      };
+
+      responseDays = lib.mkOption {
+        type = lib.types.either lib.types.ints.unsigned (lib.types.enum [ "never" ]);
+        default = 365;
+        description = "Days after the last day of a gathering until Adunata deletes its invitations and responses, or never.";
+      };
+    };
+
+    privacyUrl = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "https://choir.example.org/privacy";
+      description = "Address of the privacy notice that every page and every invitation mail links.";
+    };
+
+    imprintUrl = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "https://choir.example.org/imprint";
+      description = "Address of the imprint that every page and every invitation mail links.";
+    };
+
+    firstOrganizer = lib.mkOption {
+      type = lib.types.nullOr (
+        lib.types.submodule {
+          options = {
+            mail = lib.mkOption {
+              type = lib.types.str;
+              description = "Mail address of the first organizer.";
+            };
+            firstName = lib.mkOption {
+              type = lib.types.str;
+              description = "First name of the first organizer.";
+            };
+            lastName = lib.mkOption {
+              type = lib.types.str;
+              description = "Last name of the first organizer.";
+            };
+          };
+        }
+      );
+      default = null;
+      description = "The member whom Adunata makes organizer when the instance has no active organizer.";
+    };
+
+    trustedProxies = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [
+        "127.0.0.1/32"
+        "::1/128"
+      ];
+      description = "Networks in CIDR notation of the reverse proxies whose X-Forwarded-For header Adunata trusts.";
+    };
+
     listenAddress = lib.mkOption {
       type = lib.types.str;
       default = "127.0.0.1:8080";
@@ -38,7 +104,7 @@ in
         "en"
       ];
       default = "en";
-      description = "Language of mail to recipients without a stored language.";
+      description = "Language of the first organizer and of members that grant-organizer creates.";
     };
 
     database = {
@@ -133,6 +199,10 @@ in
       environment = {
         ADUNATA_PUBLIC_URL = cfg.publicUrl;
         ADUNATA_LISTEN_ADDRESS = cfg.listenAddress;
+        ADUNATA_TIME_ZONE = cfg.timeZone;
+        ADUNATA_TRUSTED_PROXIES = lib.concatStringsSep "," cfg.trustedProxies;
+        ADUNATA_RETENTION_COMMENT_DAYS = toString cfg.retention.commentDays;
+        ADUNATA_RETENTION_RESPONSE_DAYS = toString cfg.retention.responseDays;
         ADUNATA_DEFAULT_LANGUAGE = cfg.defaultLanguage;
         ADUNATA_DATABASE_URL = cfg.database.url;
         ADUNATA_SMTP_HOST = cfg.smtp.host;
@@ -142,6 +212,13 @@ in
         ADUNATA_MAIL_MAX_ATTEMPTS = toString cfg.mail.maxAttempts;
       }
       // lib.optionalAttrs (cfg.smtp.username != null) { ADUNATA_SMTP_USERNAME = cfg.smtp.username; }
+      // lib.optionalAttrs (cfg.privacyUrl != null) { ADUNATA_PRIVACY_URL = cfg.privacyUrl; }
+      // lib.optionalAttrs (cfg.imprintUrl != null) { ADUNATA_IMPRINT_URL = cfg.imprintUrl; }
+      // lib.optionalAttrs (cfg.firstOrganizer != null) {
+        ADUNATA_FIRST_ORGANIZER_MAIL = cfg.firstOrganizer.mail;
+        ADUNATA_FIRST_ORGANIZER_FIRST_NAME = cfg.firstOrganizer.firstName;
+        ADUNATA_FIRST_ORGANIZER_LAST_NAME = cfg.firstOrganizer.lastName;
+      }
       // lib.optionalAttrs (cfg.database.passwordFile != null) {
         ADUNATA_DATABASE_PASSWORD_FILE = "%d/database-password";
       }
@@ -150,7 +227,7 @@ in
       };
 
       serviceConfig = {
-        ExecStart = lib.getExe cfg.package;
+        ExecStart = "${lib.getExe cfg.package} serve";
         Restart = "on-failure";
         RestartSec = 5;
         DynamicUser = true;

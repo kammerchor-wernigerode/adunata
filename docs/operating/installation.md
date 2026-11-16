@@ -21,6 +21,8 @@ Add Adunata to the inputs of your system flake and import its module:
           services.adunata = {
             enable = true;
             publicUrl = "https://adunata.example.org";
+            timeZone = "Europe/Berlin";
+            trustedProxies = [ "127.0.0.1/32" "::1/128" ];
             mail.sender = "Adunata <adunata@example.org>";
             smtp = {
               host = "mail.example.org";
@@ -49,12 +51,16 @@ services:
     image: ghcr.io/kammerchor-wernigerode/adunata:latest
     ports:
       - "127.0.0.1:8080:8080"
+    networks:
+      - adunata
     environment:
       ADUNATA_PUBLIC_URL: https://adunata.example.org
       ADUNATA_DATABASE_URL: postgres://adunata@postgres/adunata
       ADUNATA_DATABASE_PASSWORD_FILE: /run/secrets/database-password
       ADUNATA_SMTP_HOST: mail.example.org
       ADUNATA_MAIL_SENDER: Adunata <adunata@example.org>
+      ADUNATA_TIME_ZONE: Europe/Berlin
+      ADUNATA_TRUSTED_PROXIES: 172.30.0.1/32
     secrets:
       - database-password
     depends_on:
@@ -68,8 +74,17 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/database-password
     secrets:
       - database-password
+    networks:
+      - adunata
     volumes:
       - postgres:/var/lib/postgresql/data
+
+networks:
+  adunata:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
 
 secrets:
   database-password:
@@ -78,6 +93,8 @@ secrets:
 volumes:
   postgres:
 ```
+
+The reverse proxy on the host reaches Adunata through the published port. Docker forwards these connections from the gateway of the network `adunata`, so `ADUNATA_TRUSTED_PROXIES` names that gateway. A proxy that runs as a container in the same network needs its own address there instead.
 
 ## Release binary
 
@@ -98,6 +115,24 @@ Edit `/etc/adunata/adunata.env` and write the two passwords into their files. Le
 systemctl daemon-reload
 systemctl enable --now adunata
 ```
+
+## First organizer
+
+Set `ADUNATA_FIRST_ORGANIZER_MAIL` with both names, as the [configuration reference](configuration.md) describes. On NixOS set `services.adunata.firstOrganizer`. When Adunata starts and finds no active organizer, it creates this member with the organizer role. The organizer then opens the instance, enters the address and signs in with the link from the mail. Once an organizer exists, Adunata ignores the settings.
+
+## Commands
+
+The binary runs the server with `adunata serve`, which the image, the example unit and the NixOS module call. `adunata --help` lists every command and `adunata help <command>` explains one. A command exits with status 0 on success, 1 when it fails at runtime, such as with an invalid configuration or an unreachable database, and 2 on wrong arguments.
+
+### Recover organizer access
+
+An operator who lost access to every organizer mailbox makes another member an organizer:
+
+```sh
+adunata grant-organizer organizer@example.org Ada Lovelace
+```
+
+The command reads the same settings as the server, connects to the database and makes the member with that address an active organizer. It creates the member with both names if no member has the address. In a container run it with `docker compose exec adunata adunata grant-organizer …` or the equivalent of your platform. On NixOS and with the release binary run it as the service user with the settings of the service.
 
 ## Updates
 

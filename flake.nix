@@ -69,6 +69,8 @@
           serverArgs = {
             src = serverSource;
             strictDeps = true;
+            # The tests bind PostgreSQL and Mailpit to the loopback address, which the macOS sandbox forbids otherwise.
+            __darwinAllowLocalNetworking = true;
             meta.mainProgram = "adunata";
             nativeCheckInputs = [
               pkgs.postgresql_17
@@ -93,7 +95,16 @@
               ln -sfn ${client} ../client/dist
             '';
           };
-          cargoArtifacts = craneLib.buildDepsOnly serverArgs;
+          # Dependencies compile without the client and without the services of the tests, so a change to the client keeps them cached.
+          forDependencies =
+            args:
+            removeAttrs args [
+              "preBuild"
+              "preCheck"
+              "postCheck"
+              "nativeCheckInputs"
+            ];
+          cargoArtifacts = craneLib.buildDepsOnly (forDependencies serverArgs);
           server = craneLib.buildPackage (serverArgs // { inherit cargoArtifacts; });
           openapi = pkgs.runCommand "adunata-openapi" { } "${server}/bin/adunata openapi > $out";
 
@@ -124,7 +135,9 @@
                 doCheck = false;
               };
             in
-            muslCrane.buildPackage (args // { cargoArtifacts = muslCrane.buildDepsOnly args; });
+            muslCrane.buildPackage (
+              args // { cargoArtifacts = muslCrane.buildDepsOnly (forDependencies args); }
+            );
 
           release = pkgs.runCommand "adunata-release-${muslTargets.${system}}" { } ''
             mkdir $out
@@ -138,14 +151,20 @@
             name = "adunata";
             tag = "latest";
             config = {
-              Cmd = [ "${staticServer}/bin/adunata" ];
-              Env = [ "ADUNATA_LISTEN_ADDRESS=0.0.0.0:8080" ];
+              Cmd = [
+                "adunata"
+                "serve"
+              ];
+              Env = [
+                "ADUNATA_LISTEN_ADDRESS=0.0.0.0:8080"
+                "PATH=${staticServer}/bin"
+              ];
               ExposedPorts."8080/tcp" = { };
               User = "65534:65534";
             };
           };
 
-          # Starts PostgreSQL, Mailpit and the release binary on port 18080 and leaves the binary's PID in $adunataPid.
+          # Starts PostgreSQL, Mailpit and the release binary on port 18080 with the organizer organizer@example.org and leaves the binary's PID in $adunataPid.
           startInstance = ''
             export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata
             mkdir -p "$PGHOST"
@@ -155,8 +174,10 @@
             ADUNATA_DATABASE_URL="postgres:///postgres?host=$PGHOST&user=$PGUSER" \
               ADUNATA_LISTEN_ADDRESS=127.0.0.1:18080 ADUNATA_PUBLIC_URL=http://localhost:18080 \
               ADUNATA_SMTP_HOST=127.0.0.1 ADUNATA_SMTP_PORT=11025 ADUNATA_SMTP_ENCRYPTION=none \
-              ADUNATA_MAIL_SENDER="Adunata <adunata@example.org>" \
-              ${staticServer}/bin/adunata &
+              ADUNATA_MAIL_SENDER="Adunata <adunata@example.org>" ADUNATA_TIME_ZONE=Europe/Berlin \
+              ADUNATA_FIRST_ORGANIZER_MAIL=organizer@example.org ADUNATA_FIRST_ORGANIZER_FIRST_NAME=Ada \
+              ADUNATA_FIRST_ORGANIZER_LAST_NAME=Lovelace \
+              ${staticServer}/bin/adunata serve &
             adunataPid=$!
             for _ in $(seq 100); do (echo > /dev/tcp/127.0.0.1/18080) 2>/dev/null && break; sleep 0.1; done
           '';
@@ -209,23 +230,51 @@
                   pkgs.postgresql_17
                   pkgs.mailpit
                   pkgs.oha
+                  pkgs.curl
                 ];
                 SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
               }
               ''
                 ${startInstance}
+                api=http://127.0.0.1:18080/api
 
-                oha --no-tui -z 30s -c 5 -m POST \
-                  -H 'content-type: application/json' \
-                  -d '{"name":"Load","attendance":"accepted","beds":1}' \
-                  http://127.0.0.1:18080/api/spike-responses > post.txt &
-                postPid=$!
-                oha --no-tui -z 30s -c 5 http://127.0.0.1:18080/ > get.txt
-                wait "$postPid"
+                # Prints the secret of the newest link of a kind in Mailpit, waiting until its mail arrives.
+                newest_secret() {
+                  for _ in $(seq 300); do
+                    id=$(curl -s 'http://127.0.0.1:18025/api/v1/messages?limit=1' | grep -o '"ID":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+                    found=$(curl -s "http://127.0.0.1:18025/api/v1/message/$id" | grep -o "/$1#[0-9a-f]\{64\}" | head -1 || true)
+                    if [ -n "$found" ]; then echo "''${found#*#}"; return; fi
+                    sleep 0.1
+                  done
+                  echo "no $1 link arrived" >&2
+                  exit 1
+                }
+
+                curl -sf -H 'content-type: application/json' -d '{"mail":"organizer@example.org"}' "$api/sign-in-requests"
+                signIn=$(newest_secret sign-in)
+                cookie=$(curl -sf -D - -o /dev/null -X POST -H "Authorization: Bearer $signIn" "$api/sessions" \
+                  | grep -i '^set-cookie:' | sed 's/^[^:]*: //; s/;.*//')
+                gathering=$(curl -sf -H "Cookie: $cookie" -H 'content-type: application/json' \
+                  -d "{\"title\":\"Load\",\"location\":\"Stage\",\"firstDay\":\"$(date -d '+30 days' +%F)\",\"lastDay\":\"$(date -d '+32 days' +%F)\"}" \
+                  "$api/gatherings" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+                curl -sf -H "Cookie: $cookie" -H 'content-type: application/json' -d '{}' "$api/gatherings/$gathering/invitations"
+                secret=$(newest_secret invitation)
+
+                oha --no-tui -z 30s -c 4 -m PUT \
+                  -H "Authorization: Bearer $secret" -H 'content-type: application/json' \
+                  -d '{"status":"accepted","beds":"offer","bedCount":2,"comment":"Load"}' \
+                  "$api/invitation/response" > put.txt &
+                putPid=$!
+                oha --no-tui -z 30s -c 3 -H "Authorization: Bearer $secret" "$api/invitation" > page.txt &
+                pagePid=$!
+                oha --no-tui -z 30s -c 3 http://127.0.0.1:18080/invitation > client.txt
+                wait "$putPid" "$pagePid"
 
                 peak=$(awk '/VmHWM/ { print $2 }' "/proc/$adunataPid/status")
                 echo "Peak resident memory: $((peak / 1024)) MB"
-                grep -E 'Requests/sec|Success rate' post.txt get.txt
+                grep -E 'Requests/sec|Success rate' put.txt page.txt client.txt
+                grep -q '\[200\]' put.txt
+                grep -q '\[200\]' page.txt
                 kill "$adunataPid"
                 pg_ctl stop --wait --silent
                 test "$peak" -lt $((150 * 1024))
@@ -241,7 +290,8 @@
             PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
             PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
             FONTCONFIG_FILE = pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; };
-            ADUNATA_E2E_URL = "http://127.0.0.1:18080";
+            ADUNATA_E2E_URL = "http://localhost:18080";
+            ADUNATA_E2E_MAILPIT_URL = "http://127.0.0.1:18025";
             buildPhase = ''
               export HOME="$TMPDIR"
               ${startInstance}
@@ -351,6 +401,7 @@
           ADUNATA_SMTP_PORT = "1025";
           ADUNATA_SMTP_ENCRYPTION = "none";
           ADUNATA_MAIL_SENDER = "Adunata <adunata@localhost>";
+          ADUNATA_TIME_ZONE = "Europe/Berlin";
         };
       });
     };

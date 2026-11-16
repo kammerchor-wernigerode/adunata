@@ -13,36 +13,385 @@ export const CatalogParams = zod.object({
 export const CatalogResponse = zod.string()
 
 
+export const ListGatheringsResponse = zod.object({
+  "upcoming": zod.array(zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date(),
+  "cancelled": zod.boolean(),
+  "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
+}).describe('A span of days on which the ensemble meets, as organizers see it.')),
+  "past": zod.array(zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date(),
+  "cancelled": zod.boolean(),
+  "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
+}).describe('A span of days on which the ensemble meets, as organizers see it.'))
+}).describe('Gatherings split at the present. Upcoming ones come first, ordered by first day. Past ones follow with the latest first.')
+
+
+export const CreateGatheringBody = zod.object({
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date()
+}).describe('What an organizer enters for a gathering.')
+
+export const CreateGatheringResponse = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date(),
+  "cancelled": zod.boolean(),
+  "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
+}).describe('A span of days on which the ensemble meets, as organizers see it.')
+
+
+export const GetGatheringParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const GetGatheringResponse = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date(),
+  "cancelled": zod.boolean(),
+  "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
+}).describe('A span of days on which the ensemble meets, as organizers see it.')
+
+
+export const ChangeGatheringParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const ChangeGatheringBody = zod.object({
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date()
+}).describe('What an organizer enters for a gathering.')
+
+export const ChangeGatheringResponse = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date(),
+  "cancelled": zod.boolean(),
+  "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
+}).describe('A span of days on which the ensemble meets, as organizers see it.')
+
+
+export const CancelParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const CancelResponse = zod.void()
+
+
+export const ListInvitationsParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const ListInvitationsResponseItem = zod.object({
+  "id": zod.int(),
+  "memberId": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "linkActive": zod.boolean().describe('Whether the personal link works. Revoking clears it until the next resend.'),
+  "mail": zod.union([zod.enum(['waiting', 'sent', 'failed']).describe('Where the newest mail of an invitation stands.'),zod.null()]).optional()
+}).describe('One invitation as organizers manage it.')
+export const ListInvitationsResponse = zod.array(ListInvitationsResponseItem)
+
+
+export const InviteParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const InviteBody = zod.object({
+  "memberIds": zod.array(zod.int()).nullish()
+}).describe('Which members to invite. Without ids Adunata invites every active member who is not invited yet.')
+
+export const inviteResponseCountMin = 0;
+
+
+
+export const InviteResponse = zod.object({
+  "count": zod.int().min(inviteResponseCountMin)
+}).describe('How many members Adunata invited.')
+
+
+export const OverviewParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const OverviewResponse = zod.object({
+  "rows": zod.array(zod.object({
+  "invitationId": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'tentative', 'declined']).describe('Where an invitation stands. Without a response it is pending.'),
+  "arrival": zod.string().nullish(),
+  "departure": zod.string().nullish(),
+  "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
+  "bedCount": zod.int().nullish(),
+  "comment": zod.string().nullish(),
+  "changedBy": zod.union([zod.enum(['member', 'organizer']).describe('Who changed a response last.'),zod.null()]).optional(),
+  "changedAt": zod.string().nullish().describe('When the response changed last, as wall-clock time of the instance.'),
+  "outsideSpan": zod.boolean().describe('Whether the stated period lies partly or wholly outside the days of the gathering, after organizers changed them.'),
+  "linkActive": zod.boolean(),
+  "mail": zod.union([zod.enum(['waiting', 'sent', 'failed']).describe('Where the newest mail of an invitation stands.'),zod.null()]).optional()
+}).describe('One invitation in the overview with its response.')),
+  "totals": zod.object({
+  "accepted": zod.int(),
+  "tentative": zod.int(),
+  "declined": zod.int(),
+  "pending": zod.int(),
+  "bedsNeeded": zod.int(),
+  "bedsOffered": zod.int()
+}).describe('Counts per status and the beds that attending members need and offer.')
+}).describe('Everything organizers plan a gathering with.')
+
+
 export const HealthResponse = zod.object({
   "status": zod.enum(['ready', 'unavailable']),
   "cause": zod.union([zod.enum(['database']),zod.null()]).optional()
 }).describe('Whether the instance can serve requests. It holds no personal data and no configuration values.')
 
 
-export const createResponseBodyNameMax = 100;
+/**
+ * @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`.
+ */
+export const invitationPageResponseResponseOneBedCountMax = 20;
 
-export const createResponseBodyBedsMin = 0;
-export const createResponseBodyBedsMax = 20;
+export const invitationPageResponseResponseOneCommentMax = 2000;
 
 
 
-export const CreateResponseBody = zod.object({
-  "name": zod.string().min(1).max(createResponseBodyNameMax),
-  "attendance": zod.enum(['accepted', 'tentative', 'declined']),
-  "arrival": zod.iso.date().nullish(),
-  "beds": zod.int().min(createResponseBodyBedsMin).max(createResponseBodyBedsMax)
+export const InvitationPageResponse = zod.object({
+  "firstName": zod.string(),
+  "gathering": zod.object({
+  "title": zod.string(),
+  "location": zod.string(),
+  "description": zod.string().nullish(),
+  "firstDay": zod.iso.date(),
+  "lastDay": zod.iso.date()
+}).describe('What a member sees of the gathering on the response page.'),
+  "state": zod.enum(['open', 'begun', 'ended', 'cancelled']).describe('Whether a member can still answer through the personal link.'),
+  "response": zod.union([zod.object({
+  "status": zod.enum(['accepted', 'tentative', 'declined']).describe('Whether a member comes. An invitation without a response is pending.'),
+  "arrival": zod.string().nullish(),
+  "departure": zod.string().nullish(),
+  "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
+  "bedCount": zod.int().min(1).max(invitationPageResponseResponseOneBedCountMax).nullish(),
+  "comment": zod.string().max(invitationPageResponseResponseOneCommentMax).nullish()
+}).describe('The member\'s stored response, which the form shows again.'),zod.null()]).optional(),
+  "attendees": zod.union([zod.object({
+  "coming": zod.array(zod.object({
+  "name": zod.string(),
+  "status": zod.enum(['accepted', 'tentative', 'declined']).describe('Whether a member comes. An invitation without a response is pending.')
+}).describe('A member who accepted or accepted tentatively, as other invited members see them.')),
+  "declined": zod.int(),
+  "pending": zod.int()
+}).describe('Who comes. Absent once the gathering has ended or when it is cancelled.'),zod.null()]).optional()
+}).describe('The response page of one invitation as its member sees it.')
+
+
+/**
+ * @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`.
+ */
+export const answerBodyBedCountMax = 20;
+
+export const answerBodyCommentMax = 2000;
+
+
+
+export const AnswerBody = zod.object({
+  "status": zod.enum(['accepted', 'tentative', 'declined']).describe('Whether a member comes. An invitation without a response is pending.'),
+  "arrival": zod.string().nullish(),
+  "departure": zod.string().nullish(),
+  "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
+  "bedCount": zod.int().min(1).max(answerBodyBedCountMax).nullish(),
+  "comment": zod.string().max(answerBodyCommentMax).nullish()
+}).describe('The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.')
+
+export const answerResponseBedCountMax = 20;
+
+export const answerResponseCommentMax = 2000;
+
+
+
+export const AnswerResponse = zod.object({
+  "status": zod.enum(['accepted', 'tentative', 'declined']).describe('Whether a member comes. An invitation without a response is pending.'),
+  "arrival": zod.string().nullish(),
+  "departure": zod.string().nullish(),
+  "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
+  "bedCount": zod.int().min(1).max(answerResponseBedCountMax).nullish(),
+  "comment": zod.string().max(answerResponseCommentMax).nullish()
+}).describe('The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.')
+
+
+export const ResendParams = zod.object({
+  "id": zod.int().describe('Id of the invitation')
 })
 
-export const createResponseResponseNameMax = 100;
-
-export const createResponseResponseBedsMin = 0;
-export const createResponseResponseBedsMax = 20;
+export const ResendResponse = zod.void()
 
 
-
-export const CreateResponseResponse = zod.object({
-  "name": zod.string().min(1).max(createResponseResponseNameMax),
-  "attendance": zod.enum(['accepted', 'tentative', 'declined']),
-  "arrival": zod.iso.date().nullish(),
-  "beds": zod.int().min(createResponseResponseBedsMin).max(createResponseResponseBedsMax)
+export const AnswerForMemberParams = zod.object({
+  "id": zod.int().describe('Id of the invitation')
 })
+
+export const answerForMemberBodyBedCountMax = 20;
+
+export const answerForMemberBodyCommentMax = 2000;
+
+
+
+export const AnswerForMemberBody = zod.object({
+  "status": zod.enum(['accepted', 'tentative', 'declined']).describe('Whether a member comes. An invitation without a response is pending.'),
+  "arrival": zod.string().nullish(),
+  "departure": zod.string().nullish(),
+  "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
+  "bedCount": zod.int().min(1).max(answerForMemberBodyBedCountMax).nullish(),
+  "comment": zod.string().max(answerForMemberBodyCommentMax).nullish()
+}).describe('The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.')
+
+export const answerForMemberResponseBedCountMax = 20;
+
+export const answerForMemberResponseCommentMax = 2000;
+
+
+
+export const AnswerForMemberResponse = zod.object({
+  "status": zod.enum(['accepted', 'tentative', 'declined']).describe('Whether a member comes. An invitation without a response is pending.'),
+  "arrival": zod.string().nullish(),
+  "departure": zod.string().nullish(),
+  "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
+  "bedCount": zod.int().min(1).max(answerForMemberResponseBedCountMax).nullish(),
+  "comment": zod.string().max(answerForMemberResponseCommentMax).nullish()
+}).describe('The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.')
+
+
+export const RevokeParams = zod.object({
+  "id": zod.int().describe('Id of the invitation')
+})
+
+export const RevokeResponse = zod.void()
+
+
+export const LegalLinksResponse = zod.object({
+  "privacyUrl": zod.string().nullish(),
+  "imprintUrl": zod.string().nullish()
+}).describe('Addresses of the privacy notice and the imprint that every page links. A missing address means the operator set none.')
+
+
+export const ListMembersResponseItem = zod.object({
+  "id": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string().describe('Language of the member\'s mail, `de` or `en`.'),
+  "active": zod.boolean(),
+  "organizer": zod.boolean()
+}).describe('A person in the ensemble whom organizers can invite.')
+export const ListMembersResponse = zod.array(ListMembersResponseItem)
+
+
+export const AddMemberBody = zod.object({
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string()
+}).describe('What an organizer enters for a new member. A new member is active and holds no role.')
+
+export const AddMemberResponse = zod.object({
+  "id": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string().describe('Language of the member\'s mail, `de` or `en`.'),
+  "active": zod.boolean(),
+  "organizer": zod.boolean()
+}).describe('A person in the ensemble whom organizers can invite.')
+
+
+export const ChangeMemberParams = zod.object({
+  "id": zod.int().describe('Id of the member')
+})
+
+export const ChangeMemberBody = zod.object({
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string(),
+  "active": zod.boolean(),
+  "organizer": zod.boolean()
+}).describe('Every field of a member that an organizer can change.')
+
+export const ChangeMemberResponse = zod.object({
+  "id": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string().describe('Language of the member\'s mail, `de` or `en`.'),
+  "active": zod.boolean(),
+  "organizer": zod.boolean()
+}).describe('A person in the ensemble whom organizers can invite.')
+
+
+export const DeleteMemberParams = zod.object({
+  "id": zod.int().describe('Id of the member')
+})
+
+export const DeleteMemberResponse = zod.void()
+
+
+export const CurrentSessionResponse = zod.object({
+  "id": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string().describe('Language of the member\'s mail, `de` or `en`.'),
+  "active": zod.boolean(),
+  "organizer": zod.boolean()
+}).describe('A person in the ensemble whom organizers can invite.')
+
+
+export const SignOutResponse = zod.void()
+
+
+/**
+ * @summary Expects the secret of a sign-in link as `Authorization: Bearer <secret>`.
+ */
+export const SignInResponse = zod.object({
+  "id": zod.int(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "mail": zod.string(),
+  "language": zod.string().describe('Language of the member\'s mail, `de` or `en`.'),
+  "active": zod.boolean(),
+  "organizer": zod.boolean()
+}).describe('A person in the ensemble whom organizers can invite.')
+
+
+export const RequestSignInBody = zod.object({
+  "mail": zod.string()
+}).describe('The mail address for which someone asks for a sign-in link.')
+
+export const RequestSignInResponse = zod.void()

@@ -60,6 +60,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn font_licenses_are_served_next_to_the_fonts() {
+        for font in ["literata", "source-sans-3"] {
+            assert!(
+                Assets::iter()
+                    .any(|path| path.starts_with(&format!("assets/{font}-"))
+                        && path.ends_with(".woff2")),
+                "{font} must be built into assets"
+            );
+            let response = get(&format!("/assets/LICENSE-{font}.txt")).await;
+            assert_eq!(response.status(), StatusCode::OK);
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            let text = String::from_utf8_lossy(&body);
+            assert!(text.contains("Copyright"), "{text}");
+            assert!(text.contains("SIL OPEN FONT LICENSE Version 1.1"), "{text}");
+        }
+    }
+
+    #[tokio::test]
     async fn missing_asset_is_not_found() {
         let response = get("/assets/missing.js").await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND);

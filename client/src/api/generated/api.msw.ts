@@ -19,21 +19,74 @@ import type {
 } from 'msw';
 
 import {
-  Attendance,
+  Beds,
   Cause,
+  ChangedBy,
+  InvitationStatus,
+  LinkState,
+  MailState,
+  ResponseStatus,
   Status
 } from './model';
 import type {
+  Attendees,
+  Gathering,
+  GatheringInput,
+  GatheringList,
   Health,
-  SpikeResponse
+  Invitation,
+  InvitationPage,
+  InvitationRequest,
+  Invited,
+  LegalLinks,
+  Member,
+  MemberChange,
+  NewMember,
+  Overview,
+  ResponseValues,
+  SignInRequest
 } from './model';
 
 
 export const getCatalogResponseMock = (): string => (faker.word.sample())
 
+export const getListGatheringsResponseMock = (overrideResponse: Partial<Extract<GatheringList, object>> = {}): GatheringList => ({upcoming: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean()})), past: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean()})), ...overrideResponse})
+
+export const getCreateGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
+
+export const getGetGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
+
+export const getChangeGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
+
+export const getListInvitationsResponseMock = (): Invitation[] => (Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.number.int(), memberId: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), linkActive: faker.datatype.boolean(), mail: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(MailState)),null,])})))
+
+export const getInviteResponseMock = (overrideResponse: Partial<Extract<Invited, object>> = {}): Invited => ({count: faker.number.int({min: 0}), ...overrideResponse})
+
+export const getOverviewResponseMock = (overrideResponse: Partial<Extract<Overview, object>> = {}): Overview => ({rows: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({invitationId: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), status: faker.helpers.arrayElement(Object.values(InvitationStatus)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int(), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), changedBy: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(ChangedBy)),null,]), changedAt: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), outsideSpan: faker.datatype.boolean(), linkActive: faker.datatype.boolean(), mail: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(MailState)),null,])})), totals: {accepted: faker.number.int(), tentative: faker.number.int(), declined: faker.number.int(), pending: faker.number.int(), bedsNeeded: faker.number.int(), bedsOffered: faker.number.int()}, ...overrideResponse})
+
 export const getHealthResponseMock = (overrideResponse: Partial<Extract<Health, object>> = {}): Health => ({status: faker.helpers.arrayElement(Object.values(Status)), cause: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Cause)),null,]), ...overrideResponse})
 
-export const getCreateResponseResponseMock = (overrideResponse: Partial<Extract<SpikeResponse, object>> = {}): SpikeResponse => ({name: faker.string.alpha({length: {min: 1, max: 100}}), attendance: faker.helpers.arrayElement(Object.values(Attendance)), arrival: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 10), null]), beds: faker.number.int({min: 0, max: 20}), ...overrideResponse})
+export const getInvitationPageResponseResponseValuesMock = (overrideResponse: Partial<ResponseValues> = {}): ResponseValues => ({...{status: faker.helpers.arrayElement(Object.values(ResponseStatus)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int({min: 1, max: 20}), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 2000}}), null])}, ...overrideResponse});
+
+export const getInvitationPageResponseAttendeesMock = (overrideResponse: Partial<Attendees> = {}): Attendees => ({...{coming: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({name: faker.string.alpha({length: {min: 10, max: 20}}), status: faker.helpers.arrayElement(Object.values(ResponseStatus))})), declined: faker.number.int(), pending: faker.number.int()}, ...overrideResponse});
+
+export const getInvitationPageResponseMock = (overrideResponse: Partial<Extract<InvitationPage, object>> = {}): InvitationPage => ({firstName: faker.string.alpha({length: {min: 10, max: 20}}), gathering: {title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10)}, state: faker.helpers.arrayElement(Object.values(LinkState)), response: faker.helpers.arrayElement([{...getInvitationPageResponseResponseValuesMock()},null,]), attendees: faker.helpers.arrayElement([{...getInvitationPageResponseAttendeesMock()},null,]), ...overrideResponse})
+
+export const getAnswerResponseMock = (overrideResponse: Partial<Extract<ResponseValues, object>> = {}): ResponseValues => ({status: faker.helpers.arrayElement(Object.values(ResponseStatus)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int({min: 1, max: 20}), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 2000}}), null]), ...overrideResponse})
+
+export const getAnswerForMemberResponseMock = (overrideResponse: Partial<Extract<ResponseValues, object>> = {}): ResponseValues => ({status: faker.helpers.arrayElement(Object.values(ResponseStatus)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int({min: 1, max: 20}), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 2000}}), null]), ...overrideResponse})
+
+export const getLegalLinksResponseMock = (overrideResponse: Partial<Extract<LegalLinks, object>> = {}): LegalLinks => ({privacyUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), imprintUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
+
+export const getListMembersResponseMock = (): Member[] => (Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean()})))
+
+export const getAddMemberResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
+
+export const getChangeMemberResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
+
+export const getCurrentSessionResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
+
+export const getSignInResponseMock = (overrideResponse: Partial<Extract<Member, object>> = {}): Member => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean(), ...overrideResponse})
 
 
 export const getCatalogMockHandler = (overrideResponse?: string | ((info: Parameters<HttpResponseResolver<{ locale: string }>>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
@@ -44,6 +97,100 @@ export const getCatalogMockHandler = (overrideResponse?: string | ((info: Parame
     : getCatalogResponseMock();
     const textBody = typeof resolvedBody === 'string' ? resolvedBody : JSON.stringify(resolvedBody ?? null);
     return HttpResponse.text(textBody,
+      { status: 200
+      })
+  }, options)
+}
+
+export const getListGatheringsMockHandler = (overrideResponse?: GatheringList | ((info: Parameters<HttpResponseResolver>[0]) => Promise<GatheringList> | GatheringList), options?: RequestHandlerOptions) => {
+  return http.get('*/api/gatherings', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getListGatheringsResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getCreateGatheringMockHandler = (overrideResponse?: Gathering | ((info: Parameters<HttpResponseResolver<PathParams, GatheringInput>>[0]) => Promise<Gathering> | Gathering), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, GatheringInput>('*/api/gatherings', async (info: Parameters<HttpResponseResolver<PathParams, GatheringInput>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getCreateGatheringResponseMock(),
+      { status: 201
+      })
+  }, options)
+}
+
+export const getGetGatheringMockHandler = (overrideResponse?: Gathering | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<Gathering> | Gathering), options?: RequestHandlerOptions) => {
+  return http.get<{ id: string }>('*/api/gatherings/:id', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getGetGatheringResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getChangeGatheringMockHandler = (overrideResponse?: Gathering | ((info: Parameters<HttpResponseResolver<{ id: string }, GatheringInput>>[0]) => Promise<Gathering> | Gathering), options?: RequestHandlerOptions) => {
+  return http.put<{ id: string }, GatheringInput>('*/api/gatherings/:id', async (info: Parameters<HttpResponseResolver<{ id: string }, GatheringInput>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getChangeGatheringResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getCancelMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<{ id: string }>('*/api/gatherings/:id/cancellation', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
+export const getListInvitationsMockHandler = (overrideResponse?: Invitation[] | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<Invitation[]> | Invitation[]), options?: RequestHandlerOptions) => {
+  return http.get<{ id: string }>('*/api/gatherings/:id/invitations', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getListInvitationsResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getInviteMockHandler = (overrideResponse?: Invited | ((info: Parameters<HttpResponseResolver<{ id: string }, InvitationRequest>>[0]) => Promise<Invited> | Invited), options?: RequestHandlerOptions) => {
+  return http.post<{ id: string }, InvitationRequest>('*/api/gatherings/:id/invitations', async (info: Parameters<HttpResponseResolver<{ id: string }, InvitationRequest>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getInviteResponseMock(),
+      { status: 201
+      })
+  }, options)
+}
+
+export const getOverviewMockHandler = (overrideResponse?: Overview | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<Overview> | Overview), options?: RequestHandlerOptions) => {
+  return http.get<{ id: string }>('*/api/gatherings/:id/overview', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getOverviewResponseMock(),
       { status: 200
       })
   }, options)
@@ -61,19 +208,186 @@ export const getHealthMockHandler = (overrideResponse?: Health | ((info: Paramet
   }, options)
 }
 
-export const getCreateResponseMockHandler = (overrideResponse?: SpikeResponse | ((info: Parameters<HttpResponseResolver<PathParams, SpikeResponse>>[0]) => Promise<SpikeResponse> | SpikeResponse), options?: RequestHandlerOptions) => {
-  return http.post<PathParams, SpikeResponse>('*/api/spike-responses', async (info: Parameters<HttpResponseResolver<PathParams, SpikeResponse>>[0]) => {
+export const getInvitationPageMockHandler = (overrideResponse?: InvitationPage | ((info: Parameters<HttpResponseResolver>[0]) => Promise<InvitationPage> | InvitationPage), options?: RequestHandlerOptions) => {
+  return http.get('*/api/invitation', async (info: Parameters<HttpResponseResolver>[0]) => {
 
 
     return HttpResponse.json(overrideResponse !== undefined
     ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
-    : getCreateResponseResponseMock(),
+    : getInvitationPageResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getAnswerMockHandler = (overrideResponse?: ResponseValues | ((info: Parameters<HttpResponseResolver<PathParams, ResponseValues>>[0]) => Promise<ResponseValues> | ResponseValues), options?: RequestHandlerOptions) => {
+  return http.put<PathParams, ResponseValues>('*/api/invitation/response', async (info: Parameters<HttpResponseResolver<PathParams, ResponseValues>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getAnswerResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getResendMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<{ id: string }>('*/api/invitations/:id/resend', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
+export const getAnswerForMemberMockHandler = (overrideResponse?: ResponseValues | ((info: Parameters<HttpResponseResolver<{ id: string }, ResponseValues>>[0]) => Promise<ResponseValues> | ResponseValues), options?: RequestHandlerOptions) => {
+  return http.put<{ id: string }, ResponseValues>('*/api/invitations/:id/response', async (info: Parameters<HttpResponseResolver<{ id: string }, ResponseValues>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getAnswerForMemberResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getRevokeMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<{ id: string }>('*/api/invitations/:id/revocation', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
+export const getLegalLinksMockHandler = (overrideResponse?: LegalLinks | ((info: Parameters<HttpResponseResolver>[0]) => Promise<LegalLinks> | LegalLinks), options?: RequestHandlerOptions) => {
+  return http.get('*/api/legal-links', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getLegalLinksResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getListMembersMockHandler = (overrideResponse?: Member[] | ((info: Parameters<HttpResponseResolver>[0]) => Promise<Member[]> | Member[]), options?: RequestHandlerOptions) => {
+  return http.get('*/api/members', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getListMembersResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getAddMemberMockHandler = (overrideResponse?: Member | ((info: Parameters<HttpResponseResolver<PathParams, NewMember>>[0]) => Promise<Member> | Member), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, NewMember>('*/api/members', async (info: Parameters<HttpResponseResolver<PathParams, NewMember>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getAddMemberResponseMock(),
       { status: 201
+      })
+  }, options)
+}
+
+export const getChangeMemberMockHandler = (overrideResponse?: Member | ((info: Parameters<HttpResponseResolver<{ id: string }, MemberChange>>[0]) => Promise<Member> | Member), options?: RequestHandlerOptions) => {
+  return http.put<{ id: string }, MemberChange>('*/api/members/:id', async (info: Parameters<HttpResponseResolver<{ id: string }, MemberChange>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getChangeMemberResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getDeleteMemberMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.delete<{ id: string }>('*/api/members/:id', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
+export const getCurrentSessionMockHandler = (overrideResponse?: Member | ((info: Parameters<HttpResponseResolver>[0]) => Promise<Member> | Member), options?: RequestHandlerOptions) => {
+  return http.get('*/api/session', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getCurrentSessionResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getSignOutMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.delete('*/api/session', async (info: Parameters<HttpResponseResolver>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
+export const getSignInMockHandler = (overrideResponse?: Member | ((info: Parameters<HttpResponseResolver>[0]) => Promise<Member> | Member), options?: RequestHandlerOptions) => {
+  return http.post('*/api/sessions', async (info: Parameters<HttpResponseResolver>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getSignInResponseMock(),
+      { status: 201
+      })
+  }, options)
+}
+
+export const getRequestSignInMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<PathParams, SignInRequest>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<PathParams, SignInRequest>('*/api/sign-in-requests', async (info: Parameters<HttpResponseResolver<PathParams, SignInRequest>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 202
       })
   }, options)
 }
 export const getAdunataMock = () => [
   getCatalogMockHandler(),
+  getListGatheringsMockHandler(),
+  getCreateGatheringMockHandler(),
+  getGetGatheringMockHandler(),
+  getChangeGatheringMockHandler(),
+  getCancelMockHandler(),
+  getListInvitationsMockHandler(),
+  getInviteMockHandler(),
+  getOverviewMockHandler(),
   getHealthMockHandler(),
-  getCreateResponseMockHandler()
+  getInvitationPageMockHandler(),
+  getAnswerMockHandler(),
+  getResendMockHandler(),
+  getAnswerForMemberMockHandler(),
+  getRevokeMockHandler(),
+  getLegalLinksMockHandler(),
+  getListMembersMockHandler(),
+  getAddMemberMockHandler(),
+  getChangeMemberMockHandler(),
+  getDeleteMemberMockHandler(),
+  getCurrentSessionMockHandler(),
+  getSignOutMockHandler(),
+  getSignInMockHandler(),
+  getRequestSignInMockHandler()
 ]

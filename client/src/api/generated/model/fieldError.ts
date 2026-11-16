@@ -9,4 +9,9 @@ import type { ErrorCode } from './errorCode';
 export interface FieldError {
   field: string;
   code: ErrorCode;
+  /**
+     * The stored value that a taken value collides with, such as a mail address that differs only in case.
+     * @nullable
+     */
+  conflict?: string | null;
 }

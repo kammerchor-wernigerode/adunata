@@ -5,6 +5,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Why a field was rejected. The client turns each code into a message from the catalog.
+ */
 export type ErrorCode = typeof ErrorCode[keyof typeof ErrorCode];
 
 
@@ -13,4 +16,11 @@ export const ErrorCode = {
   tooLong: 'tooLong',
   tooLarge: 'tooLarge',
   taken: 'taken',
+  invalid: 'invalid',
+  lastOrganizer: 'lastOrganizer',
+  beforeFirstDay: 'beforeFirstDay',
+  ended: 'ended',
+  cancelled: 'cancelled',
+  begun: 'begun',
+  beforeArrival: 'beforeArrival',
 } as const;

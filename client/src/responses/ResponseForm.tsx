@@ -1,0 +1,338 @@
+import { CalendarDays } from 'lucide-react'
+import { useId, useState, type FormEvent } from 'react'
+import { de, enUS } from 'react-day-picker/locale'
+import type { Beds, FieldError as ServerFieldError, ResponseStatus as Status, ResponseValues } from '@/api/generated/model'
+import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { formatDay, formatWallClock, wallClock } from '@/l10n/dates'
+import { useLocale, useTranslate, type Translate } from '@/l10n/translate'
+
+const formFields = ['status', 'arrival', 'departure', 'beds', 'bedCount', 'comment']
+const statuses: Status[] = ['accepted', 'tentative', 'declined']
+const bedChoices: Beds[] = ['need', 'offer', 'none']
+
+export type SaveResult = { status: 'saved'; values: ResponseValues } | { status: 'invalid'; errors: ServerFieldError[] } | { status: 'failed' }
+
+interface Moment {
+  day?: Date
+  time: string
+}
+
+function isoDay(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function moment(value: string | null | undefined): Moment {
+  if (!value) return { time: '' }
+  const [, time] = value.split('T')
+  return { day: wallClock(value), time }
+}
+
+function combined({ day, time }: Moment): string | null {
+  return day && time ? `${isoDay(day)}T${time}` : null
+}
+
+function message(translate: Translate, error: ServerFieldError): string {
+  switch (error.code) {
+    case 'required':
+      return translate(error.field === 'bedCount' ? 'response-error-bed-count' : 'response-error-beds')
+    case 'tooLarge':
+      return translate('response-error-bed-count-too-large')
+    case 'tooLong':
+      return translate('response-error-comment-too-long')
+    case 'beforeArrival':
+      return translate('response-error-departure-before-arrival')
+    case 'invalid':
+      return translate('response-error-time')
+    case 'begun':
+      return translate('response-error-begun')
+    case 'ended':
+      return translate('invitation-state-ended')
+    case 'cancelled':
+      return translate('invitation-state-cancelled')
+    default:
+      return translate('error-unexpected')
+  }
+}
+
+/** The questions of a response in their order: status, arrival and departure, beds with their count and comment. */
+export function ResponseForm({
+  question,
+  firstDay,
+  lastDay,
+  initial,
+  saveNotice,
+  onSave,
+}: {
+  question: string
+  firstDay: string
+  lastDay: string
+  initial: ResponseValues | null | undefined
+  saveNotice: string
+  onSave: (values: ResponseValues) => Promise<SaveResult>
+}) {
+  const id = useId()
+  const translate = useTranslate()
+  const { locale } = useLocale()
+  const [status, setStatus] = useState<Status>(initial?.status ?? 'accepted')
+  const [arrival, setArrival] = useState<Moment>(moment(initial?.arrival))
+  const [departure, setDeparture] = useState<Moment>(moment(initial?.departure))
+  const [beds, setBeds] = useState<Beds | ''>(initial?.beds ?? '')
+  const [bedCount, setBedCount] = useState(initial?.bedCount ? String(initial.bedCount) : '')
+  const [comment, setComment] = useState(initial?.comment ?? '')
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [saved, setSaved] = useState<ResponseValues | null>(null)
+  const [busy, setBusy] = useState(false)
+  const coming = status !== 'declined'
+  const days = Math.round((wallClock(`${lastDay}T00:00`).getTime() - wallClock(`${firstDay}T00:00`).getTime()) / 86_400_000) + 1
+
+  function incomplete(): Record<string, string> {
+    const found: Record<string, string> = {}
+    if (!coming) return found
+    for (const [field, value] of [['arrival', arrival], ['departure', departure]] as const) {
+      if (Boolean(value.day) !== Boolean(value.time)) found[field] = translate('response-error-day-and-time')
+    }
+    if (beds === '') found.beds = translate('response-error-beds')
+    if ((beds === 'need' || beds === 'offer') && !/^(?:[1-9]|1\d|20)$/.test(bedCount.trim())) {
+      found.bedCount = translate('response-error-bed-count')
+    }
+    return found
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    setSaved(null)
+    const found = incomplete()
+    if (Object.keys(found).length === 0) {
+      setBusy(true)
+      let result: SaveResult
+      try {
+        result = await onSave({
+          status,
+          arrival: coming ? combined(arrival) : null,
+          departure: coming ? combined(departure) : null,
+          beds: coming && beds !== '' ? beds : null,
+          bedCount: coming && (beds === 'need' || beds === 'offer') ? Number(bedCount) : null,
+          comment: comment.trim() === '' ? null : comment,
+        })
+      } catch {
+        result = { status: 'failed' }
+      } finally {
+        setBusy(false)
+      }
+      if (result.status === 'saved') {
+        setErrors({})
+        setSaved(result.values)
+        return
+      }
+      if (result.status === 'invalid') {
+        for (const error of result.errors) {
+          found[formFields.includes(error.field) ? error.field : 'form'] = message(translate, error)
+        }
+      } else {
+        found.form = translate('error-unexpected')
+      }
+    }
+    setErrors(found)
+    const first = formFields.find((field) => found[field])
+    if (first) document.getElementById(`${id}-${first}`)?.focus()
+  }
+
+  function error(field: string) {
+    return <FieldError id={`${id}-${field}-error`} errors={errors[field] ? [{ message: errors[field] }] : []} />
+  }
+
+  function described(field: string, hint?: string) {
+    const ids = [hint, errors[field] ? `${id}-${field}-error` : undefined].filter(Boolean).join(' ')
+    return { 'aria-invalid': errors[field] ? true : undefined, 'aria-describedby': ids || undefined }
+  }
+
+  function when(field: 'arrival' | 'departure', value: Moment, change: (next: Moment) => void) {
+    const dayLabel = translate(`response-${field}-day`)
+    return (
+      <FieldSet data-invalid={errors[field] ? true : undefined} className="min-w-0">
+        <FieldLegend variant="label">{translate(`response-${field}`)}</FieldLegend>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,8.5rem),1fr))] gap-2">
+          <Field>
+            <FieldLabel id={`${id}-${field}-label`} htmlFor={`${id}-${field}`} className="sr-only">
+              {dayLabel}
+            </FieldLabel>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id={`${id}-${field}`}
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between border-input font-normal"
+                  aria-labelledby={`${id}-${field}-label ${id}-${field}-value`}
+                  {...described(field)}
+                >
+                  <span id={`${id}-${field}-value`}>
+                    {value.day
+                      ? formatDay(isoDay(value.day), locale, { weekday: 'short', day: 'numeric', month: 'long' })
+                      : translate('response-choose-day')}
+                  </span>
+                  <CalendarDays aria-hidden="true" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  locale={locale === 'de' ? de : enUS}
+                  weekStartsOn={1}
+                  defaultMonth={value.day ?? wallClock(`${firstDay}T00:00`)}
+                  selected={value.day}
+                  onSelect={(day) => change({ ...value, day })}
+                  disabled={{ before: wallClock(`${firstDay}T00:00`), after: wallClock(`${lastDay}T00:00`) }}
+                  labels={{
+                    labelGrid: () => dayLabel,
+                    labelNav: () => translate(`response-${field}-months`),
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${id}-${field}-time`} className="sr-only">
+              {translate(`response-${field}-time`)}
+            </FieldLabel>
+            <Input
+              id={`${id}-${field}-time`}
+              type="time"
+              step={1800}
+              value={value.time}
+              onChange={(event) => change({ ...value, time: event.target.value.slice(0, 5) })}
+              className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden"
+              {...described(field)}
+            />
+          </Field>
+        </div>
+        {error(field)}
+      </FieldSet>
+    )
+  }
+
+  const rowClass =
+    'has-data-checked:border-primary has-data-checked:bg-primary/10 has-data-checked:shadow-[inset_0_0_0_1px_var(--primary)]'
+
+  return (
+    <form noValidate onSubmit={submit} aria-label={question}>
+      <FieldGroup>
+        <FieldSet>
+          <FieldLegend className="text-base font-semibold">{question}</FieldLegend>
+          <RadioGroup id={`${id}-status`} value={status} onValueChange={(value) => setStatus(value as Status)}>
+            {statuses.map((option) => (
+              <FieldLabel key={option} htmlFor={`${id}-status-${option}`} className={rowClass}>
+                <Field orientation="horizontal">
+                  <RadioGroupItem
+                    id={`${id}-status-${option}`}
+                    value={option}
+                    aria-labelledby={`${id}-status-${option}-label`}
+                  />
+                  <span id={`${id}-status-${option}-label`} className="font-semibold">
+                    {translate(`response-status-${option}`)}
+                  </span>
+                </Field>
+              </FieldLabel>
+            ))}
+          </RadioGroup>
+        </FieldSet>
+
+        {coming && (
+          <FieldSet>
+            <FieldLegend className="text-base font-semibold">{translate('response-when')}</FieldLegend>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {when('arrival', arrival, setArrival)}
+              {when('departure', departure, setDeparture)}
+            </div>
+            <FieldDescription>{translate('response-when-hint', { days })}</FieldDescription>
+          </FieldSet>
+        )}
+
+        {coming && (
+          <FieldSet data-invalid={errors.beds ? true : undefined}>
+            <FieldLegend className="text-base font-semibold">{translate('response-beds')}</FieldLegend>
+            <RadioGroup
+              id={`${id}-beds`}
+              value={beds}
+              onValueChange={(value) => setBeds(value as Beds)}
+              {...described('beds')}
+            >
+              {bedChoices.map((option) => (
+                <FieldLabel key={option} htmlFor={`${id}-beds-${option}`} className={rowClass}>
+                  <Field orientation="horizontal">
+                    <RadioGroupItem
+                      id={`${id}-beds-${option}`}
+                      value={option}
+                      aria-labelledby={`${id}-beds-${option}-label`}
+                    />
+                    <span id={`${id}-beds-${option}-label`} className="font-semibold">
+                      {translate(`response-beds-${option}`)}
+                    </span>
+                  </Field>
+                </FieldLabel>
+              ))}
+            </RadioGroup>
+            {error('beds')}
+            {(beds === 'need' || beds === 'offer') && (
+              <Field orientation="horizontal" data-invalid={errors.bedCount ? true : undefined}>
+                <FieldLabel htmlFor={`${id}-bedCount`}>{translate('response-bed-count')}</FieldLabel>
+                <Input
+                  id={`${id}-bedCount`}
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={20}
+                  className="w-20"
+                  value={bedCount}
+                  onChange={(event) => setBedCount(event.target.value)}
+                  {...described('bedCount')}
+                />
+              </Field>
+            )}
+            {error('bedCount')}
+          </FieldSet>
+        )}
+
+        <Field data-invalid={errors.comment ? true : undefined}>
+          <FieldLabel htmlFor={`${id}-comment`}>{translate('response-comment')}</FieldLabel>
+          <FieldDescription id={`${id}-comment-hint`}>{translate('response-comment-hint')}</FieldDescription>
+          <textarea
+            id={`${id}-comment`}
+            rows={3}
+            maxLength={2000}
+            value={comment}
+            onChange={(event) => setComment(event.target.value)}
+            className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
+            {...described('comment', `${id}-comment-hint`)}
+          />
+          {error('comment')}
+        </Field>
+
+        <Button type="submit" size="lg" className="w-full" disabled={busy}>
+          {translate('response-save')}
+        </Button>
+        <div role="status" className={saved ? 'rounded-lg bg-muted px-3 py-2 text-sm' : ''}>
+          {saved && (
+            <>
+              <p>{saveNotice}</p>
+              <p>
+                {translate(`response-status-${saved.status}`)}
+                {saved.arrival ? `, ${translate('response-arrival')} ${formatWallClock(saved.arrival, locale)}` : ''}
+                {saved.departure ? `, ${translate('response-departure')} ${formatWallClock(saved.departure, locale)}` : ''}
+                {saved.beds === 'need' || saved.beds === 'offer'
+                  ? `, ${translate(`overview-beds-${saved.beds}`, { count: saved.bedCount ?? 0 })}`
+                  : ''}
+              </p>
+            </>
+          )}
+        </div>
+        <p role="alert">{errors.form ?? ''}</p>
+      </FieldGroup>
+    </form>
+  )
+}

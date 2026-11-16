@@ -41,6 +41,313 @@
         }
       }
     },
+    "/api/gatherings": {
+      "get": {
+        "operationId": "list_gatherings",
+        "responses": {
+          "200": {
+            "description": "Upcoming and past gatherings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatheringList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          }
+        }
+      },
+      "post": {
+        "operationId": "create_gathering",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatheringInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Gathering created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Gathering"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "422": {
+            "description": "Gathering invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gatherings/{id}": {
+      "get": {
+        "operationId": "get_gathering",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the gathering",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The gathering",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Gathering"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such gathering"
+          }
+        }
+      },
+      "put": {
+        "operationId": "change_gathering",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the gathering",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatheringInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Gathering changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Gathering"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such gathering"
+          },
+          "422": {
+            "description": "Change invalid or the gathering has ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gatherings/{id}/cancellation": {
+      "post": {
+        "operationId": "cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the gathering",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Gathering cancelled and a mail queued for every invited member"
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such gathering"
+          },
+          "422": {
+            "description": "The gathering is cancelled already or has ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gatherings/{id}/invitations": {
+      "get": {
+        "operationId": "list_invitations",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the gathering",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every invitation of the gathering, sorted by last name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Invitation"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          }
+        }
+      },
+      "post": {
+        "operationId": "invite",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the gathering",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Members invited and their mail queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invited"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such gathering"
+          },
+          "422": {
+            "description": "The gathering is cancelled or has ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gatherings/{id}/overview": {
+      "get": {
+        "operationId": "overview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the gathering",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every invitation with its response and the totals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such gathering"
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "operationId": "health",
@@ -68,29 +375,147 @@
         }
       }
     },
-    "/api/spike-responses": {
-      "post": {
-        "operationId": "create_response",
+    "/api/invitation": {
+      "get": {
+        "summary": "Expects the secret of the personal link as `Authorization: Bearer <secret>`.",
+        "operationId": "invitation_page",
+        "responses": {
+          "200": {
+            "description": "The gathering and the state of the link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The link is unknown or revoked"
+          }
+        }
+      }
+    },
+    "/api/invitation/response": {
+      "put": {
+        "summary": "Expects the secret of the personal link as `Authorization: Bearer <secret>`.",
+        "operationId": "answer",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SpikeResponse"
+                "$ref": "#/components/schemas/ResponseValues"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "201": {
-            "description": "Response stored",
+          "200": {
+            "description": "Response stored, as the page shows it now",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SpikeResponse"
+                  "$ref": "#/components/schemas/ResponseValues"
                 }
               }
             }
+          },
+          "404": {
+            "description": "The link is unknown or revoked"
+          },
+          "422": {
+            "description": "Response invalid, or the gathering has begun, ended or was cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/invitations/{id}/resend": {
+      "post": {
+        "operationId": "resend",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the invitation",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "New link created, the old one revoked and the mail queued"
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such invitation"
+          },
+          "422": {
+            "description": "The gathering is cancelled or has ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/invitations/{id}/response": {
+      "put": {
+        "operationId": "answer_for_member",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the invitation",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponseValues"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Response stored on the member's behalf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseValues"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such invitation"
           },
           "422": {
             "description": "Response invalid",
@@ -104,16 +529,324 @@
           }
         }
       }
+    },
+    "/api/invitations/{id}/revocation": {
+      "post": {
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the invitation",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The link no longer works, and no mail goes out"
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such invitation"
+          }
+        }
+      }
+    },
+    "/api/legal-links": {
+      "get": {
+        "operationId": "legal_links",
+        "responses": {
+          "200": {
+            "description": "Links every page shows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalLinks"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/members": {
+      "get": {
+        "operationId": "list_members",
+        "responses": {
+          "200": {
+            "description": "Every member, sorted by last name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Member"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          }
+        }
+      },
+      "post": {
+        "operationId": "add_member",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewMember"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Member added as active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "422": {
+            "description": "Member invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/members/{id}": {
+      "put": {
+        "operationId": "change_member",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the member",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Member changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such member"
+          },
+          "422": {
+            "description": "Change invalid or it would leave no active organizer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_member",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the member",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Member deleted together with everything that belongs to the member"
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such member"
+          },
+          "422": {
+            "description": "The member is the last active organizer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/session": {
+      "get": {
+        "operationId": "current_session",
+        "responses": {
+          "200": {
+            "description": "The signed-in organizer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid session"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "sign_out",
+        "responses": {
+          "204": {
+            "description": "Session ended and its cookie removed"
+          }
+        }
+      }
+    },
+    "/api/sessions": {
+      "post": {
+        "summary": "Expects the secret of a sign-in link as `Authorization: Bearer <secret>`.",
+        "operationId": "sign_in",
+        "responses": {
+          "201": {
+            "description": "Session started, its cookie is set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The link is unknown, used or expired"
+          }
+        }
+      }
+    },
+    "/api/sign-in-requests": {
+      "post": {
+        "operationId": "request_sign_in",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Same answer whether or not the address belongs to an organizer"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
-      "Attendance": {
+      "Attendee": {
+        "type": "object",
+        "description": "A member who accepted or accepted tentatively, as other invited members see them.",
+        "required": [
+          "name",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ResponseStatus"
+          }
+        }
+      },
+      "Attendees": {
+        "type": "object",
+        "description": "What invited members see of each other. Names and status for those who come, counts for everyone else, and never a period, beds, comment or mail address.",
+        "required": [
+          "coming",
+          "declined",
+          "pending"
+        ],
+        "properties": {
+          "coming": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Attendee"
+            }
+          },
+          "declined": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pending": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "Beds": {
         "type": "string",
+        "description": "Whether a member who comes needs beds, offers beds or needs none.",
         "enum": [
-          "accepted",
-          "tentative",
-          "declined"
+          "need",
+          "offer",
+          "none"
         ]
       },
       "Cause": {
@@ -122,13 +855,29 @@
           "database"
         ]
       },
+      "ChangedBy": {
+        "type": "string",
+        "description": "Who changed a response last.",
+        "enum": [
+          "member",
+          "organizer"
+        ]
+      },
       "ErrorCode": {
         "type": "string",
+        "description": "Why a field was rejected. The client turns each code into a message from the catalog.",
         "enum": [
           "required",
           "tooLong",
           "tooLarge",
-          "taken"
+          "taken",
+          "invalid",
+          "lastOrganizer",
+          "beforeFirstDay",
+          "ended",
+          "cancelled",
+          "begun",
+          "beforeArrival"
         ]
       },
       "FieldError": {
@@ -143,6 +892,113 @@
           },
           "code": {
             "$ref": "#/components/schemas/ErrorCode"
+          },
+          "conflict": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The stored value that a taken value collides with, such as a mail address that differs only in case."
+          }
+        }
+      },
+      "Gathering": {
+        "type": "object",
+        "description": "A span of days on which the ensemble meets, as organizers see it.",
+        "required": [
+          "id",
+          "title",
+          "location",
+          "firstDay",
+          "lastDay",
+          "cancelled",
+          "ended"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "firstDay": {
+            "type": "string",
+            "format": "date"
+          },
+          "lastDay": {
+            "type": "string",
+            "format": "date"
+          },
+          "cancelled": {
+            "type": "boolean"
+          },
+          "ended": {
+            "type": "boolean",
+            "description": "Whether the last day has passed in the time zone of the instance."
+          }
+        }
+      },
+      "GatheringInput": {
+        "type": "object",
+        "description": "What an organizer enters for a gathering.",
+        "required": [
+          "title",
+          "location",
+          "firstDay",
+          "lastDay"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "firstDay": {
+            "type": "string",
+            "format": "date"
+          },
+          "lastDay": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "GatheringList": {
+        "type": "object",
+        "description": "Gatherings split at the present. Upcoming ones come first, ordered by first day. Past ones follow with the latest first.",
+        "required": [
+          "upcoming",
+          "past"
+        ],
+        "properties": {
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Gathering"
+            }
+          },
+          "past": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Gathering"
+            }
           }
         }
       },
@@ -168,34 +1024,479 @@
           }
         }
       },
-      "SpikeResponse": {
+      "Invitation": {
         "type": "object",
+        "description": "One invitation as organizers manage it.",
         "required": [
-          "name",
-          "attendance",
-          "beds"
+          "id",
+          "memberId",
+          "firstName",
+          "lastName",
+          "linkActive"
         ],
         "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 100,
-            "minLength": 1
+          "id": {
+            "type": "integer",
+            "format": "int64"
           },
-          "attendance": {
-            "$ref": "#/components/schemas/Attendance"
+          "memberId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "linkActive": {
+            "type": "boolean",
+            "description": "Whether the personal link works. Revoking clears it until the next resend."
+          },
+          "mail": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MailState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "InvitationPage": {
+        "type": "object",
+        "description": "The response page of one invitation as its member sees it.",
+        "required": [
+          "firstName",
+          "gathering",
+          "state"
+        ],
+        "properties": {
+          "firstName": {
+            "type": "string"
+          },
+          "gathering": {
+            "$ref": "#/components/schemas/InvitedGathering"
+          },
+          "state": {
+            "$ref": "#/components/schemas/LinkState"
+          },
+          "response": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ResponseValues",
+                "description": "The member's stored response, which the form shows again."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attendees": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Attendees",
+                "description": "Who comes. Absent once the gathering has ended or when it is cancelled."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "InvitationRequest": {
+        "type": "object",
+        "description": "Which members to invite. Without ids Adunata invites every active member who is not invited yet.",
+        "properties": {
+          "memberIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "InvitationStatus": {
+        "type": "string",
+        "description": "Where an invitation stands. Without a response it is pending.",
+        "enum": [
+          "pending",
+          "accepted",
+          "tentative",
+          "declined"
+        ]
+      },
+      "Invited": {
+        "type": "object",
+        "description": "How many members Adunata invited.",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "InvitedGathering": {
+        "type": "object",
+        "description": "What a member sees of the gathering on the response page.",
+        "required": [
+          "title",
+          "location",
+          "firstDay",
+          "lastDay"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "firstDay": {
+            "type": "string",
+            "format": "date"
+          },
+          "lastDay": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "LegalLinks": {
+        "type": "object",
+        "description": "Addresses of the privacy notice and the imprint that every page links. A missing address means the operator set none.",
+        "properties": {
+          "privacyUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "imprintUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "LinkState": {
+        "type": "string",
+        "description": "Whether a member can still answer through the personal link.",
+        "enum": [
+          "open",
+          "begun",
+          "ended",
+          "cancelled"
+        ]
+      },
+      "MailState": {
+        "type": "string",
+        "description": "Where the newest mail of an invitation stands.",
+        "enum": [
+          "waiting",
+          "sent",
+          "failed"
+        ]
+      },
+      "Member": {
+        "type": "object",
+        "description": "A person in the ensemble whom organizers can invite.",
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "mail",
+          "language",
+          "active",
+          "organizer"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "mail": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "description": "Language of the member's mail, `de` or `en`."
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "organizer": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MemberChange": {
+        "type": "object",
+        "description": "Every field of a member that an organizer can change.",
+        "required": [
+          "firstName",
+          "lastName",
+          "mail",
+          "language",
+          "active",
+          "organizer"
+        ],
+        "properties": {
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "mail": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "organizer": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NewMember": {
+        "type": "object",
+        "description": "What an organizer enters for a new member. A new member is active and holds no role.",
+        "required": [
+          "firstName",
+          "lastName",
+          "mail",
+          "language"
+        ],
+        "properties": {
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "mail": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          }
+        }
+      },
+      "Overview": {
+        "type": "object",
+        "description": "Everything organizers plan a gathering with.",
+        "required": [
+          "rows",
+          "totals"
+        ],
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverviewRow"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/Totals"
+          }
+        }
+      },
+      "OverviewRow": {
+        "type": "object",
+        "description": "One invitation in the overview with its response.",
+        "required": [
+          "invitationId",
+          "firstName",
+          "lastName",
+          "status",
+          "outsideSpan",
+          "linkActive"
+        ],
+        "properties": {
+          "invitationId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InvitationStatus"
           },
           "arrival": {
             "type": [
               "string",
               "null"
             ],
-            "format": "date"
+            "example": "2027-03-14T18:00"
+          },
+          "departure": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "2027-03-16T15:00"
           },
           "beds": {
-            "type": "integer",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Beds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bedCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changedBy": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChangedBy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the response changed last, as wall-clock time of the instance.",
+            "example": "2027-02-20T09:30"
+          },
+          "outsideSpan": {
+            "type": "boolean",
+            "description": "Whether the stated period lies partly or wholly outside the days of the gathering, after organizers changed them."
+          },
+          "linkActive": {
+            "type": "boolean"
+          },
+          "mail": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MailState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ResponseStatus": {
+        "type": "string",
+        "description": "Whether a member comes. An invitation without a response is pending.",
+        "enum": [
+          "accepted",
+          "tentative",
+          "declined"
+        ]
+      },
+      "ResponseValues": {
+        "type": "object",
+        "description": "The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ResponseStatus"
+          },
+          "arrival": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "2027-03-14T18:00"
+          },
+          "departure": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "2027-03-16T15:00"
+          },
+          "beds": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Beds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bedCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
             "format": "int32",
             "maximum": 20,
-            "minimum": 0
+            "minimum": 1
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          }
+        }
+      },
+      "SignInRequest": {
+        "type": "object",
+        "description": "The mail address for which someone asks for a sign-in link.",
+        "required": [
+          "mail"
+        ],
+        "properties": {
+          "mail": {
+            "type": "string"
           }
         }
       },
@@ -205,6 +1506,44 @@
           "ready",
           "unavailable"
         ]
+      },
+      "Totals": {
+        "type": "object",
+        "description": "Counts per status and the beds that attending members need and offer.",
+        "required": [
+          "accepted",
+          "tentative",
+          "declined",
+          "pending",
+          "bedsNeeded",
+          "bedsOffered"
+        ],
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tentative": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "declined": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pending": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bedsNeeded": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bedsOffered": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
       },
       "ValidationErrors": {
         "type": "object",

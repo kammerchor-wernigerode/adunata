@@ -9,20 +9,19 @@ flowchart LR
   organizer[Organizer] -- manages gatherings and members --> adunata[Adunata]
   member[Member] -- answers invitations --> adunata
   operator[Operator] -- configures, updates and monitors --> adunata
-  adunata -- invitations and notifications --> mailServer[Mail server]
+  adunata -- sign-in links, invitations and cancellations --> mailServer[Mail server]
   mailServer -- delivers mail --> member
+  mailServer -- delivers sign-in links --> organizer
   adunata -- stores data --> postgres[(PostgreSQL)]
 ```
 
 |Partner|Sends to Adunata|Receives from Adunata|
 |-|-|-|
-|Organizer|Gatherings, members and invitations to send|Overviews of responses|
-|Member|Responses to invitations|Invitation mail and the response form|
+|Organizer|Sign-in requests, members, gatherings, invitations and responses on a member's behalf|Sign-in links by mail, the member list and the overview of responses with totals|
+|Member|Responses through the personal link|Invitation and cancellation mail and the response page with the attendees|
 |Operator|Configuration and the start, update and stop of the service|Health status and logs|
 |Mail server|Acceptance or rejection of each mail|Mail to deliver|
 |PostgreSQL|Stored data|Queries and schema migrations|
-
-Organizers and members appear here as they are planned. The foundation that exists so far serves only an example form.
 
 ## Technical context
 

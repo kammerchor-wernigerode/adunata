@@ -15,7 +15,7 @@ export function LanguageSwitcher() {
         id={id}
         value={locale}
         onChange={(event) => isLocale(event.target.value) && setLocale(event.target.value)}
-        className="rounded border px-2 py-1"
+        className="rounded border border-input bg-background px-2 py-1 text-foreground"
       >
         {Object.entries(languageNames).map(([value, name]) => (
           <option key={value} value={value} lang={value}>

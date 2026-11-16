@@ -12,7 +12,10 @@ const BATCH_SIZE: usize = 10;
 pub type Transport = AsyncSmtpTransport<Tokio1Executor>;
 
 pub struct Mail {
+    /// The bare mail address. Delivery adds the display name of the member.
     pub recipient: String,
+    pub member_id: Option<i64>,
+    pub invitation_id: Option<i64>,
     pub subject: String,
     pub text: String,
     pub html: String,
@@ -28,10 +31,20 @@ pub struct Delivery {
 struct PendingMail {
     id: i64,
     recipient: String,
+    recipient_name: Option<String>,
     subject: String,
     text_body: String,
     html_body: String,
     attempts: i32,
+}
+
+/// Escapes a text for the HTML part of a mail. Every value that people entered passes through it.
+pub fn escape_html(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }
 
 pub fn transport(smtp: &Smtp) -> Result<Transport, lettre::transport::smtp::Error> {
@@ -51,8 +64,10 @@ pub fn transport(smtp: &Smtp) -> Result<Transport, lettre::transport::smtp::Erro
 }
 
 pub async fn enqueue(connection: &mut PgConnection, mail: &Mail) -> Result<(), sqlx::Error> {
-    sqlx::query("INSERT INTO mail_outbox (recipient, subject, text_body, html_body) VALUES ($1, $2, $3, $4)")
+    sqlx::query("INSERT INTO mail_outbox (recipient, member_id, invitation_id, subject, text_body, html_body) VALUES ($1, $2, $3, $4, $5, $6)")
         .bind(&mail.recipient)
+        .bind(mail.member_id)
+        .bind(mail.invitation_id)
         .bind(&mail.subject)
         .bind(&mail.text)
         .bind(&mail.html)
@@ -71,11 +86,11 @@ pub async fn run(pool: PgPool, delivery: Delivery, interval: Duration) {
 }
 
 /// Delivers due mail, each in its own transaction, so a mail the server accepted stays marked as sent whatever happens to the next one.
-async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Error> {
+pub async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Error> {
     for _ in 0..BATCH_SIZE {
         let mut transaction = pool.begin().await?;
         let pending: Option<PendingMail> = sqlx::query_as(
-            "SELECT id, recipient, subject, text_body, html_body, attempts FROM mail_outbox WHERE sent_at IS NULL AND failed_at IS NULL AND next_attempt_at <= now() ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED",
+            "SELECT outbox.id, COALESCE(members.mail, outbox.recipient) AS recipient, members.first_name || ' ' || members.last_name AS recipient_name, outbox.subject, outbox.text_body, outbox.html_body, outbox.attempts FROM mail_outbox outbox LEFT JOIN members ON members.id = outbox.member_id WHERE outbox.sent_at IS NULL AND outbox.failed_at IS NULL AND outbox.next_attempt_at <= now() ORDER BY outbox.id LIMIT 1 FOR UPDATE OF outbox SKIP LOCKED",
         )
         .fetch_optional(&mut *transaction)
         .await?;
@@ -100,10 +115,12 @@ async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx::Err
 
 /// Sends one mail. A failure names only its kind, because messages from mail servers often repeat the recipient.
 async fn send(delivery: &Delivery, mail: &PendingMail) -> Result<(), String> {
-    let recipient = mail
-        .recipient
-        .parse::<Mailbox>()
-        .map_err(|_| "invalid recipient".to_owned())?;
+    let recipient = Mailbox::new(
+        mail.recipient_name.clone(),
+        mail.recipient
+            .parse()
+            .map_err(|_| "invalid recipient".to_owned())?,
+    );
     let message = Message::builder()
         .from(delivery.sender.clone())
         .to(recipient)
@@ -139,7 +156,7 @@ fn failure_kind(error: &lettre::transport::smtp::Error) -> String {
 }
 
 async fn mark_sent(connection: &mut PgConnection, id: i64) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE mail_outbox SET sent_at = now(), attempts = attempts + 1 WHERE id = $1")
+    sqlx::query("UPDATE mail_outbox SET sent_at = now(), attempts = attempts + 1, recipient = NULL, subject = NULL, text_body = NULL, html_body = NULL WHERE id = $1")
         .bind(id)
         .execute(connection)
         .await
@@ -153,7 +170,7 @@ async fn schedule_retry(
 ) -> Result<(), sqlx::Error> {
     let attempts = mail.attempts + 1;
     sqlx::query(
-        "UPDATE mail_outbox SET attempts = $2, next_attempt_at = now() + make_interval(secs => LEAST(10 * power(2, $2 - 1), 3600)), failed_at = CASE WHEN $2 >= $3 THEN now() END WHERE id = $1",
+        "UPDATE mail_outbox SET attempts = $2, next_attempt_at = now() + make_interval(secs => LEAST(10 * power(2, $2 - 1), 3600)), failed_at = CASE WHEN $2 >= $3 THEN now() END, recipient = CASE WHEN $2 < $3 THEN recipient END, subject = CASE WHEN $2 < $3 THEN subject END, text_body = CASE WHEN $2 < $3 THEN text_body END, html_body = CASE WHEN $2 < $3 THEN html_body END WHERE id = $1",
     )
     .bind(mail.id)
     .bind(attempts)
@@ -171,6 +188,7 @@ mod tests {
 
     use super::*;
     use crate::database::testing::fresh_database;
+    use crate::test_logs::captured_logs;
 
     static NEXT: AtomicU32 = AtomicU32::new(0);
 
@@ -201,7 +219,7 @@ mod tests {
 
     fn unique_token() -> String {
         format!(
-            "spike{}x{}",
+            "mail{}x{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         )
@@ -225,7 +243,9 @@ mod tests {
     async fn enqueue_test_mail(pool: &PgPool, token: &str) {
         let mut connection = pool.acquire().await.unwrap();
         let mail = Mail {
-            recipient: "Organizer <organizer@example.org>".to_owned(),
+            recipient: "organizer@example.org".to_owned(),
+            member_id: None,
+            invitation_id: None,
             subject: format!("Response {token}"),
             text: format!("Plain {token}"),
             html: format!("<p>Rich {token}</p>"),
@@ -267,36 +287,6 @@ mod tests {
         assert_eq!(mailpit_count(&token).await, 1);
     }
 
-    #[derive(Clone, Default)]
-    struct CapturedLogs(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
-
-    impl std::io::Write for CapturedLogs {
-        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            self.0.lock().unwrap().extend_from_slice(bytes);
-            Ok(bytes.len())
-        }
-
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-
-    /// Captures the logs of every test in this binary. A thread-local subscriber would miss events whose callsites other test threads registered first.
-    fn captured_logs() -> &'static CapturedLogs {
-        static LOGS: std::sync::OnceLock<CapturedLogs> = std::sync::OnceLock::new();
-        LOGS.get_or_init(|| {
-            let logs = CapturedLogs::default();
-            let writer = logs.clone();
-            let subscriber = tracing_subscriber::fmt()
-                .json()
-                .with_writer(move || writer.clone())
-                .finish();
-            tracing::subscriber::set_global_default(subscriber)
-                .expect("no other test may set a global subscriber");
-            logs
-        })
-    }
-
     #[tokio::test]
     async fn log_a_failed_mail_delivery() {
         let logs = captured_logs();
@@ -310,7 +300,7 @@ mod tests {
             .unwrap();
         deliver_due(&pool, &delivery(1)).await.unwrap();
 
-        let output = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+        let output = logs.text();
         let entries: Vec<serde_json::Value> = output
             .lines()
             .map(|line| serde_json::from_str(line).unwrap())
@@ -384,7 +374,7 @@ mod tests {
         deliver_due(&pool, &encrypted).await.unwrap();
         assert_eq!(state(&pool).await, (1, false, false));
         assert_eq!(mailpit_count(&token).await, 0);
-        let output = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+        let output = logs.text();
         let reasons: Vec<String> = output
             .lines()
             .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
@@ -447,6 +437,48 @@ mod tests {
         assert_eq!(mailpit_count(&token).await, 1);
     }
 
+    async fn content_left(pool: &PgPool) -> bool {
+        sqlx::query_scalar(
+            "SELECT recipient IS NOT NULL OR subject IS NOT NULL OR text_body IS NOT NULL OR html_body IS NOT NULL FROM mail_outbox",
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn accepted_mail_loses_its_content() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        enqueue_test_mail(&pool, &unique_token()).await;
+        assert!(content_left(&pool).await);
+        deliver_due(
+            &pool,
+            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
+        )
+        .await
+        .unwrap();
+        assert_eq!(state(&pool).await, (1, true, false));
+        assert!(!content_left(&pool).await);
+    }
+
+    #[tokio::test]
+    async fn failed_mail_loses_its_content() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        enqueue_test_mail(&pool, &unique_token()).await;
+        for attempt in 1..=3 {
+            assert!(
+                content_left(&pool).await,
+                "content must stay for attempt {attempt}"
+            );
+            make_due(&pool).await;
+            deliver_due(&pool, &delivery(1)).await.unwrap();
+        }
+        assert_eq!(state(&pool).await, (3, false, true));
+        assert!(!content_left(&pool).await);
+    }
+
     #[tokio::test]
     async fn accepted_mail() {
         let database = fresh_database().await;
@@ -469,7 +501,9 @@ mod tests {
         let link = format!("https://adunata.example.org/invitations/{token}");
         let mut connection = pool.acquire().await.unwrap();
         let mail = Mail {
-            recipient: "Organizer <organizer@example.org>".to_owned(),
+            recipient: "organizer@example.org".to_owned(),
+            member_id: None,
+            invitation_id: None,
             subject: format!("Links {token}"),
             text: format!("Answer here: {link}"),
             html: format!("<p>Answer <a href=\"{link}\">here</a>.</p>"),
@@ -488,12 +522,124 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn title_with_markup() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let token = unique_token();
+        let title = format!("<b>Probe</b> {token}");
+        let mut connection = pool.acquire().await.unwrap();
+        let mail = Mail {
+            recipient: "organizer@example.org".to_owned(),
+            member_id: None,
+            invitation_id: None,
+            subject: title.clone(),
+            text: title.clone(),
+            html: format!("<p>{}</p>", escape_html(&title)),
+        };
+        enqueue(&mut connection, &mail).await.unwrap();
+        drop(connection);
+        deliver_due(
+            &pool,
+            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
+        )
+        .await
+        .unwrap();
+        let html = mailpit_message(&token).await["HTML"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert!(html.contains("&lt;b&gt;Probe&lt;/b&gt;"), "{html}");
+        assert!(!html.contains("<b>"), "{html}");
+    }
+
+    #[tokio::test]
+    async fn mail_to_a_member_carries_the_name() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let token = unique_token();
+        let member_id: i64 = sqlx::query_scalar(
+            "INSERT INTO members (first_name, last_name, mail, language) VALUES ('Ada', 'Lovelace', 'ada@example.org', 'en') RETURNING id",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let mut connection = pool.acquire().await.unwrap();
+        let mail = Mail {
+            recipient: "ada@example.org".to_owned(),
+            member_id: Some(member_id),
+            invitation_id: None,
+            subject: format!("Named {token}"),
+            text: token.clone(),
+            html: format!("<p>{token}</p>"),
+        };
+        enqueue(&mut connection, &mail).await.unwrap();
+        drop(connection);
+        deliver_due(
+            &pool,
+            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
+        )
+        .await
+        .unwrap();
+        let message = mailpit_message(&token).await;
+        assert_eq!(message["To"][0]["Name"], "Ada Lovelace");
+        assert_eq!(message["To"][0]["Address"], "ada@example.org");
+    }
+
+    #[tokio::test]
+    async fn mail_waiting_for_a_member_goes_to_the_current_address() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let token = unique_token();
+        let member_id: i64 = sqlx::query_scalar(
+            "INSERT INTO members (first_name, last_name, mail, language) VALUES ('Ada', 'Lovelace', 'old@example.org', 'en') RETURNING id",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let mut connection = pool.acquire().await.unwrap();
+        let mail = Mail {
+            recipient: "old@example.org".to_owned(),
+            member_id: Some(member_id),
+            invitation_id: None,
+            subject: format!("Moved {token}"),
+            text: token.clone(),
+            html: format!("<p>{token}</p>"),
+        };
+        enqueue(&mut connection, &mail).await.unwrap();
+        drop(connection);
+        sqlx::query("UPDATE members SET mail = 'new@example.org'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        deliver_due(
+            &pool,
+            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            mailpit_message(&token).await["To"][0]["Address"],
+            "new@example.org"
+        );
+    }
+
+    #[test]
+    fn escape_every_character_with_meaning_in_html() {
+        assert_eq!(
+            escape_html(r#"<a href="x" title='y'>&</a>"#),
+            "&lt;a href=&quot;x&quot; title=&#39;y&#39;&gt;&amp;&lt;/a&gt;"
+        );
+    }
+
+    #[tokio::test]
     async fn action_fails_after_its_mail_was_added() {
         let database = fresh_database().await;
         let pool = database.pool();
         let mut transaction = pool.begin().await.unwrap();
         let mail = Mail {
-            recipient: "Organizer <organizer@example.org>".to_owned(),
+            recipient: "organizer@example.org".to_owned(),
+            member_id: None,
+            invitation_id: None,
             subject: "Rolled back".to_owned(),
             text: "Rolled back".to_owned(),
             html: "<p>Rolled back</p>".to_owned(),
