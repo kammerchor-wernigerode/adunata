@@ -241,8 +241,8 @@
                 # Prints the secret of the newest link of a kind in Mailpit, waiting until its mail arrives.
                 newest_secret() {
                   for _ in $(seq 300); do
-                    id=$(curl -s 'http://127.0.0.1:18025/api/v1/messages?limit=1' | grep -o '"ID":"[^"]*"' | head -1 | cut -d'"' -f4)
-                    found=$(curl -s "http://127.0.0.1:18025/api/v1/message/$id" | grep -o "/$1#[0-9a-f]\{64\}" | head -1)
+                    id=$(curl -s 'http://127.0.0.1:18025/api/v1/messages?limit=1' | grep -o '"ID":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+                    found=$(curl -s "http://127.0.0.1:18025/api/v1/message/$id" | grep -o "/$1#[0-9a-f]\{64\}" | head -1 || true)
                     if [ -n "$found" ]; then echo "''${found#*#}"; return; fi
                     sleep 0.1
                   done
