@@ -754,6 +754,11 @@ mod tests {
             .execute(pool)
             .await
             .unwrap();
+        sqlx::query("INSERT INTO responses (invitation_id, status, beds, changed_by) SELECT id, 'accepted', 'none', 'member' FROM invitations WHERE member_id = $1")
+            .bind(id)
+            .execute(pool)
+            .await
+            .unwrap();
 
         let (status, _) = instance
             .send("DELETE", &format!("/api/members/{id}"), &Value::Null)
@@ -769,6 +774,11 @@ mod tests {
         for table in ["mail_outbox", "sessions", "sign_in_links", "invitations"] {
             assert_eq!(count(pool, table, id).await, 0, "{table}");
         }
+        let responses: i64 = sqlx::query_scalar("SELECT count(*) FROM responses")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+        assert_eq!(responses, 0);
     }
 
     #[tokio::test]
