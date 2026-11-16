@@ -4,12 +4,12 @@
  * Adunata
  * OpenAPI spec version: 0.1.0
  */
-import type { Status } from './status';
+import type { ResponseStatus } from './responseStatus';
 
 /**
  * A member who accepted or accepted tentatively, as other invited members see them.
  */
 export interface Attendee {
   name: string;
-  status: Status;
+  status: ResponseStatus;
 }

@@ -31,7 +31,7 @@ const STEP_MINUTES: u8 = 30;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema, sqlx::Type)]
 #[serde(rename_all = "camelCase")]
 #[sqlx(type_name = "text", rename_all = "lowercase")]
-pub enum Status {
+pub enum ResponseStatus {
     Accepted,
     Tentative,
     Declined,
@@ -60,7 +60,7 @@ pub enum ChangedBy {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct ResponseValues {
-    pub status: Status,
+    pub status: ResponseStatus,
     #[serde(default, with = "wall_clock::option")]
     #[schema(value_type = Option<String>, example = "2027-03-14T18:00")]
     pub arrival: Option<PrimitiveDateTime>,
@@ -80,7 +80,7 @@ pub struct ResponseValues {
 impl ResponseValues {
     /// Clears what a decline makes meaningless and trims the comment.
     fn normalized(&self) -> Self {
-        let declined = self.status == Status::Declined;
+        let declined = self.status == ResponseStatus::Declined;
         let counted = matches!(self.beds, Some(Beds::Need | Beds::Offer));
         Self {
             status: self.status,
@@ -103,7 +103,7 @@ impl ResponseValues {
 
     fn validate(&self, gathering: &Gathering) -> Vec<FieldError> {
         let mut errors = Vec::new();
-        if self.status != Status::Declined {
+        if self.status != ResponseStatus::Declined {
             for (field, time) in [("arrival", self.arrival), ("departure", self.departure)] {
                 if let Some(time) = time
                     && !(on_a_step(time) && within(time, gathering))
@@ -232,7 +232,7 @@ pub struct InvitationPage {
 #[serde(rename_all = "camelCase")]
 pub struct Attendee {
     pub name: String,
-    pub status: Status,
+    pub status: ResponseStatus,
 }
 
 /// What invited members see of each other. Names and status for those who come, counts for everyone else, and never a period, beds, comment or mail address.
@@ -335,7 +335,7 @@ pub struct Overview {
 #[derive(sqlx::FromRow)]
 struct StoredResponse {
     invitation_id: i64,
-    status: Status,
+    status: ResponseStatus,
     arrival: Option<PrimitiveDateTime>,
     departure: Option<PrimitiveDateTime>,
     beds: Option<Beds>,
@@ -396,9 +396,9 @@ async fn build_overview(
                 last_name: invitation.last_name,
                 status: response.map_or(InvitationStatus::Pending, |response| {
                     match response.status {
-                        Status::Accepted => InvitationStatus::Accepted,
-                        Status::Tentative => InvitationStatus::Tentative,
-                        Status::Declined => InvitationStatus::Declined,
+                        ResponseStatus::Accepted => InvitationStatus::Accepted,
+                        ResponseStatus::Tentative => InvitationStatus::Tentative,
+                        ResponseStatus::Declined => InvitationStatus::Declined,
                     }
                 }),
                 arrival: response.and_then(|response| response.arrival),

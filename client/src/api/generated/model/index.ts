@@ -31,6 +31,7 @@ export * from './memberChange';
 export * from './newMember';
 export * from './overview';
 export * from './overviewRow';
+export * from './responseStatus';
 export * from './responseValues';
 export * from './signInRequest';
 export * from './spikeResponse';

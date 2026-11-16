@@ -5,13 +5,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Beds } from './beds';
-import type { Status } from './status';
+import type { ResponseStatus } from './responseStatus';
 
 /**
  * The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.
  */
 export interface ResponseValues {
-  status: Status;
+  status: ResponseStatus;
   /** @nullable */
   arrival?: string | null;
   /** @nullable */

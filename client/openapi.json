@@ -856,7 +856,7 @@
             "type": "string"
           },
           "status": {
-            "$ref": "#/components/schemas/Status"
+            "$ref": "#/components/schemas/ResponseStatus"
           }
         }
       },
@@ -1472,6 +1472,15 @@
           }
         }
       },
+      "ResponseStatus": {
+        "type": "string",
+        "description": "Whether a member comes. An invitation without a response is pending.",
+        "enum": [
+          "accepted",
+          "tentative",
+          "declined"
+        ]
+      },
       "ResponseValues": {
         "type": "object",
         "description": "The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.",
@@ -1480,7 +1489,7 @@
         ],
         "properties": {
           "status": {
-            "$ref": "#/components/schemas/Status"
+            "$ref": "#/components/schemas/ResponseStatus"
           },
           "arrival": {
             "type": [

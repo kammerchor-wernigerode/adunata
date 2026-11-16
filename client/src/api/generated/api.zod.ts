@@ -194,7 +194,7 @@ export const InvitationPageResponse = zod.object({
 }).describe('What a member sees of the gathering on the response page.'),
   "state": zod.enum(['open', 'begun', 'ended', 'cancelled']).describe('Whether a member can still answer through the personal link.'),
   "response": zod.union([zod.object({
-  "status": zod.enum(['ready', 'unavailable']),
+  "status": zod.enum(['accepted', 'tentative', 'declined']).describe('Whether a member comes. An invitation without a response is pending.'),
   "arrival": zod.string().nullish(),
   "departure": zod.string().nullish(),
   "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
@@ -204,7 +204,7 @@ export const InvitationPageResponse = zod.object({
   "attendees": zod.union([zod.object({
   "coming": zod.array(zod.object({
   "name": zod.string(),
-  "status": zod.enum(['ready', 'unavailable'])
+  "status": zod.enum(['accepted', 'tentative', 'declined']).describe('Whether a member comes. An invitation without a response is pending.')
 }).describe('A member who accepted or accepted tentatively, as other invited members see them.')),
   "declined": zod.int(),
   "pending": zod.int()
@@ -222,7 +222,7 @@ export const answerBodyCommentMax = 2000;
 
 
 export const AnswerBody = zod.object({
-  "status": zod.enum(['ready', 'unavailable']),
+  "status": zod.enum(['accepted', 'tentative', 'declined']).describe('Whether a member comes. An invitation without a response is pending.'),
   "arrival": zod.string().nullish(),
   "departure": zod.string().nullish(),
   "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
@@ -237,7 +237,7 @@ export const answerResponseCommentMax = 2000;
 
 
 export const AnswerResponse = zod.object({
-  "status": zod.enum(['ready', 'unavailable']),
+  "status": zod.enum(['accepted', 'tentative', 'declined']).describe('Whether a member comes. An invitation without a response is pending.'),
   "arrival": zod.string().nullish(),
   "departure": zod.string().nullish(),
   "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
@@ -264,7 +264,7 @@ export const answerForMemberBodyCommentMax = 2000;
 
 
 export const AnswerForMemberBody = zod.object({
-  "status": zod.enum(['ready', 'unavailable']),
+  "status": zod.enum(['accepted', 'tentative', 'declined']).describe('Whether a member comes. An invitation without a response is pending.'),
   "arrival": zod.string().nullish(),
   "departure": zod.string().nullish(),
   "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
@@ -279,7 +279,7 @@ export const answerForMemberResponseCommentMax = 2000;
 
 
 export const AnswerForMemberResponse = zod.object({
-  "status": zod.enum(['ready', 'unavailable']),
+  "status": zod.enum(['accepted', 'tentative', 'declined']).describe('Whether a member comes. An invitation without a response is pending.'),
   "arrival": zod.string().nullish(),
   "departure": zod.string().nullish(),
   "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
