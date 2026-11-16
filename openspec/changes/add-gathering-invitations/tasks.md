@@ -71,8 +71,8 @@
 
 - [x] 9.1 Remove the module `spike`, its client form and its tests, drop its table with a migration and move the mail outage scenario in arc42 section 10 to the invitation. Verify that the server and client build without warnings and that no file names `spike` any more
 - [x] 9.2 Write the end-to-end test that signs in through Mailpit, creates a gathering, invites a member, reads the link from Mailpit and answers through it. Run axe in light and dark mode on the response form and the overview and assert that neither scrolls horizontally at 390 px with 200 % text. Name it as the end-to-end example in arc42 section 8 and add the scenario "Member form at 200 % on a phone" to arc42 section 10
-- [ ] 9.3 Point the memory check in `flake.nix` at the response form with a link it gets in a set-up step, measure under load and record the result in arc42 section 10. Verify that it stays below 150 MB
-- [ ] 9.4 Update arc42 sections 1 and 3 for the new capabilities and partners, run `openspec validate add-gathering-invitations --strict`, the NixOS VM test and a check of every relative link in `docs/`, and verify that all pass
+- [x] 9.3 Point the memory check in `flake.nix` at the response form with a link it gets in a set-up step, measure under load and record the result in arc42 section 10. Verify that it stays below 150 MB
+- [x] 9.4 Update arc42 sections 1 and 3 for the new capabilities and partners, run `openspec validate add-gathering-invitations --strict`, the NixOS VM test and a check of every relative link in `docs/`, and verify that all pass
 
 ## Workflow follow-up
 

@@ -24,7 +24,7 @@ The quality goals in [Introduction and goals](01-introduction-and-goals.md) name
 
 |Scenario|Context|Stimulus|Response|Verified by|
 |-|-|-|-|-|
-|Memory under load|The statically linked release binary runs on Linux next to PostgreSQL and Mailpit.|For 30 seconds 4 connections store responses through a personal link, 3 load the response page and 3 load the client.|Peak resident memory of Adunata stays below 150 MB.|The check `memory` in [`flake.nix`](../../flake.nix)|
+|Memory under load|The statically linked release binary runs on Linux next to PostgreSQL and Mailpit.|For 30 seconds 4 connections store responses through a personal link, 3 load the response page and 3 load the client.|Peak resident memory of Adunata stays below 150 MB. The latest measurement was 8 MB at about 1400 stored responses per second.|The check `memory` in [`flake.nix`](../../flake.nix)|
 
 ## Accessibility
 
