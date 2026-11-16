@@ -230,23 +230,51 @@
                   pkgs.postgresql_17
                   pkgs.mailpit
                   pkgs.oha
+                  pkgs.curl
                 ];
                 SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
               }
               ''
                 ${startInstance}
+                api=http://127.0.0.1:18080/api
 
-                oha --no-tui -z 30s -c 5 -m POST \
-                  -H 'content-type: application/json' \
-                  -d '{"name":"Load","attendance":"accepted","beds":1}' \
-                  http://127.0.0.1:18080/api/spike-responses > post.txt &
-                postPid=$!
-                oha --no-tui -z 30s -c 5 http://127.0.0.1:18080/ > get.txt
-                wait "$postPid"
+                # Prints the secret of the newest link of a kind in Mailpit, waiting until its mail arrives.
+                newest_secret() {
+                  for _ in $(seq 300); do
+                    id=$(curl -s 'http://127.0.0.1:18025/api/v1/messages?limit=1' | grep -o '"ID":"[^"]*"' | head -1 | cut -d'"' -f4)
+                    found=$(curl -s "http://127.0.0.1:18025/api/v1/message/$id" | grep -o "/$1#[0-9a-f]\{64\}" | head -1)
+                    if [ -n "$found" ]; then echo "''${found#*#}"; return; fi
+                    sleep 0.1
+                  done
+                  echo "no $1 link arrived" >&2
+                  exit 1
+                }
+
+                curl -sf -H 'content-type: application/json' -d '{"mail":"organizer@example.org"}' "$api/sign-in-requests"
+                signIn=$(newest_secret sign-in)
+                cookie=$(curl -sf -D - -o /dev/null -X POST -H "Authorization: Bearer $signIn" "$api/sessions" \
+                  | grep -i '^set-cookie:' | sed 's/^[^:]*: //; s/;.*//')
+                gathering=$(curl -sf -H "Cookie: $cookie" -H 'content-type: application/json' \
+                  -d "{\"title\":\"Load\",\"location\":\"Stage\",\"firstDay\":\"$(date -d '+30 days' +%F)\",\"lastDay\":\"$(date -d '+32 days' +%F)\"}" \
+                  "$api/gatherings" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+                curl -sf -H "Cookie: $cookie" -H 'content-type: application/json' -d '{}' "$api/gatherings/$gathering/invitations"
+                secret=$(newest_secret invitation)
+
+                oha --no-tui -z 30s -c 4 -m PUT \
+                  -H "Authorization: Bearer $secret" -H 'content-type: application/json' \
+                  -d '{"status":"accepted","beds":"offer","bedCount":2,"comment":"Load"}' \
+                  "$api/invitation/response" > put.txt &
+                putPid=$!
+                oha --no-tui -z 30s -c 3 -H "Authorization: Bearer $secret" "$api/invitation" > page.txt &
+                pagePid=$!
+                oha --no-tui -z 30s -c 3 http://127.0.0.1:18080/invitation > client.txt
+                wait "$putPid" "$pagePid"
 
                 peak=$(awk '/VmHWM/ { print $2 }' "/proc/$adunataPid/status")
                 echo "Peak resident memory: $((peak / 1024)) MB"
-                grep -E 'Requests/sec|Success rate' post.txt get.txt
+                grep -E 'Requests/sec|Success rate' put.txt page.txt client.txt
+                grep -q '\[200\]' put.txt
+                grep -q '\[200\]' page.txt
                 kill "$adunataPid"
                 pg_ctl stop --wait --silent
                 test "$peak" -lt $((150 * 1024))

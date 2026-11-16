@@ -145,4 +145,4 @@ Tests run at several levels. Each level checks what the level below cannot see. 
 |End to end|A few complete flows in a browser against the real binary, PostgreSQL and Mailpit, with accessibility checks by axe in light and dark mode, contrast of controls and reflow at 390 px with 200 % text. Runs on Linux.|[`client/e2e/invitation.e2e.ts`](../../client/e2e/invitation.e2e.ts)|
 |NixOS VM|Each supported installation, meaning the NixOS module, the OCI image and the release binary with its example unit, starts in a virtual machine, migrates the database, reports healthy and serves the client. Runs on Linux with KVM.|[`nix/test.nix`](../../nix/test.nix)|
 
-The check `memory` in [`flake.nix`](../../flake.nix) measures peak memory of the release build under load on Linux and fails above 150 MB.
+The check `memory` in [`flake.nix`](../../flake.nix) measures peak memory of the release build under load on Linux and fails above 150 MB. A set-up step signs in through Mailpit, creates a gathering, invites and reads the personal link from Mailpit, so the load hits the response page and stores responses.
