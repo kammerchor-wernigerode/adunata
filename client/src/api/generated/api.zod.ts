@@ -168,7 +168,15 @@ export const InvitationPageResponse = zod.object({
   "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
   "bedCount": zod.int().min(1).max(invitationPageResponseResponseOneBedCountMax).nullish(),
   "comment": zod.string().max(invitationPageResponseResponseOneCommentMax).nullish()
-}).describe('The member\'s stored response, which the form shows again.'),zod.null()]).optional()
+}).describe('The member\'s stored response, which the form shows again.'),zod.null()]).optional(),
+  "attendees": zod.union([zod.object({
+  "coming": zod.array(zod.object({
+  "name": zod.string(),
+  "status": zod.enum(['ready', 'unavailable'])
+}).describe('A member who accepted or accepted tentatively, as other invited members see them.')),
+  "declined": zod.int(),
+  "pending": zod.int()
+}).describe('Who comes. Absent once the gathering has ended or when it is cancelled.'),zod.null()]).optional()
 }).describe('The response page of one invitation as its member sees it.')
 
 

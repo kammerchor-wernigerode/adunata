@@ -809,6 +809,47 @@
           "declined"
         ]
       },
+      "Attendee": {
+        "type": "object",
+        "description": "A member who accepted or accepted tentatively, as other invited members see them.",
+        "required": [
+          "name",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          }
+        }
+      },
+      "Attendees": {
+        "type": "object",
+        "description": "What invited members see of each other. Names and status for those who come, counts for everyone else, and never a period, beds, comment or mail address.",
+        "required": [
+          "coming",
+          "declined",
+          "pending"
+        ],
+        "properties": {
+          "coming": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Attendee"
+            }
+          },
+          "declined": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pending": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "Beds": {
         "type": "string",
         "description": "Whether a member who comes needs beds, offers beds or needs none.",
@@ -1049,6 +1090,17 @@
               {
                 "$ref": "#/components/schemas/ResponseValues",
                 "description": "The member's stored response, which the form shows again."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attendees": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Attendees",
+                "description": "Who comes. Absent once the gathering has ended or when it is cancelled."
               },
               {
                 "type": "null"

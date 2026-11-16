@@ -222,6 +222,48 @@ pub struct InvitationPage {
     pub state: LinkState,
     /// The member's stored response, which the form shows again.
     pub response: Option<ResponseValues>,
+    /// Who comes. Absent once the gathering has ended or when it is cancelled.
+    pub attendees: Option<Attendees>,
+}
+
+/// A member who accepted or accepted tentatively, as other invited members see them.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct Attendee {
+    pub name: String,
+    pub status: Status,
+}
+
+/// What invited members see of each other. Names and status for those who come, counts for everyone else, and never a period, beds, comment or mail address.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Attendees {
+    pub coming: Vec<Attendee>,
+    pub declined: i64,
+    pub pending: i64,
+}
+
+async fn attendees(
+    connection: &mut PgConnection,
+    gathering_id: i64,
+) -> Result<Attendees, sqlx::Error> {
+    let coming = sqlx::query_as(
+        "SELECT members.first_name || ' ' || members.last_name AS name, responses.status FROM invitations JOIN members ON members.id = invitations.member_id JOIN responses ON responses.invitation_id = invitations.id WHERE invitations.gathering_id = $1 AND responses.status IN ('accepted', 'tentative') ORDER BY responses.status, lower(members.first_name), lower(members.last_name)",
+    )
+    .bind(gathering_id)
+    .fetch_all(&mut *connection)
+    .await?;
+    let (declined, pending): (i64, i64) = sqlx::query_as(
+        "SELECT count(*) FILTER (WHERE responses.status = 'declined'), count(*) FILTER (WHERE responses.invitation_id IS NULL) FROM invitations LEFT JOIN responses ON responses.invitation_id = invitations.id WHERE invitations.gathering_id = $1",
+    )
+    .bind(gathering_id)
+    .fetch_one(connection)
+    .await?;
+    Ok(Attendees {
+        coming,
+        declined,
+        pending,
+    })
 }
 
 pub fn router() -> OpenApiRouter<AppState> {
@@ -344,9 +386,18 @@ async fn invitation_page(State(state): State<AppState>, link: PersonalLink) -> R
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     let gathering = link.gathering;
+    let link_state = link_state(&gathering, state.time_zone.today());
+    let attendees = if matches!(link_state, LinkState::Open | LinkState::Begun) {
+        match attendees(&mut connection, gathering.id).await {
+            Ok(attendees) => Some(attendees),
+            Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        }
+    } else {
+        None
+    };
     Json(InvitationPage {
         first_name: link.member.first_name,
-        state: link_state(&gathering, state.time_zone.today()),
+        state: link_state,
         gathering: InvitedGathering {
             title: gathering.title,
             location: gathering.location,
@@ -355,6 +406,7 @@ async fn invitation_page(State(state): State<AppState>, link: PersonalLink) -> R
             last_day: gathering.last_day,
         },
         response,
+        attendees,
     })
     .into_response()
 }
@@ -756,6 +808,102 @@ mod tests {
         assert_eq!(page["state"], "open");
         assert_eq!(page["response"]["status"], "tentative");
         assert_eq!(page["response"]["bedCount"], 3);
+    }
+
+    /// Invites members with the given responses next to Clara, who opens her link. `None` leaves an invitation pending.
+    async fn gathering_with(
+        pool: &PgPool,
+        responses: &[(&str, Option<&str>, Option<&str>)],
+    ) -> String {
+        let secret = invited(pool, 10, 12).await;
+        let gathering_id: i64 = sqlx::query_scalar("SELECT id FROM gatherings")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+        for (name, status, comment) in responses {
+            let member_id = member(pool, name, "de").await;
+            let invitation_id: i64 = sqlx::query_scalar(
+                "INSERT INTO invitations (gathering_id, member_id) VALUES ($1, $2) RETURNING id",
+            )
+            .bind(gathering_id)
+            .bind(member_id)
+            .fetch_one(pool)
+            .await
+            .unwrap();
+            if let Some(status) = status {
+                let beds = if *status == "declined" {
+                    None
+                } else {
+                    Some("none")
+                };
+                sqlx::query("INSERT INTO responses (invitation_id, status, beds, comment, changed_by) VALUES ($1, $2, $3, $4, 'member')")
+                    .bind(invitation_id)
+                    .bind(status)
+                    .bind(beds)
+                    .bind(comment)
+                    .execute(pool)
+                    .await
+                    .unwrap();
+            }
+        }
+        secret
+    }
+
+    #[tokio::test]
+    async fn member_looks_at_attendees() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = gathering_with(
+            &pool,
+            &[
+                ("Anna", Some("accepted"), None),
+                ("Ben", Some("accepted"), None),
+                ("Clemens", Some("accepted"), None),
+                ("Felix", Some("tentative"), None),
+                ("Moritz", Some("declined"), None),
+                ("Sophie", Some("declined"), None),
+            ],
+        )
+        .await;
+        let (_, page) = open(&pool, Some(&secret)).await;
+        assert_eq!(
+            page["attendees"],
+            json!({
+                "coming": [
+                    { "name": "Anna Tester", "status": "accepted" },
+                    { "name": "Ben Tester", "status": "accepted" },
+                    { "name": "Clemens Tester", "status": "accepted" },
+                    { "name": "Felix Tester", "status": "tentative" },
+                ],
+                "declined": 2,
+                "pending": 1,
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn comment_of_another_member() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = gathering_with(
+            &pool,
+            &[("Anna", Some("accepted"), Some("Ich bringe Kuchen mit"))],
+        )
+        .await;
+        let (_, page) = open(&pool, Some(&secret)).await;
+        let text = page.to_string();
+        assert!(!text.contains("Kuchen"), "{text}");
+        assert!(!text.contains("example.org"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn no_attendees_after_the_gathering() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = gathering_with(&pool, &[("Anna", Some("accepted"), None)]).await;
+        move_start(&pool, -3, -1).await;
+        let (_, page) = open(&pool, Some(&secret)).await;
+        assert_eq!(page["attendees"], Value::Null);
     }
 
     #[tokio::test]

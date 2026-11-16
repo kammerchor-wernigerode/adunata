@@ -4,6 +4,7 @@
  * Adunata
  * OpenAPI spec version: 0.1.0
  */
+import type { Attendees } from './attendees';
 import type { InvitedGathering } from './invitedGathering';
 import type { LinkState } from './linkState';
 import type { ResponseValues } from './responseValues';
@@ -16,4 +17,5 @@ export interface InvitationPage {
   gathering: InvitedGathering;
   state: LinkState;
   response?: ResponseValues | null;
+  attendees?: Attendees | null;
 }

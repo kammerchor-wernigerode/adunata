@@ -6,6 +6,8 @@
  */
 
 export * from './attendance';
+export * from './attendee';
+export * from './attendees';
 export * from './beds';
 export * from './cause';
 export * from './errorCode';
