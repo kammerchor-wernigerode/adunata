@@ -179,6 +179,7 @@ response-saved = Response saved. You can change it until { $day }.
 response-saved-for = Response of { $name } saved.
 response-visibility = Other invited members see your name and whether you come.
 response-yours = Your response
+response-error-begun = The gathering has begun, so your response can no longer change here. Ask your organizers.
 response-error-beds = Choose whether you need or offer beds.
 response-error-bed-count = State how many beds, from 1 to 20.
 response-error-bed-count-too-large = State at most 20 beds.

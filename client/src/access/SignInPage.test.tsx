@@ -76,4 +76,17 @@ describe('sign-in page', () => {
     window.dispatchEvent(new HashChangeEvent('hashchange'))
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy()
   })
+
+  it('forgets an invalid link when a new one opens in the same tab', async () => {
+    signedOut()
+    server.use(http.post('*/api/sessions', () => new HttpResponse(null, { status: 401 })))
+    window.history.replaceState(null, '', '/sign-in#old')
+    renderApp('/sign-in')
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    window.location.hash = 'new'
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
 })

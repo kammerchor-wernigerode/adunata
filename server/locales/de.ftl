@@ -179,6 +179,7 @@ response-saved = Antwort gespeichert. Du kannst sie bis { $day } ändern.
 response-saved-for = Antwort von { $name } gespeichert.
 response-visibility = Andere Eingeladene sehen deinen Namen und ob du kommst.
 response-yours = Deine Antwort
+response-error-begun = Das Treffen hat begonnen, deshalb lässt sich deine Antwort hier nicht mehr ändern. Wende dich an deine Organisatoren.
 response-error-beds = Wähle, ob du Betten brauchst oder anbietest.
 response-error-bed-count = Gib an, wie viele Betten, von 1 bis 20.
 response-error-bed-count-too-large = Gib höchstens 20 Betten an.

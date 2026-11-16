@@ -139,4 +139,36 @@ describe('response page', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Sat, March 13/ })).toBeTruthy())
     expect(await violations(container)).toEqual([])
   })
+
+  it('explains a refusal because the gathering has begun', async () => {
+    openLink(() => HttpResponse.json(page))
+    server.use(
+      http.put('*/api/invitation/response', () =>
+        HttpResponse.json({ errors: [{ field: 'gathering', code: 'begun' }] }, { status: 422 }),
+      ),
+    )
+    await userEvent.click(await screen.findByRole('radio', { name: 'No' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save response' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('The gathering has begun')
+    expect(screen.getByRole('button', { name: 'Save response' }).hasAttribute('disabled')).toBe(false)
+  })
+
+  it('frees the save button when saving fails unexpectedly', async () => {
+    openLink(() => HttpResponse.json(page))
+    server.use(http.put('*/api/invitation/response', () => new HttpResponse('not json', { status: 422 })))
+    await userEvent.click(await screen.findByRole('radio', { name: 'No' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save response' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Something went wrong. Try again.')
+    expect(screen.getByRole('button', { name: 'Save response' }).hasAttribute('disabled')).toBe(false)
+  })
+
+  it('rejects a bed count that is no whole number from 1 to 20', async () => {
+    openLink(() => HttpResponse.json(page))
+    await userEvent.click(await screen.findByRole('radio', { name: 'I need a bed' }))
+    await userEvent.type(screen.getByLabelText('How many?'), '2.5')
+    await userEvent.click(screen.getByRole('button', { name: 'Save response' }))
+    const count = screen.getByLabelText('How many?')
+    expect(count.getAttribute('aria-invalid')).toBe('true')
+    expect(document.activeElement).toBe(count)
+  })
 })

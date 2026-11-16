@@ -11,7 +11,7 @@ import { useTranslate } from '@/l10n/translate'
 
 export function SignInPage() {
   const [secret, setSecret] = useFragmentSecret()
-  return secret ? <ConfirmSignIn secret={secret} onRequestNew={() => setSecret('')} /> : <RequestSignIn />
+  return secret ? <ConfirmSignIn key={secret} secret={secret} onRequestNew={() => setSecret('')} /> : <RequestSignIn />
 }
 
 function RequestSignIn() {

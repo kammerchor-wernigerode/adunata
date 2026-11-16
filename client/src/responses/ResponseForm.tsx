@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { formatDay, formatWallClock, wallClock } from '@/l10n/dates'
 import { useLocale, useTranslate, type Translate } from '@/l10n/translate'
 
+const formFields = ['status', 'arrival', 'departure', 'beds', 'bedCount', 'comment']
 const statuses: Status[] = ['accepted', 'tentative', 'declined']
 const bedChoices: Beds[] = ['need', 'offer', 'none']
 
@@ -47,6 +48,12 @@ function message(translate: Translate, error: ServerFieldError): string {
       return translate('response-error-departure-before-arrival')
     case 'invalid':
       return translate('response-error-time')
+    case 'begun':
+      return translate('response-error-begun')
+    case 'ended':
+      return translate('invitation-state-ended')
+    case 'cancelled':
+      return translate('invitation-state-cancelled')
     default:
       return translate('error-unexpected')
   }
@@ -90,7 +97,9 @@ export function ResponseForm({
       if (Boolean(value.day) !== Boolean(value.time)) found[field] = translate('response-error-day-and-time')
     }
     if (beds === '') found.beds = translate('response-error-beds')
-    if ((beds === 'need' || beds === 'offer') && bedCount === '') found.bedCount = translate('response-error-bed-count')
+    if ((beds === 'need' || beds === 'offer') && !/^(?:[1-9]|1\d|20)$/.test(bedCount.trim())) {
+      found.bedCount = translate('response-error-bed-count')
+    }
     return found
   }
 
@@ -100,28 +109,36 @@ export function ResponseForm({
     const found = incomplete()
     if (Object.keys(found).length === 0) {
       setBusy(true)
-      const result = await onSave({
-        status,
-        arrival: coming ? combined(arrival) : null,
-        departure: coming ? combined(departure) : null,
-        beds: coming && beds !== '' ? beds : null,
-        bedCount: coming && (beds === 'need' || beds === 'offer') ? Number(bedCount) : null,
-        comment: comment.trim() === '' ? null : comment,
-      })
-      setBusy(false)
+      let result: SaveResult
+      try {
+        result = await onSave({
+          status,
+          arrival: coming ? combined(arrival) : null,
+          departure: coming ? combined(departure) : null,
+          beds: coming && beds !== '' ? beds : null,
+          bedCount: coming && (beds === 'need' || beds === 'offer') ? Number(bedCount) : null,
+          comment: comment.trim() === '' ? null : comment,
+        })
+      } catch {
+        result = { status: 'failed' }
+      } finally {
+        setBusy(false)
+      }
       if (result.status === 'saved') {
         setErrors({})
         setSaved(result.values)
         return
       }
       if (result.status === 'invalid') {
-        for (const error of result.errors) found[error.field] = message(translate, error)
+        for (const error of result.errors) {
+          found[formFields.includes(error.field) ? error.field : 'form'] = message(translate, error)
+        }
       } else {
         found.form = translate('error-unexpected')
       }
     }
     setErrors(found)
-    const first = ['status', 'arrival', 'departure', 'beds', 'bedCount', 'comment'].find((field) => found[field])
+    const first = formFields.find((field) => found[field])
     if (first) document.getElementById(`${id}-${first}`)?.focus()
   }
 

@@ -36,6 +36,7 @@ export function ResponsePage() {
           <>
             <p className="mb-4 text-sm text-muted-foreground">{translate('response-visibility')}</p>
             <ResponseForm
+              key={secret}
               question={translate('response-question', { firstName })}
               firstDay={gathering.firstDay}
               lastDay={gathering.lastDay}
