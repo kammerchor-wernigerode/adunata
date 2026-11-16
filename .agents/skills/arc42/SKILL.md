@@ -113,6 +113,8 @@ Do not use Mermaid's C4 diagrams, which are experimental. Introduce each diagram
 
 An OpenSpec change that affects the architecture names the affected sections in its `design.md`. Its `tasks.md` holds a task to update those sections and to write or supersede the decision records.
 
+A change to the development environment alone affects no section and needs no decision record. That covers services for development, the development shell, direnv and tooling for worktrees. The README documents it. Only the parts that an operator or the running system notices count, such as a rule for how the server reads its configuration.
+
 |The change|Update|
 |-|-|
 |adds or removes a building block or an interface|3, 5|
