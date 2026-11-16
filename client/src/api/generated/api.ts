@@ -36,6 +36,7 @@ import type {
   Member,
   MemberChange,
   NewMember,
+  ResponseValues,
   SignInRequest,
   SpikeResponse,
   ValidationErrors
@@ -1242,6 +1243,123 @@ export function useInvitationPage<TData = Awaited<ReturnType<typeof invitationPa
 
 
 
+
+export type answerResponse200 = {
+  data: ResponseValues
+  status: 200
+}
+
+export type answerResponse404 = {
+  data: void
+  status: 404
+}
+
+export type answerResponse422 = {
+  data: ValidationErrors
+  status: 422
+}
+
+export type answerResponseSuccess = (answerResponse200) & {
+  headers: Headers;
+};
+export type answerResponseError = (answerResponse404 | answerResponse422) & {
+  headers: Headers;
+};
+
+export type answerResponse = (answerResponseSuccess | answerResponseError)
+
+export const getAnswerUrl = () => {
+
+
+
+
+  return `/api/invitation/response`
+}
+
+/**
+ * @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`.
+ */
+export const answer = async (responseValues: ResponseValues, options?: RequestInit): Promise<answerResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+const res = await fetch(getAnswerUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(responseValues)
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: answerResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as answerResponse
+}
+
+
+
+
+
+export const getAnswerMutationKey = () => ['answer'] as const;
+
+export const getAnswerMutationOptions = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answer>>, TError,AnswerMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof answer>>, TError,AnswerMutationVariables, TContext> => {
+
+const mutationKey = getAnswerMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof answer>>, AnswerMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  answer(data,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AnswerMutationResult = NonNullable<Awaited<ReturnType<typeof answer>>>
+    export type AnswerMutationBody = ResponseValues
+    export type AnswerMutationError = void | ValidationErrors
+    export type AnswerMutationVariables = {data: ResponseValues}
+
+    /** @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`. */
+export const useAnswer = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answer>>, TError,AnswerMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof answer>>,
+        TError,
+        AnswerMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAnswerMutationOptions(options), queryClient);
+    }
 
 export type resendResponse204 = {
   data: void

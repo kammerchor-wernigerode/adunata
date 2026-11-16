@@ -21,4 +21,6 @@ export const ErrorCode = {
   beforeFirstDay: 'beforeFirstDay',
   ended: 'ended',
   cancelled: 'cancelled',
+  begun: 'begun',
+  beforeArrival: 'beforeArrival',
 } as const;

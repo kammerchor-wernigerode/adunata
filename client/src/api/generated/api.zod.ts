@@ -145,6 +145,12 @@ export const HealthResponse = zod.object({
 /**
  * @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`.
  */
+export const invitationPageResponseResponseOneBedCountMax = 20;
+
+export const invitationPageResponseResponseOneCommentMax = 2000;
+
+
+
 export const InvitationPageResponse = zod.object({
   "firstName": zod.string(),
   "gathering": zod.object({
@@ -154,8 +160,50 @@ export const InvitationPageResponse = zod.object({
   "firstDay": zod.iso.date(),
   "lastDay": zod.iso.date()
 }).describe('What a member sees of the gathering on the response page.'),
-  "state": zod.enum(['open', 'begun', 'ended', 'cancelled']).describe('Whether a member can still answer through the personal link.')
+  "state": zod.enum(['open', 'begun', 'ended', 'cancelled']).describe('Whether a member can still answer through the personal link.'),
+  "response": zod.union([zod.object({
+  "status": zod.enum(['ready', 'unavailable']),
+  "arrival": zod.string().nullish(),
+  "departure": zod.string().nullish(),
+  "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
+  "bedCount": zod.int().min(1).max(invitationPageResponseResponseOneBedCountMax).nullish(),
+  "comment": zod.string().max(invitationPageResponseResponseOneCommentMax).nullish()
+}).describe('The member\'s stored response, which the form shows again.'),zod.null()]).optional()
 }).describe('The response page of one invitation as its member sees it.')
+
+
+/**
+ * @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`.
+ */
+export const answerBodyBedCountMax = 20;
+
+export const answerBodyCommentMax = 2000;
+
+
+
+export const AnswerBody = zod.object({
+  "status": zod.enum(['ready', 'unavailable']),
+  "arrival": zod.string().nullish(),
+  "departure": zod.string().nullish(),
+  "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
+  "bedCount": zod.int().min(1).max(answerBodyBedCountMax).nullish(),
+  "comment": zod.string().max(answerBodyCommentMax).nullish()
+}).describe('The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.')
+
+export const answerResponseBedCountMax = 20;
+
+export const answerResponseCommentMax = 2000;
+
+
+
+export const AnswerResponse = zod.object({
+  "status": zod.enum(['ready', 'unavailable']),
+  "arrival": zod.string().nullish(),
+  "departure": zod.string().nullish(),
+  "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
+  "bedCount": zod.int().min(1).max(answerResponseBedCountMax).nullish(),
+  "comment": zod.string().max(answerResponseCommentMax).nullish()
+}).describe('The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.')
 
 
 export const ResendParams = zod.object({

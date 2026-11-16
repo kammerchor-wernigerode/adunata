@@ -361,6 +361,47 @@
         }
       }
     },
+    "/api/invitation/response": {
+      "put": {
+        "summary": "Expects the secret of the personal link as `Authorization: Bearer <secret>`.",
+        "operationId": "answer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponseValues"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Response stored, as the page shows it now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseValues"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The link is unknown or revoked"
+          },
+          "422": {
+            "description": "Response invalid, or the gathering has begun, ended or was cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/invitations/{id}/resend": {
       "post": {
         "operationId": "resend",
@@ -713,6 +754,15 @@
           "declined"
         ]
       },
+      "Beds": {
+        "type": "string",
+        "description": "Whether a member who comes needs beds, offers beds or needs none.",
+        "enum": [
+          "need",
+          "offer",
+          "none"
+        ]
+      },
       "Cause": {
         "type": "string",
         "enum": [
@@ -731,7 +781,9 @@
           "lastOrganizer",
           "beforeFirstDay",
           "ended",
-          "cancelled"
+          "cancelled",
+          "begun",
+          "beforeArrival"
         ]
       },
       "FieldError": {
@@ -936,6 +988,17 @@
           },
           "state": {
             "$ref": "#/components/schemas/LinkState"
+          },
+          "response": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ResponseValues",
+                "description": "The member's stored response, which the form shows again."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -1128,6 +1191,58 @@
           },
           "language": {
             "type": "string"
+          }
+        }
+      },
+      "ResponseValues": {
+        "type": "object",
+        "description": "The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "arrival": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "2027-03-14T18:00"
+          },
+          "departure": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "2027-03-16T15:00"
+          },
+          "beds": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Beds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bedCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "maximum": 20,
+            "minimum": 1
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
           }
         }
       },

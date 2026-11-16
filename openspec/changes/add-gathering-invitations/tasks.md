@@ -58,7 +58,7 @@
 
 ## 8. Responses and the overview
 
-- [ ] 8.1 Add the module `responses` with status, period, beds, comment and who changed it last. Verify with tests for the scenarios "Accept", "Decline", "Period outside the gathering", "Leave before arrival", "Time between the steps", "Offer beds", "Need without a count", "Comment with a decline" and a test that rejects 21 beds
+- [x] 8.1 Add the module `responses` with status, period, beds, comment and who changed it last. Verify with tests for the scenarios "Accept", "Decline", "Period outside the gathering", "Leave before arrival", "Time between the steps", "Offer beds", "Need without a count", "Comment with a decline" and a test that rejects 21 beds
 - [ ] 8.2 Let members change a response until the gathering begins and organizers at any time. Verify with tests for the scenarios "Change from tentative to accepted", "Open the link after the start", "Answer on a member's behalf" and "Member opens the link afterwards"
 - [ ] 8.3 Show members the attendees and the counts. Verify with tests for the scenarios "Member looks at attendees" and "Comment of another member"
 - [ ] 8.4 Add the overview with totals, beds, filter, the mark for periods outside a changed span and failed invitation mail with resend. Verify with tests for the scenarios "Plan beds", "Filter by status", "No period stated", "Shorten a gathering" and a test that a failed mail appears at its invitation

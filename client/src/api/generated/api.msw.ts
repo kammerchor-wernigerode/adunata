@@ -20,6 +20,7 @@ import type {
 
 import {
   Attendance,
+  Beds,
   Cause,
   LinkState,
   MailState,
@@ -38,6 +39,7 @@ import type {
   Member,
   MemberChange,
   NewMember,
+  ResponseValues,
   SignInRequest,
   SpikeResponse
 } from './model';
@@ -59,7 +61,11 @@ export const getInviteResponseMock = (overrideResponse: Partial<Extract<Invited,
 
 export const getHealthResponseMock = (overrideResponse: Partial<Extract<Health, object>> = {}): Health => ({status: faker.helpers.arrayElement(Object.values(Status)), cause: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Cause)),null,]), ...overrideResponse})
 
-export const getInvitationPageResponseMock = (overrideResponse: Partial<Extract<InvitationPage, object>> = {}): InvitationPage => ({firstName: faker.string.alpha({length: {min: 10, max: 20}}), gathering: {title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10)}, state: faker.helpers.arrayElement(Object.values(LinkState)), ...overrideResponse})
+export const getInvitationPageResponseResponseValuesMock = (overrideResponse: Partial<ResponseValues> = {}): ResponseValues => ({...{status: faker.helpers.arrayElement(Object.values(Status)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int({min: 1, max: 20}), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 2000}}), null])}, ...overrideResponse});
+
+export const getInvitationPageResponseMock = (overrideResponse: Partial<Extract<InvitationPage, object>> = {}): InvitationPage => ({firstName: faker.string.alpha({length: {min: 10, max: 20}}), gathering: {title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10)}, state: faker.helpers.arrayElement(Object.values(LinkState)), response: faker.helpers.arrayElement([{...getInvitationPageResponseResponseValuesMock()},null,]), ...overrideResponse})
+
+export const getAnswerResponseMock = (overrideResponse: Partial<Extract<ResponseValues, object>> = {}): ResponseValues => ({status: faker.helpers.arrayElement(Object.values(Status)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int({min: 1, max: 20}), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 2000}}), null]), ...overrideResponse})
 
 export const getLegalLinksResponseMock = (overrideResponse: Partial<Extract<LegalLinks, object>> = {}): LegalLinks => ({privacyUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), imprintUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
 
@@ -190,6 +196,18 @@ export const getInvitationPageMockHandler = (overrideResponse?: InvitationPage |
     return HttpResponse.json(overrideResponse !== undefined
     ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
     : getInvitationPageResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
+export const getAnswerMockHandler = (overrideResponse?: ResponseValues | ((info: Parameters<HttpResponseResolver<PathParams, ResponseValues>>[0]) => Promise<ResponseValues> | ResponseValues), options?: RequestHandlerOptions) => {
+  return http.put<PathParams, ResponseValues>('*/api/invitation/response', async (info: Parameters<HttpResponseResolver<PathParams, ResponseValues>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getAnswerResponseMock(),
       { status: 200
       })
   }, options)
@@ -339,6 +357,7 @@ export const getAdunataMock = () => [
   getInviteMockHandler(),
   getHealthMockHandler(),
   getInvitationPageMockHandler(),
+  getAnswerMockHandler(),
   getResendMockHandler(),
   getRevokeMockHandler(),
   getLegalLinksMockHandler(),

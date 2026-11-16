@@ -24,7 +24,6 @@ use crate::validation::{ErrorCode, field_error, invalid};
 
 /// An invitation opened through its personal link. The `responses` module takes it as an argument, so a request without a valid secret in `Authorization: Bearer` fails with status 404 before any handler runs. An unknown and a revoked secret fail alike and reveal no gathering or member.
 pub struct PersonalLink {
-    #[expect(dead_code, reason = "no response is stored yet")]
     pub invitation_id: i64,
     pub gathering: Gathering,
     pub member: Member,

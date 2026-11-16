@@ -83,7 +83,7 @@ mod tests {
     use super::*;
 
     /// Operations that answer without an organizer session: health, catalogs, the links every page shows, sign-in and sign-out, the routes behind an invitation link and the spike until feature modules replace it.
-    const PUBLIC: [&str; 8] = [
+    const PUBLIC: [&str; 9] = [
         "GET /api/health",
         "GET /api/catalogs/{locale}",
         "GET /api/legal-links",
@@ -92,6 +92,7 @@ mod tests {
         "DELETE /api/session",
         "POST /api/spike-responses",
         "GET /api/invitation",
+        "PUT /api/invitation/response",
     ];
 
     /// Replaces each path parameter such as `{id}` with `1`.

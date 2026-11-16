@@ -17,6 +17,8 @@ pub enum ErrorCode {
     BeforeFirstDay,
     Ended,
     Cancelled,
+    Begun,
+    BeforeArrival,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

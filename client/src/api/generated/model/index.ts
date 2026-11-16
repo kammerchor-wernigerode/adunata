@@ -6,6 +6,7 @@
  */
 
 export * from './attendance';
+export * from './beds';
 export * from './cause';
 export * from './errorCode';
 export * from './fieldError';
@@ -24,6 +25,7 @@ export * from './mailState';
 export * from './member';
 export * from './memberChange';
 export * from './newMember';
+export * from './responseValues';
 export * from './signInRequest';
 export * from './spikeResponse';
 export * from './status';

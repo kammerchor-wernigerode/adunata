@@ -6,6 +6,7 @@
  */
 import type { InvitedGathering } from './invitedGathering';
 import type { LinkState } from './linkState';
+import type { ResponseValues } from './responseValues';
 
 /**
  * The response page of one invitation as its member sees it.
@@ -14,4 +15,5 @@ export interface InvitationPage {
   firstName: string;
   gathering: InvitedGathering;
   state: LinkState;
+  response?: ResponseValues | null;
 }
