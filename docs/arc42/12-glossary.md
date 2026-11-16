@@ -12,6 +12,9 @@
 |Sign-in link|The single-use link that Adunata mails to an organizer who wants to sign in. It works once within one hour and only after the organizer presses a button.|
 |Trusted proxy|A reverse proxy whose network the operator names in `ADUNATA_TRUSTED_PROXIES`. Adunata takes the network address of a client from its `X-Forwarded-For` header.|
 |Personal link|The secret link in an invitation mail. It lets the invited member answer without an account.|
+|Period of presence|When a member who comes arrives and leaves, as wall-clock times of the instance in steps of 30 minutes within the days of a gathering. Without a stated period the member is present for the whole gathering.|
+|Tentative|The status of a member who will probably come but cannot promise it yet. Tentative attendees count separately from those who accepted.|
+|Retention period|The number of days after the last day of a gathering for which Adunata keeps comments or responses. Operators set each period or keep the data.|
 |Response|A member's answer to an invitation, with status, period of presence, beds and comment.|
 |Project|A term many ensembles use for a series of gatherings that leads to a concert, such as a Christmas project. Adunata does not model projects. A project is never a gathering.|
 |Instance|One installation of Adunata, run by one ensemble.|

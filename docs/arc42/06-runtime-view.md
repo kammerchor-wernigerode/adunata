@@ -67,3 +67,32 @@ sequenceDiagram
 |Check|`invitations`, `gatherings`|A cancelled or ended gathering takes no invitations.|
 |Invite|`invitations`|One transaction stores every new invitation and its mail, so a failure leaves neither behind. A unique key per gathering and member skips members who are invited already.|
 |Deliver|`mail`|Each mail goes out with the member's name and loses recipient, subject and bodies once the mail server accepts it or it fails for good. The list of invitations shows where the newest mail of each stands.|
+
+## Answering through a personal link
+
+A member opens the personal link from the invitation mail and answers. See [ADR 0011](../decisions/0011-personal-links-in-the-url-fragment.md) for why the secret stays in the fragment and [ADR 0012](../decisions/0012-wall-clock-times-in-the-instance-time-zone.md) for the times.
+
+```mermaid
+sequenceDiagram
+  actor Member
+  participant Client
+  participant responses
+  participant invitations
+  participant gatherings
+  Member->>Client: opens /invitation#secret
+  Client->>responses: GET /api/invitation with Authorization Bearer secret
+  responses->>invitations: extractor PersonalLink resolves the hash of the secret
+  invitations->>gatherings: loads the gathering
+  responses->>responses: decides from the date of the instance whether the member can answer
+  responses-->>Client: gathering, state, stored response and attendees
+  Member->>Client: chooses status, period, beds and comment
+  Client->>responses: PUT /api/invitation/response
+  responses->>responses: validates against the days of the gathering and stores
+  responses-->>Client: 200 with the stored values, announced on the page
+```
+
+|Step|Building block|What happens|
+|-|-|-|
+|Open|`responses`, `invitations`|An unknown or revoked secret ends in status 404 that names nothing. Otherwise the page shows the gathering, the member's stored response and who comes.|
+|State|`responses`, `gatherings`|Before the first day the member answers. From the first day the page shows the response without a form, after the last day also without attendees, and a cancelled gathering takes no answer.|
+|Store|`responses`|Times are wall-clock times of the instance in steps of 30 minutes within the days of the gathering. A decline clears period and beds. The row records that the member changed it last.|

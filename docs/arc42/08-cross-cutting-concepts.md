@@ -29,6 +29,12 @@ A slice test in [`server/src/api.rs`](../../server/src/api.rs) calls every opera
 
 Sign-in requests are limited to three links per hour per address and 20 requests per hour per network address. Behind a trusted proxy the network address is the rightmost entry of `X-Forwarded-For` that is no trusted proxy.
 
+## Retention of personal data
+
+Personal data expires by default. Once per hour a task of the module `responses` applies two periods that count from the last day of a gathering. After `ADUNATA_RETENTION_COMMENT_DAYS`, 30 by default, it clears the comments of the gathering's responses. After `ADUNATA_RETENTION_RESPONSE_DAYS`, 365 by default, it deletes the gathering's invitations, and their responses go along through the foreign key. The gathering itself stays, so organizers see a past gathering without invitations. The value `never` keeps the data. The same task deletes ended sessions and sign-in links that are used or expired.
+
+Each module deletes its own rows through a public function, so `responses` asks `invitations` and `access` to do so. Deleting a member deletes the member's invitations, responses, sessions, sign-in links and waiting mail through foreign keys. Mail loses its content once its delivery ends, see mail delivery below.
+
 ## Time
 
 The days of a gathering are dates. Times of arrival and departure are wall-clock times without an offset, such as `2027-03-14T18:00`. The database, the API, the client and mail carry them unchanged, so every view shows the same time. [ADR 0012](../decisions/0012-wall-clock-times-in-the-instance-time-zone.md) records why.

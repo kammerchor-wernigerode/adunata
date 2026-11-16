@@ -45,6 +45,8 @@ flowchart LR
   invitations --> access
   responses --> invitations
   responses --> gatherings
+  responses --> access
+  responses --> configuration
   gatherings --> access
   gatherings --> database
   gatherings --> validation
@@ -81,7 +83,7 @@ flowchart LR
 |localization|Holds one Fluent catalog per language, formats messages and serves catalogs to the client.|Formatting of messages and date ranges. The catalog route.|
 |mail|Stores mail in the outbox and sends it in the background with retries.|Adding a mail within a transaction and running the delivery.|
 |members|Keeps the member list with the organizer role. It refuses every change that would leave the instance without an active organizer, and deleting a member deletes everything that references the member.|The member routes and functions that other modules use to read members.|
-|responses|Serves the response page that a member opens through the personal link and tells whether the member can still answer.|The route `/api/invitation`.|
+|responses|Stores the response to each invitation with status, period of presence, beds and comment. It serves the response page of a member, the answers of organizers on a member's behalf and the overview with totals. Its hourly task applies the retention periods.|The routes behind a personal link, the response and overview routes for organizers and the retention task.|
 |serving|Accepts connections and lets requests in progress finish when the service manager stops the process.|Serving the router until a termination signal arrives.|
 |spike|An example form that exercises the stack from client to mail. Feature modules replace it.|The route for storing a response.|
 |validation|Describes rejected fields the same way for every module.|The types of a field error and the response with status 422.|
