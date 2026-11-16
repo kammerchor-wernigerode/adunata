@@ -14,6 +14,9 @@ attendance =
 response-mail-subject = Rückmeldung von { $name }
 response-mail-body = { $name } hat die Einladung zur Zusammenkunft vom { $span } { attendance }.
 
+date-span-same-year = { $startDay }. { $startMonth } – { $endDay }. { $endMonth } { $year }
+date-span-across-years = { $startDay }. { $startMonth } { $startYear } – { $endDay }. { $endMonth } { $endYear }
+date-single-day = { $day }. { $month } { $year }
 date-span-same-month = { $startDay }.–{ $endDay }. { $month } { $year }
 
 month-1 = Januar

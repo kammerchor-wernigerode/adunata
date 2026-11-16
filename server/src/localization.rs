@@ -50,14 +50,38 @@ impl Localizer {
             .unwrap_or_else(|| id.to_owned())
     }
 
+    /// Spells out the days of a gathering, such as 14.–16. März 2027 or 30. April – 2. Mai 2027.
     pub fn date_span(&self, locale: &str, start: Date, end: Date) -> String {
+        let month = |date: Date| {
+            self.message(
+                locale,
+                &format!("month-{}", u8::from(date.month())),
+                &FluentArgs::new(),
+            )
+        };
         let mut args = FluentArgs::new();
+        if start == end {
+            args.set("day", start.day());
+            args.set("month", month(start));
+            args.set("year", start.year());
+            return self.message(locale, "date-single-day", &args);
+        }
         args.set("startDay", start.day());
         args.set("endDay", end.day());
+        args.set("startMonth", month(start));
+        args.set("endMonth", month(end));
+        args.set("month", month(start));
         args.set("year", start.year());
-        let month_id = format!("month-{}", u8::from(start.month()));
-        args.set("month", self.message(locale, &month_id, &FluentArgs::new()));
-        self.message(locale, "date-span-same-month", &args)
+        args.set("startYear", start.year());
+        args.set("endYear", end.year());
+        let id = if start.year() != end.year() {
+            "date-span-across-years"
+        } else if start.month() != end.month() {
+            "date-span-same-year"
+        } else {
+            "date-span-same-month"
+        };
+        self.message(locale, id, &args)
     }
 }
 
@@ -156,6 +180,31 @@ mod tests {
         let (start, end) = (date!(2027 - 03 - 14), date!(2027 - 03 - 16));
         assert_eq!(localizer.date_span("de", start, end), "14.–16. März 2027");
         assert_eq!(localizer.date_span("en", start, end), "March 14–16, 2027");
+    }
+
+    #[test]
+    fn date_span_across_months_and_years() {
+        let localizer = Localizer::new();
+        let (april, may) = (date!(2027 - 04 - 30), date!(2027 - 05 - 02));
+        assert_eq!(
+            localizer.date_span("de", april, may),
+            "30. April – 2. Mai 2027"
+        );
+        assert_eq!(
+            localizer.date_span("en", april, may),
+            "April 30 – May 2, 2027"
+        );
+        let (december, january) = (date!(2026 - 12 - 30), date!(2027 - 01 - 02));
+        assert_eq!(
+            localizer.date_span("de", december, january),
+            "30. Dezember 2026 – 2. Januar 2027"
+        );
+        assert_eq!(
+            localizer.date_span("en", december, january),
+            "December 30, 2026 – January 2, 2027"
+        );
+        assert_eq!(localizer.date_span("de", april, april), "30. April 2027");
+        assert_eq!(localizer.date_span("en", april, april), "April 30, 2027");
     }
 
     #[tokio::test]

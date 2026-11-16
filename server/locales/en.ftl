@@ -15,6 +15,9 @@ response-mail-subject = Response from { $name }
 response-mail-body = { $name } { attendance } the invitation to the gathering from { $span }.
 
 date-span-same-month = { $month } { $startDay }–{ $endDay }, { $year }
+date-span-same-year = { $startMonth } { $startDay } – { $endMonth } { $endDay }, { $year }
+date-span-across-years = { $startMonth } { $startDay }, { $startYear } – { $endMonth } { $endDay }, { $endYear }
+date-single-day = { $month } { $day }, { $year }
 
 month-1 = January
 month-2 = February
