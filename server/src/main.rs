@@ -164,6 +164,12 @@ async fn serve() {
         max_attempts: configuration.mail_max_attempts,
     };
     tokio::spawn(mail::run(pool.clone(), delivery, Duration::from_secs(2)));
+    tokio::spawn(responses::run_retention(
+        pool.clone(),
+        configuration.retention,
+        configuration.time_zone.clone(),
+        Duration::from_hours(1),
+    ));
     let listener = tokio::net::TcpListener::bind(configuration.listen_address)
         .await
         .expect("listen address must be free");

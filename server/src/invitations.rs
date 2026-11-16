@@ -74,6 +74,18 @@ async fn resolve(
         }))
 }
 
+/// Deletes the invitations of every gathering whose last day lies before the given date, together with their responses through the foreign key. The gatherings stay.
+pub async fn delete_of_gatherings_ended_before(
+    connection: &mut PgConnection,
+    date: time::Date,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM invitations USING gatherings WHERE gatherings.id = invitations.gathering_id AND gatherings.last_day < $1")
+        .bind(date)
+        .execute(connection)
+        .await
+        .map(|_| ())
+}
+
 /// The gathering of an invitation, judged against the given date.
 pub async fn gathering_of(
     connection: &mut PgConnection,

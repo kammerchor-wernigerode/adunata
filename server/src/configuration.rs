@@ -26,7 +26,6 @@ pub struct Configuration {
     pub default_language: String,
     pub time_zone: InstanceTimeZone,
     pub trusted_proxies: Vec<Network>,
-    #[cfg_attr(not(test), expect(dead_code, reason = "no personal data expires yet"))]
     pub retention: Retention,
     pub legal_links: LegalLinks,
     pub first_organizer: Option<FirstOrganizer>,

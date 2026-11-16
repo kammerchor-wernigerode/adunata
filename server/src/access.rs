@@ -83,6 +83,17 @@ pub async fn ensure_first_organizer(
     Ok(FirstOrganizerOutcome::Created)
 }
 
+/// Deletes sessions that have ended and sign-in links that are used or expired.
+pub async fn delete_expired(connection: &mut PgConnection) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM sessions WHERE expires_at <= now()")
+        .execute(&mut *connection)
+        .await?;
+    sqlx::query("DELETE FROM sign_in_links WHERE used_at IS NOT NULL OR expires_at <= now()")
+        .execute(connection)
+        .await
+        .map(|_| ())
+}
+
 /// Counts sign-in requests per network address in memory, which is enough for one process.
 #[derive(Clone, Default)]
 pub struct SignInLimiter {

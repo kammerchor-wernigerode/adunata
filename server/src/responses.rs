@@ -9,8 +9,9 @@ use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
-use crate::access::Organizer;
+use crate::access::{self, Organizer};
 use crate::api::AppState;
+use crate::configuration::{InstanceTimeZone, Retention, RetentionPeriod};
 use crate::gatherings;
 use crate::gatherings::Gathering;
 use crate::invitations::{self, MailState, PersonalLink};
@@ -147,6 +148,46 @@ fn on_a_step(time: PrimitiveDateTime) -> bool {
 
 fn within(time: PrimitiveDateTime, gathering: &Gathering) -> bool {
     (gathering.first_day..=gathering.last_day).contains(&time.date())
+}
+
+/// Applies the retention periods once per interval: clears comments, deletes the invitations and responses of long past gatherings and lets `access` delete ended sessions and used sign-in links.
+pub async fn run_retention(
+    pool: sqlx::PgPool,
+    retention: Retention,
+    time_zone: InstanceTimeZone,
+    interval: std::time::Duration,
+) {
+    loop {
+        if let Err(error) = expire(&pool, retention, time_zone.today()).await {
+            tracing::error!(%error, "expired personal data could not be deleted");
+        }
+        tokio::time::sleep(interval).await;
+    }
+}
+
+/// The first day that a period of retention still keeps, counted from the last day of a gathering.
+fn kept_since(period: RetentionPeriod, today: Date) -> Option<Date> {
+    match period {
+        RetentionPeriod::Never => None,
+        RetentionPeriod::Days(days) => Some(today - time::Duration::days(i64::from(days))),
+    }
+}
+
+async fn expire(pool: &sqlx::PgPool, retention: Retention, today: Date) -> Result<(), sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+    if let Some(since) = kept_since(retention.comments, today) {
+        sqlx::query(
+            "UPDATE responses SET comment = NULL FROM invitations JOIN gatherings ON gatherings.id = invitations.gathering_id WHERE invitations.id = responses.invitation_id AND responses.comment IS NOT NULL AND gatherings.last_day < $1",
+        )
+        .bind(since)
+        .execute(&mut *transaction)
+        .await?;
+    }
+    if let Some(since) = kept_since(retention.responses, today) {
+        invitations::delete_of_gatherings_ended_before(&mut transaction, since).await?;
+    }
+    access::delete_expired(&mut transaction).await?;
+    transaction.commit().await
 }
 
 /// Stores a response for an invitation in place of the earlier one.
@@ -586,8 +627,12 @@ mod tests {
     use sqlx::PgPool;
     use tower::ServiceExt;
 
+    use time::Date;
+
+    use super::expire;
     use crate::access::testing::signed_in_organizer;
     use crate::api;
+    use crate::configuration::{InstanceTimeZone, Retention, RetentionPeriod};
     use crate::database::testing::fresh_database;
     use crate::invitations::testing::{gathering, member, send};
 
@@ -1221,6 +1266,152 @@ mod tests {
         let overview = overview_of(&pool).await;
         assert_eq!(overview["rows"][0]["mail"], "failed");
         assert_eq!(overview["rows"][0]["linkActive"], true);
+    }
+
+    /// A gathering that ended the given number of days ago with one accepted response that carries a comment.
+    async fn ended_with_comment(pool: &PgPool, days_ago: i32) {
+        let gathering = gathering(pool, "Herbstcamp", -days_ago - 2, -days_ago).await;
+        let anna = member(pool, "Anna", "de").await;
+        let invitation: i64 = sqlx::query_scalar(
+            "INSERT INTO invitations (gathering_id, member_id) VALUES ($1, $2) RETURNING id",
+        )
+        .bind(gathering)
+        .bind(anna)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO responses (invitation_id, status, beds, comment, changed_by) VALUES ($1, 'accepted', 'none', 'Kuchen', 'member')")
+            .bind(invitation)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
+    async fn left(pool: &PgPool) -> (i64, i64, i64, i64) {
+        sqlx::query_as("SELECT (SELECT count(*) FROM gatherings), (SELECT count(*) FROM invitations), (SELECT count(*) FROM responses), (SELECT count(*) FROM responses WHERE comment IS NOT NULL)")
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    fn retention(comments: RetentionPeriod, responses: RetentionPeriod) -> Retention {
+        Retention {
+            comments,
+            responses,
+        }
+    }
+
+    fn today() -> Date {
+        InstanceTimeZone::parse("Europe/Berlin").unwrap().today()
+    }
+
+    #[tokio::test]
+    async fn default_retention() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        ended_with_comment(&pool, 31).await;
+        expire(
+            &pool,
+            retention(RetentionPeriod::Days(30), RetentionPeriod::Days(365)),
+            today(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(left(&pool).await, (1, 1, 1, 0));
+    }
+
+    #[tokio::test]
+    async fn keep_everything() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        ended_with_comment(&pool, 730).await;
+        expire(
+            &pool,
+            retention(RetentionPeriod::Never, RetentionPeriod::Never),
+            today(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(left(&pool).await, (1, 1, 1, 1));
+    }
+
+    #[tokio::test]
+    async fn responses_expire() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        ended_with_comment(&pool, 91).await;
+        expire(
+            &pool,
+            retention(RetentionPeriod::Never, RetentionPeriod::Days(90)),
+            today(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(left(&pool).await, (1, 0, 0, 0));
+    }
+
+    #[tokio::test]
+    async fn comments_expire() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        ended_with_comment(&pool, 31).await;
+        expire(
+            &pool,
+            retention(RetentionPeriod::Days(30), RetentionPeriod::Never),
+            today(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(left(&pool).await, (1, 1, 1, 0));
+    }
+
+    #[tokio::test]
+    async fn comments_stay_within_their_period() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        ended_with_comment(&pool, 30).await;
+        expire(
+            &pool,
+            retention(RetentionPeriod::Days(30), RetentionPeriod::Days(365)),
+            today(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(left(&pool).await, (1, 1, 1, 1));
+    }
+
+    #[tokio::test]
+    async fn ended_sessions_and_used_links_are_gone() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let (organizer, _) = crate::access::testing::signed_in_organizer(&pool).await;
+        crate::access::testing::session_cookie(&pool, organizer).await;
+        sqlx::query("UPDATE sessions SET expires_at = now() - interval '1 second' WHERE id = (SELECT min(id) FROM sessions)").execute(&pool).await.unwrap();
+        for (expires, used) in [
+            ("now() + interval '1 hour'", "NULL"),
+            ("now() + interval '1 hour'", "now()"),
+            ("now() - interval '1 second'", "NULL"),
+        ] {
+            sqlx::query(sqlx::AssertSqlSafe(format!("INSERT INTO sign_in_links (member_id, secret_hash, expires_at, used_at) VALUES ($1, gen_random_uuid()::text::bytea, {expires}, {used})")))
+                .bind(organizer)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        expire(
+            &pool,
+            retention(RetentionPeriod::Never, RetentionPeriod::Never),
+            today(),
+        )
+        .await
+        .unwrap();
+        let (sessions, links): (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM sessions), (SELECT count(*) FROM sign_in_links)",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!((sessions, links), (1, 1));
     }
 
     #[tokio::test]
