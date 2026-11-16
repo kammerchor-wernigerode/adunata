@@ -13,3 +13,16 @@ export function formatSpan(firstDay: string, lastDay: string, locale: string) {
     new Date(endYear, endMonth - 1, endDay),
   )
 }
+
+/** Builds a local date from a wall-clock time such as 2027-03-14T18:00 without converting it between time zones. */
+export function wallClock(value: string): Date {
+  const [day, time] = value.split('T')
+  const [year, month, date] = day.split('-').map(Number)
+  const [hour, minute] = time.split(':').map(Number)
+  return new Date(year, month - 1, date, hour, minute)
+}
+
+/** Formats a wall-clock time with weekday and time, such as "Fri 18:00". */
+export function formatWallClock(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(wallClock(value))
+}

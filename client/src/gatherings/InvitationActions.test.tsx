@@ -10,6 +10,7 @@ import {
   getLegalLinksMockHandler,
   getListInvitationsMockHandler,
   getListMembersMockHandler,
+  getOverviewMockHandler,
 } from '@/api/generated/api.msw'
 import type { Gathering, Invitation, Member } from '@/api/generated/model'
 import { renderApp, violations } from '@/testing/app'
@@ -45,6 +46,7 @@ function organizerPage(invitations: Invitation[] = [adaInvited]) {
     getGetGatheringMockHandler(weekend),
     getListMembersMockHandler([ada, clara, johannes]),
     getListInvitationsMockHandler(invitations),
+    getOverviewMockHandler({ rows: [], totals: { accepted: 0, tentative: 0, declined: 0, pending: 0, bedsNeeded: 0, bedsOffered: 0 } }),
   )
   return renderApp('/gatherings/5')
 }
@@ -78,27 +80,6 @@ describe('invitation actions', () => {
     await userEvent.click(screen.getByLabelText('Schumann, Clara'))
     await userEvent.click(screen.getByRole('button', { name: 'Invite one chosen member' }))
     await waitFor(() => expect(body).toEqual({ memberIds: [2] }))
-  })
-
-  it('resends and revokes a link and shows a failed mail at its invitation', async () => {
-    const calls: string[] = []
-    server.use(
-      http.post('*/api/invitations/40/resend', () => {
-        calls.push('resend')
-        return new HttpResponse(null, { status: 204 })
-      }),
-      http.post('*/api/invitations/40/revocation', () => {
-        calls.push('revoke')
-        return new HttpResponse(null, { status: 204 })
-      }),
-    )
-    organizerPage()
-    expect(await screen.findByText(/mail failed/)).toBeTruthy()
-    await userEvent.click(screen.getByRole('button', { name: 'Resend: Ada Lovelace' }))
-    expect(await screen.findByText('New link sent to Ada.')).toBeTruthy()
-    await userEvent.click(screen.getByRole('button', { name: 'Revoke link: Ada Lovelace' }))
-    expect(await screen.findByText('The link of Ada no longer works.')).toBeTruthy()
-    expect(calls).toEqual(['resend', 'revoke'])
   })
 
   it('asks before it cancels the gathering', async () => {

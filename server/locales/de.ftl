@@ -123,6 +123,47 @@ invitation-state-begun = Das Treffen hat begonnen. Deine Rückmeldung lässt sic
 invitation-state-ended = Das Treffen ist vorbei.
 invitation-state-cancelled = Dieses Treffen ist abgesagt.
 
+overview-title = Rückmeldungen
+overview-total-accepted = Zusagen
+overview-total-tentative = Vorläufig
+overview-total-declined = Absagen
+overview-total-pending = Offen
+overview-beds-needed = Betten gesucht
+overview-beds-offered = Betten angeboten
+overview-bed-even = so viele wie gesucht
+overview-bed-surplus = { $count ->
+        [one] eins mehr als gesucht
+       *[other] { $count } mehr als gesucht
+    }
+overview-bed-shortage = { $count ->
+        [one] eins weniger als gesucht
+       *[other] { $count } weniger als gesucht
+    }
+overview-filter = Nach Status filtern
+overview-filter-all = Alle { $count }
+overview-filter-accepted = Zusagen
+overview-filter-tentative = Vorläufig
+overview-filter-declined = Absagen
+overview-filter-pending = Offen
+overview-column-name = Name
+overview-column-status = Status
+overview-column-period = Zeitraum
+overview-column-beds = Betten
+overview-column-comment = Kommentar
+overview-beds-need = { $count ->
+        [one] braucht eins
+       *[other] braucht { $count }
+    }
+overview-beds-offer = { $count ->
+        [one] bietet eins
+       *[other] bietet { $count }
+    }
+overview-whole-gathering = ganzes Treffen
+overview-period = { $arrival } bis { $departure }
+overview-period-start = Beginn
+overview-period-end = Ende
+overview-outside-span = außerhalb der Tage
+
 members-title = Mitglieder
 members-add = Mitglied hinzufügen
 members-search = Nach Name oder Mailadresse suchen

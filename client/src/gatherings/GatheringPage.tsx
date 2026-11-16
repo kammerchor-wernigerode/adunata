@@ -3,6 +3,7 @@ import { useGetGathering } from '@/api/generated/api'
 import { Button } from '@/components/ui/button'
 import { Page } from '@/layout/Page'
 import { InvitationActions } from './InvitationActions'
+import { Overview } from './Overview'
 import { formatSpan } from '@/l10n/dates'
 import { useLocale, useTranslate } from '@/l10n/translate'
 
@@ -35,6 +36,7 @@ export function GatheringPage() {
           </Button>
         )}
       </div>
+      <Overview gathering={gathering.data.data} />
       <InvitationActions gathering={gathering.data.data} />
     </Page>
   )

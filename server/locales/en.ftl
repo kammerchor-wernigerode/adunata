@@ -123,6 +123,47 @@ invitation-state-begun = The gathering has begun. Your response can no longer ch
 invitation-state-ended = The gathering is over.
 invitation-state-cancelled = This gathering is cancelled.
 
+overview-title = Responses
+overview-total-accepted = Accepted
+overview-total-tentative = Tentative
+overview-total-declined = Declined
+overview-total-pending = Pending
+overview-beds-needed = Beds needed
+overview-beds-offered = Beds offered
+overview-bed-even = as many as needed
+overview-bed-surplus = { $count ->
+        [one] one more than needed
+       *[other] { $count } more than needed
+    }
+overview-bed-shortage = { $count ->
+        [one] one fewer than needed
+       *[other] { $count } fewer than needed
+    }
+overview-filter = Filter by status
+overview-filter-all = All { $count }
+overview-filter-accepted = Accepted
+overview-filter-tentative = Tentative
+overview-filter-declined = Declined
+overview-filter-pending = Pending
+overview-column-name = Name
+overview-column-status = Status
+overview-column-period = Period
+overview-column-beds = Beds
+overview-column-comment = Comment
+overview-beds-need = { $count ->
+        [one] needs one
+       *[other] needs { $count }
+    }
+overview-beds-offer = { $count ->
+        [one] offers one
+       *[other] offers { $count }
+    }
+overview-whole-gathering = whole gathering
+overview-period = { $arrival } to { $departure }
+overview-period-start = start
+overview-period-end = end
+overview-outside-span = outside the days
+
 members-title = Members
 members-add = Add member
 members-search = Search by name or mail address

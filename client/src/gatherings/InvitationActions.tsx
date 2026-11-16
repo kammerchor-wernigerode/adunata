@@ -5,9 +5,8 @@ import {
   getGetGatheringQueryKey,
   getListGatheringsQueryKey,
   getListInvitationsQueryKey,
+  getOverviewQueryKey,
   invite,
-  resend,
-  revoke,
   useListInvitations,
   useListMembers,
 } from '@/api/generated/api'
@@ -15,7 +14,7 @@ import type { Gathering, Invitation } from '@/api/generated/model'
 import { Button } from '@/components/ui/button'
 import { useTranslate } from '@/l10n/translate'
 
-/** Invites members to a gathering and manages the links of its invitations. */
+/** Invites members to a gathering and cancels it. */
 export function InvitationActions({ gathering }: { gathering: Gathering }) {
   const translate = useTranslate()
   const queryClient = useQueryClient()
@@ -26,6 +25,7 @@ export function InvitationActions({ gathering }: { gathering: Gathering }) {
 
   async function refresh(message: string) {
     await queryClient.invalidateQueries({ queryKey: getListInvitationsQueryKey(gathering.id) })
+    await queryClient.invalidateQueries({ queryKey: getOverviewQueryKey(gathering.id) })
     setNotice(message)
   }
 
@@ -38,51 +38,6 @@ export function InvitationActions({ gathering }: { gathering: Gathering }) {
       <p role="status" className="my-3 text-sm">
         {notice}
       </p>
-      {list.length > 0 && (
-        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-          {list.map((invitation) => (
-            <li key={invitation.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2">
-              <div className="min-w-0">
-                <span className="font-semibold">
-                  {invitation.firstName} {invitation.lastName}
-                </span>
-                <span className="ml-3 text-sm text-muted-foreground">
-                  {translate(invitation.linkActive ? 'invitation-link-active' : 'invitation-link-revoked')}
-                  {invitation.mail ? `, ${translate(`invitation-mail-${invitation.mail}`)}` : ''}
-                </span>
-              </div>
-              {open && (
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      await resend(invitation.id)
-                      await refresh(translate('invitation-resent', { name: invitation.firstName }))
-                    }}
-                  >
-                    {translate('invitation-resend')}
-                    <span className="sr-only">: {invitation.firstName} {invitation.lastName}</span>
-                  </Button>
-                  {invitation.linkActive && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        await revoke(invitation.id)
-                        await refresh(translate('invitation-revoked', { name: invitation.firstName }))
-                      }}
-                    >
-                      {translate('invitation-revoke')}
-                      <span className="sr-only">: {invitation.firstName} {invitation.lastName}</span>
-                    </Button>
-                  )}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
       {open && (
         <CancelGathering
           gathering={gathering}
