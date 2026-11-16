@@ -637,11 +637,27 @@ mod tests {
                 serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
                     .unwrap();
             assert_eq!(body["firstName"], "Ada");
-            assert_eq!(session_status(state.clone(), &cookie).await, StatusCode::OK);
+            assert_eq!(session_status(state, &cookie).await, StatusCode::OK);
+        }
+
+        #[tokio::test]
+        async fn link_used_twice() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            organizer(&pool).await;
+            request_link(&pool, "ada@example.org").await;
+            let secret = link_secret(&pool).await;
+            let state = api::testing::state(pool.clone());
+
+            assert_eq!(
+                redeem(state.clone(), &secret).await.status(),
+                StatusCode::CREATED
+            );
             assert_eq!(
                 redeem(state, &secret).await.status(),
                 StatusCode::UNAUTHORIZED
             );
+            assert_eq!(count(&pool, "SELECT count(*) FROM sessions").await, 1);
         }
 
         #[tokio::test]
