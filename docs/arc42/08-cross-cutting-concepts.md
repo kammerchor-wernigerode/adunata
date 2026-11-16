@@ -35,6 +35,12 @@ The days of a gathering are dates. Times of arrival and departure are wall-clock
 
 The required setting `ADUNATA_TIME_ZONE` names the time zone of the instance. One function in the module `configuration` turns an instant into the date and wall-clock time of the instance. Every comparison with the present goes through it, such as whether a gathering has begun. Instants such as the end of a session stay `timestamptz` in the database and pass through the same function before they reach the API or a mail. The binary embeds the time zone database, so hosts and images need no zone files.
 
+## Personal links
+
+Invitation links and sign-in links follow one rule, see [ADR 0011](../decisions/0011-personal-links-in-the-url-fragment.md). Each carries a random secret of 256 bits in the fragment, such as `/invitation#3f9a…`. The module `secret` creates it and its SHA-256 hash, and only the hash reaches the database. The client reads the fragment and sends the secret only in the header `Authorization: Bearer <secret>`.
+
+The module `invitations` resolves the secret of an invitation through the extractor `PersonalLink`, which the routes of `responses` take as an argument. An unknown or revoked secret fails with status 404 and reveals no gathering or member. Resending stores the hash of a new secret in place of the old one.
+
 ## Security headers
 
 One layer around the whole router sets these headers on every response, whether it comes from the API or serves the client:
@@ -98,7 +104,7 @@ Logs carry no personal data and no secrets. In particular they never contain:
 - recipients, subjects or bodies of mail
 - the text of a mail server's reply, which often repeats the recipient
 
-An event instead names what happened and the identifiers an operator needs to look further, such as the id of an outbox entry. Requests are not logged, because their paths will carry personal links.
+An event instead names what happened and the identifiers an operator needs to look further, such as the id of an outbox entry. Requests are not logged. Personal links never reach a request line anyway, because their secret sits in the fragment of the URL, see personal links below.
 
 ## Mail delivery
 

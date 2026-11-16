@@ -36,3 +36,34 @@ sequenceDiagram
 |Confirmation|Client|Reads the secret from the fragment, which the browser never sends, and sends it only in the `Authorization` header when the organizer presses the button.|
 |Redemption|`access`|Marks the link as used in the statement that finds it, so a second request fails. It starts a session for 14 days.|
 |Every later request|`access`, `members`|The extractor for organizer routes loads the session with its member and rejects the request unless the member is still an active organizer.|
+
+## Inviting members
+
+An organizer invites the active members to a gathering. Mail leaves through the outbox, see [ADR 0006](../decisions/0006-outbox-for-mail.md), and loses its content once its delivery ends, see [ADR 0013](../decisions/0013-mail-loses-its-content-once-its-delivery-ends.md).
+
+```mermaid
+sequenceDiagram
+  actor Organizer
+  participant Client
+  participant invitations
+  participant gatherings
+  participant members
+  participant mail
+  participant Mailserver as Mail server
+  Organizer->>Client: invites all members not invited yet
+  Client->>invitations: POST /api/gatherings/{id}/invitations
+  invitations->>gatherings: finds the gathering, refuses if cancelled or ended
+  invitations->>members: lists the active members
+  loop each member not invited yet
+    invitations->>invitations: stores the invitation with the hash of a new secret
+    invitations->>mail: adds the mail with the personal link in the member's language
+  end
+  invitations-->>Client: 201 with the number of invitations
+  mail->>Mailserver: delivers each mail, then clears its content
+```
+
+|Step|Building block|What happens|
+|-|-|-|
+|Check|`invitations`, `gatherings`|A cancelled or ended gathering takes no invitations.|
+|Invite|`invitations`|One transaction stores every new invitation and its mail, so a failure leaves neither behind. A unique key per gathering and member skips members who are invited already.|
+|Deliver|`mail`|Each mail goes out with the member's name and loses recipient, subject and bodies once the mail server accepts it or it fails for good. The list of invitations shows where the newest mail of each stands.|

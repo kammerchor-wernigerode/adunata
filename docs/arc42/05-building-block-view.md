@@ -17,6 +17,8 @@ flowchart LR
     database[database]
     gatherings[gatherings]
     health[health]
+    invitations[invitations]
+    responses[responses]
     legal[legal]
     localization[localization]
     mail[mail]
@@ -34,6 +36,15 @@ flowchart LR
   api --> members
   api --> access
   api --> gatherings
+  api --> invitations
+  api --> responses
+  invitations --> members
+  invitations --> gatherings
+  invitations --> mail
+  invitations --> localization
+  invitations --> access
+  responses --> invitations
+  responses --> gatherings
   gatherings --> access
   gatherings --> database
   gatherings --> validation
@@ -65,10 +76,12 @@ flowchart LR
 |database|Opens the connection pool and applies pending migrations. It refuses a schema that is newer than the binary.|A connected pool.|
 |gatherings|Keeps gatherings with title, location, description and span. It splits them into upcoming and past by the date in the time zone of the instance and refuses changes to a gathering that has ended. It depends on no other feature module.|The gathering routes and a function that finds a gathering for other modules.|
 |health|Reports whether the instance can serve requests and which dependency is unavailable.|The route `/api/health`.|
+|invitations|Invites members to gatherings, sends the invitation mail with the personal link, resends and revokes links and cancels a gathering together with the mail to every invited member.|The invitation routes, the cancellation route and the extractor `PersonalLink` that resolves the secret of a personal link for `responses`.|
 |legal|Exposes the addresses of the privacy notice and the imprint that every page links.|The route `/api/legal-links`.|
 |localization|Holds one Fluent catalog per language, formats messages and serves catalogs to the client.|Formatting of messages and date ranges. The catalog route.|
 |mail|Stores mail in the outbox and sends it in the background with retries.|Adding a mail within a transaction and running the delivery.|
 |members|Keeps the member list with the organizer role. It refuses every change that would leave the instance without an active organizer, and deleting a member deletes everything that references the member.|The member routes and functions that other modules use to read members.|
+|responses|Serves the response page that a member opens through the personal link and tells whether the member can still answer.|The route `/api/invitation`.|
 |serving|Accepts connections and lets requests in progress finish when the service manager stops the process.|Serving the router until a termination signal arrives.|
 |spike|An example form that exercises the stack from client to mail. Feature modules replace it.|The route for storing a response.|
 |validation|Describes rejected fields the same way for every module.|The types of a field error and the response with status 422.|

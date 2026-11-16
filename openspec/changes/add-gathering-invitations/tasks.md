@@ -54,7 +54,7 @@
 - [x] 7.3 Add resend and revoke. Verify with tests for the scenarios "Resend", "Old link after resend" and "Revoke without resend"
 - [x] 7.4 Cancel a gathering together with the mail to every invited member in one transaction. Verify with tests for the scenarios "Cancellation mail", "Cancelled gathering takes no invitations" and "Member opens a cancelled gathering"
 - [x] 7.5 Add the client actions to invite, resend, revoke and cancel and the page that reads the secret from the fragment. Verify with client slice tests with axe and with a test that the page sends the secret only in the header
-- [ ] 7.6 Write record 0011 (personal links in the URL fragment) as Accepted, list it in arc42 sections 4 and 9, add `invitations` to arc42 section 5, add the invitation scenario to arc42 section 6, describe personal links in arc42 section 8, replace the reason under logging, add the scenarios "Guessed link" and "Personal link absent from logs" to arc42 section 10 and update the risk on date ranges in arc42 section 11. Verify that every link resolves
+- [x] 7.6 Write record 0011 (personal links in the URL fragment) as Accepted, list it in arc42 sections 4 and 9, add `invitations` to arc42 section 5, add the invitation scenario to arc42 section 6, describe personal links in arc42 section 8, replace the reason under logging, add the scenarios "Guessed link" and "Personal link absent from logs" to arc42 section 10 and update the risk on date ranges in arc42 section 11. Verify that every link resolves
 
 ## 8. Responses and the overview
 
