@@ -7,6 +7,7 @@ import { GatheringPage } from '@/gatherings/GatheringPage'
 import { Frame } from '@/layout/Frame'
 import { EditMemberPage, NewMemberPage } from '@/members/MemberFormPage'
 import { MemberListPage } from '@/members/MemberListPage'
+import { ResponsePage } from '@/responses/ResponsePage'
 import { SpikePage } from '@/spike/SpikePage'
 
 const rootRoute = createRootRoute({ component: Frame })
@@ -18,6 +19,8 @@ const spikeRoute = createRoute({
 })
 
 const signInRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sign-in', component: SignInPage })
+
+const responseRoute = createRoute({ getParentRoute: () => rootRoute, path: '/invitation', component: ResponsePage })
 
 const organizerRoute = createRoute({ getParentRoute: () => rootRoute, id: 'organizer', component: RequireOrganizer })
 
@@ -58,6 +61,7 @@ const editGatheringRoute = createRoute({
 export const routeTree = rootRoute.addChildren([
   spikeRoute,
   signInRoute,
+  responseRoute,
   organizerRoute.addChildren([
     gatheringListRoute,
     newGatheringRoute,

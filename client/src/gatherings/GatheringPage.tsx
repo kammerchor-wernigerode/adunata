@@ -2,6 +2,7 @@ import { Link, Navigate, useParams } from '@tanstack/react-router'
 import { useGetGathering } from '@/api/generated/api'
 import { Button } from '@/components/ui/button'
 import { Page } from '@/layout/Page'
+import { InvitationActions } from './InvitationActions'
 import { formatSpan } from '@/l10n/dates'
 import { useLocale, useTranslate } from '@/l10n/translate'
 
@@ -34,6 +35,7 @@ export function GatheringPage() {
           </Button>
         )}
       </div>
+      <InvitationActions gathering={gathering.data.data} />
     </Page>
   )
 }

@@ -86,6 +86,43 @@ gathering-cancelled = Cancelled
 error-last-day-before-first-day = The last day cannot lie before the first day.
 error-gathering-ended = This gathering has ended and can no longer change.
 
+invitations-title = Invitations
+invitations-invite-all = { $count ->
+        [one] Invite the one active member not invited yet
+       *[other] Invite all { $count } active members not invited yet
+    }
+invitations-choose = Choose members to invite
+invitations-invite-chosen = { $count ->
+        [0] Invite chosen members
+        [one] Invite one chosen member
+       *[other] Invite { $count } chosen members
+    }
+invitations-everyone-invited = Every active member is invited.
+invitations-sent = { $count ->
+        [0] Nobody new to invite.
+        [one] One invitation sent.
+       *[other] { $count } invitations sent.
+    }
+invitation-link-active = link works
+invitation-link-revoked = link revoked
+invitation-mail-waiting = mail waits
+invitation-mail-sent = mail sent
+invitation-mail-failed = mail failed
+invitation-resend = Resend
+invitation-revoke = Revoke link
+invitation-resent = New link sent to { $name }.
+invitation-revoked = The link of { $name } no longer works.
+gathering-cancel = Cancel gathering
+gathering-cancel-confirm = Cancel { $title } and inform every invited member by mail?
+gathering-cancel-yes = Cancel gathering
+
+response-days = Days of the gathering
+invitation-invalid-title = Link not valid
+invitation-invalid = This link is not valid. It may have been replaced by a newer one. Ask your organizers for a new link.
+invitation-state-begun = The gathering has begun. Your response can no longer change here.
+invitation-state-ended = The gathering is over.
+invitation-state-cancelled = This gathering is cancelled.
+
 members-title = Members
 members-add = Add member
 members-search = Search by name or mail address

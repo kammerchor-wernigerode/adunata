@@ -86,6 +86,43 @@ gathering-cancelled = Abgesagt
 error-last-day-before-first-day = Der letzte Tag kann nicht vor dem ersten liegen.
 error-gathering-ended = Dieses Treffen ist vorbei und lässt sich nicht mehr ändern.
 
+invitations-title = Einladungen
+invitations-invite-all = { $count ->
+        [one] Das eine noch nicht eingeladene aktive Mitglied einladen
+       *[other] Alle { $count } noch nicht eingeladenen aktiven Mitglieder einladen
+    }
+invitations-choose = Mitglieder zum Einladen auswählen
+invitations-invite-chosen = { $count ->
+        [0] Ausgewählte einladen
+        [one] Ein ausgewähltes Mitglied einladen
+       *[other] { $count } ausgewählte Mitglieder einladen
+    }
+invitations-everyone-invited = Alle aktiven Mitglieder sind eingeladen.
+invitations-sent = { $count ->
+        [0] Niemand Neues einzuladen.
+        [one] Eine Einladung verschickt.
+       *[other] { $count } Einladungen verschickt.
+    }
+invitation-link-active = Link gültig
+invitation-link-revoked = Link widerrufen
+invitation-mail-waiting = Mail wartet
+invitation-mail-sent = Mail verschickt
+invitation-mail-failed = Mail gescheitert
+invitation-resend = Neu senden
+invitation-revoke = Link widerrufen
+invitation-resent = Neuer Link an { $name } verschickt.
+invitation-revoked = Der Link von { $name } funktioniert nicht mehr.
+gathering-cancel = Treffen absagen
+gathering-cancel-confirm = { $title } absagen und alle Eingeladenen per Mail informieren?
+gathering-cancel-yes = Treffen absagen
+
+response-days = Tage des Treffens
+invitation-invalid-title = Link ungültig
+invitation-invalid = Dieser Link ist nicht gültig. Vielleicht wurde er durch einen neueren ersetzt. Bitte deine Organisatoren um einen neuen Link.
+invitation-state-begun = Das Treffen hat begonnen. Deine Rückmeldung lässt sich hier nicht mehr ändern.
+invitation-state-ended = Das Treffen ist vorbei.
+invitation-state-cancelled = Dieses Treffen ist abgesagt.
+
 members-title = Mitglieder
 members-add = Mitglied hinzufügen
 members-search = Nach Name oder Mailadresse suchen
