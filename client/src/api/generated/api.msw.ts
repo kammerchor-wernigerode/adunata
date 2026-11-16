@@ -67,6 +67,8 @@ export const getInvitationPageResponseMock = (overrideResponse: Partial<Extract<
 
 export const getAnswerResponseMock = (overrideResponse: Partial<Extract<ResponseValues, object>> = {}): ResponseValues => ({status: faker.helpers.arrayElement(Object.values(Status)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int({min: 1, max: 20}), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 2000}}), null]), ...overrideResponse})
 
+export const getAnswerForMemberResponseMock = (overrideResponse: Partial<Extract<ResponseValues, object>> = {}): ResponseValues => ({status: faker.helpers.arrayElement(Object.values(Status)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int({min: 1, max: 20}), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 2000}}), null]), ...overrideResponse})
+
 export const getLegalLinksResponseMock = (overrideResponse: Partial<Extract<LegalLinks, object>> = {}): LegalLinks => ({privacyUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), imprintUrl: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), ...overrideResponse})
 
 export const getListMembersResponseMock = (): Member[] => (Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({id: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), mail: faker.string.alpha({length: {min: 10, max: 20}}), language: faker.string.alpha({length: {min: 10, max: 20}}), active: faker.datatype.boolean(), organizer: faker.datatype.boolean()})))
@@ -223,6 +225,18 @@ export const getResendMockHandler = (overrideResponse?: void | ((info: Parameter
   }, options)
 }
 
+export const getAnswerForMemberMockHandler = (overrideResponse?: ResponseValues | ((info: Parameters<HttpResponseResolver<{ id: string }, ResponseValues>>[0]) => Promise<ResponseValues> | ResponseValues), options?: RequestHandlerOptions) => {
+  return http.put<{ id: string }, ResponseValues>('*/api/invitations/:id/response', async (info: Parameters<HttpResponseResolver<{ id: string }, ResponseValues>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getAnswerForMemberResponseMock(),
+      { status: 200
+      })
+  }, options)
+}
+
 export const getRevokeMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
   return http.post<{ id: string }>('*/api/invitations/:id/revocation', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
   if (typeof overrideResponse === 'function') {await overrideResponse(info); }
@@ -359,6 +373,7 @@ export const getAdunataMock = () => [
   getInvitationPageMockHandler(),
   getAnswerMockHandler(),
   getResendMockHandler(),
+  getAnswerForMemberMockHandler(),
   getRevokeMockHandler(),
   getLegalLinksMockHandler(),
   getListMembersMockHandler(),

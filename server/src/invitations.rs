@@ -74,6 +74,23 @@ async fn resolve(
         }))
 }
 
+/// The gathering of an invitation, judged against the given date.
+pub async fn gathering_of(
+    connection: &mut PgConnection,
+    invitation_id: i64,
+    today: time::Date,
+) -> Result<Option<Gathering>, sqlx::Error> {
+    let gathering_id: Option<i64> =
+        sqlx::query_scalar("SELECT gathering_id FROM invitations WHERE id = $1")
+            .bind(invitation_id)
+            .fetch_optional(&mut *connection)
+            .await?;
+    match gathering_id {
+        Some(id) => gatherings::find(connection, id, today).await,
+        None => Ok(None),
+    }
+}
+
 /// Which members to invite. Without ids Adunata invites every active member who is not invited yet.
 #[derive(Clone, Debug, Default, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]

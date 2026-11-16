@@ -440,6 +440,61 @@
         }
       }
     },
+    "/api/invitations/{id}/response": {
+      "put": {
+        "operationId": "answer_for_member",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the invitation",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponseValues"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Response stored on the member's behalf",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseValues"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such invitation"
+          },
+          "422": {
+            "description": "Response invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/invitations/{id}/revocation": {
       "post": {
         "operationId": "revoke",

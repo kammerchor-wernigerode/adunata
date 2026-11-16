@@ -213,6 +213,41 @@ export const ResendParams = zod.object({
 export const ResendResponse = zod.void()
 
 
+export const AnswerForMemberParams = zod.object({
+  "id": zod.int().describe('Id of the invitation')
+})
+
+export const answerForMemberBodyBedCountMax = 20;
+
+export const answerForMemberBodyCommentMax = 2000;
+
+
+
+export const AnswerForMemberBody = zod.object({
+  "status": zod.enum(['ready', 'unavailable']),
+  "arrival": zod.string().nullish(),
+  "departure": zod.string().nullish(),
+  "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
+  "bedCount": zod.int().min(1).max(answerForMemberBodyBedCountMax).nullish(),
+  "comment": zod.string().max(answerForMemberBodyCommentMax).nullish()
+}).describe('The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.')
+
+export const answerForMemberResponseBedCountMax = 20;
+
+export const answerForMemberResponseCommentMax = 2000;
+
+
+
+export const AnswerForMemberResponse = zod.object({
+  "status": zod.enum(['ready', 'unavailable']),
+  "arrival": zod.string().nullish(),
+  "departure": zod.string().nullish(),
+  "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
+  "bedCount": zod.int().min(1).max(answerForMemberResponseBedCountMax).nullish(),
+  "comment": zod.string().max(answerForMemberResponseCommentMax).nullish()
+}).describe('The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.')
+
+
 export const RevokeParams = zod.object({
   "id": zod.int().describe('Id of the invitation')
 })

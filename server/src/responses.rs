@@ -1,5 +1,5 @@
 use axum::Json;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
@@ -9,9 +9,10 @@ use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
+use crate::access::Organizer;
 use crate::api::AppState;
 use crate::gatherings::Gathering;
-use crate::invitations::PersonalLink;
+use crate::invitations::{self, PersonalLink};
 use crate::validation::{ErrorCode, FieldError, field_error, invalid};
 
 time::serde::format_description!(iso_date, Date, "[year]-[month]-[day]");
@@ -227,6 +228,35 @@ pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(invitation_page))
         .routes(routes!(answer))
+        .routes(routes!(answer_for_member))
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/invitations/{id}/response",
+    params(("id" = i64, Path, description = "Id of the invitation")),
+    request_body = ResponseValues,
+    responses(
+        (status = 200, description = "Response stored on the member's behalf", body = ResponseValues),
+        (status = 401, description = "No valid organizer session"),
+        (status = 404, description = "No such invitation"),
+        (status = 422, description = "Response invalid", body = crate::validation::ValidationErrors),
+    )
+)]
+async fn answer_for_member(
+    _: Organizer,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(values): Json<ResponseValues>,
+) -> Response {
+    let Ok(mut connection) = state.pool.acquire().await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    match invitations::gathering_of(&mut connection, id, state.time_zone.today()).await {
+        Ok(Some(gathering)) => save(&state, id, &gathering, &values, ChangedBy::Organizer).await,
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
 }
 
 fn link_state(gathering: &Gathering, today: Date) -> LinkState {
@@ -617,6 +647,115 @@ mod tests {
             errors,
             json!({ "errors": [{ "field": "beds", "code": "required" }] })
         );
+    }
+
+    async fn invitation_id(pool: &PgPool) -> i64 {
+        sqlx::query_scalar("SELECT id FROM invitations")
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    async fn answer_as_organizer(pool: &PgPool, body: &Value) -> (StatusCode, Value) {
+        let organizer: i64 = sqlx::query_scalar("SELECT id FROM members WHERE organizer")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+        let cookie = crate::access::testing::session_cookie(pool, organizer).await;
+        let id = invitation_id(pool).await;
+        send(
+            api::testing::state(pool.clone()),
+            &cookie,
+            "PUT",
+            &format!("/api/invitations/{id}/response"),
+            body,
+        )
+        .await
+    }
+
+    async fn move_start(pool: &PgPool, first: i32, last: i32) {
+        sqlx::query(
+            "UPDATE gatherings SET first_day = CURRENT_DATE + $1, last_day = CURRENT_DATE + $2",
+        )
+        .bind(first)
+        .bind(last)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn change_from_tentative_to_accepted() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        answer(&pool, &secret, &json!({ "status": "tentative", "beds": "need", "bedCount": 1, "comment": "Vielleicht später" })).await;
+        let (_, page) = open(&pool, Some(&secret)).await;
+        assert_eq!(page["response"]["status"], "tentative");
+        assert_eq!(page["response"]["bedCount"], 1);
+        assert_eq!(page["response"]["comment"], "Vielleicht später");
+        let (status, _) = answer(
+            &pool,
+            &secret,
+            &json!({ "status": "accepted", "beds": "need", "bedCount": 1 }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(row(&pool).await["status"], "accepted");
+    }
+
+    #[tokio::test]
+    async fn open_the_link_after_the_start() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        answer(
+            &pool,
+            &secret,
+            &json!({ "status": "accepted", "beds": "none" }),
+        )
+        .await;
+        move_start(&pool, 0, 2).await;
+        let (_, page) = open(&pool, Some(&secret)).await;
+        assert_eq!(page["state"], "begun");
+        assert_eq!(page["response"]["status"], "accepted");
+        let errors = rejected(&pool, &secret, json!({ "status": "declined" })).await;
+        assert_eq!(
+            errors,
+            json!({ "errors": [{ "field": "gathering", "code": "begun" }] })
+        );
+    }
+
+    #[tokio::test]
+    async fn answer_on_a_members_behalf() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        invited(&pool, 10, 12).await;
+        move_start(&pool, -1, 1).await;
+        let (status, _) =
+            answer_as_organizer(&pool, &json!({ "status": "accepted", "beds": "none" })).await;
+        assert_eq!(status, StatusCode::OK);
+        let stored = row(&pool).await;
+        assert_eq!(
+            (stored["status"].clone(), stored["changedBy"].clone()),
+            (json!("accepted"), json!("organizer"))
+        );
+    }
+
+    #[tokio::test]
+    async fn member_opens_the_link_afterwards() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        answer_as_organizer(
+            &pool,
+            &json!({ "status": "tentative", "beds": "offer", "bedCount": 3 }),
+        )
+        .await;
+        let (_, page) = open(&pool, Some(&secret)).await;
+        assert_eq!(page["state"], "open");
+        assert_eq!(page["response"]["status"], "tentative");
+        assert_eq!(page["response"]["bedCount"], 3);
     }
 
     #[tokio::test]

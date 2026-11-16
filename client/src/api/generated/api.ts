@@ -1465,6 +1465,125 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       return useMutation(getResendMutationOptions(options), queryClient);
     }
 
+export type answerForMemberResponse200 = {
+  data: ResponseValues
+  status: 200
+}
+
+export type answerForMemberResponse401 = {
+  data: void
+  status: 401
+}
+
+export type answerForMemberResponse404 = {
+  data: void
+  status: 404
+}
+
+export type answerForMemberResponse422 = {
+  data: ValidationErrors
+  status: 422
+}
+
+export type answerForMemberResponseSuccess = (answerForMemberResponse200) & {
+  headers: Headers;
+};
+export type answerForMemberResponseError = (answerForMemberResponse401 | answerForMemberResponse404 | answerForMemberResponse422) & {
+  headers: Headers;
+};
+
+export type answerForMemberResponse = (answerForMemberResponseSuccess | answerForMemberResponseError)
+
+export const getAnswerForMemberUrl = (id: number,) => {
+
+
+
+
+  return `/api/invitations/${id}/response`
+}
+
+export const answerForMember = async (id: number,
+    responseValues: ResponseValues, options?: RequestInit): Promise<answerForMemberResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+const res = await fetch(getAnswerForMemberUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(responseValues)
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: answerForMemberResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as answerForMemberResponse
+}
+
+
+
+
+
+export const getAnswerForMemberMutationKey = () => ['answerForMember'] as const;
+
+export const getAnswerForMemberMutationOptions = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answerForMember>>, TError,AnswerForMemberMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof answerForMember>>, TError,AnswerForMemberMutationVariables, TContext> => {
+
+const mutationKey = getAnswerForMemberMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof answerForMember>>, AnswerForMemberMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  answerForMember(id,data,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AnswerForMemberMutationResult = NonNullable<Awaited<ReturnType<typeof answerForMember>>>
+    export type AnswerForMemberMutationBody = ResponseValues
+    export type AnswerForMemberMutationError = void | ValidationErrors
+    export type AnswerForMemberMutationVariables = {id: number;data: ResponseValues}
+
+    export const useAnswerForMember = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answerForMember>>, TError,AnswerForMemberMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof answerForMember>>,
+        TError,
+        AnswerForMemberMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAnswerForMemberMutationOptions(options), queryClient);
+    }
+
 export type revokeResponse204 = {
   data: void
   status: 204
