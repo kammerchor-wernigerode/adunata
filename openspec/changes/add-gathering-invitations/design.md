@@ -48,7 +48,7 @@ A session is a random 256-bit identifier in a cookie. Outside `localhost` the co
 
 One middleware on `/api` rejects every request with a method other than `GET` or `HEAD` whose `Origin` header differs from the origin of `ADUNATA_PUBLIC_URL`. `SameSite` alone would not suffice, because a page on a sibling subdomain counts as the same site. A form without a body could also reach a handler that parses none. The middleware covers both without a token. In development the Vite server runs on its own port and forwards `/api` to Adunata together with the browser's `Origin`. The proxy in `client/vite.config.ts` therefore sets `Origin` to `ADUNATA_PUBLIC_URL` on every forwarded request.
 
-The module `access` owns sign-in and sessions. It offers other modules one extractor that yields the signed-in organizer or rejects the request with status 401. A server slice test walks every operation in the OpenAPI document and asserts status 401 without a session. Only an allowlist is exempt, meaning health, catalogs, the sign-in routes and the routes behind an invitation link. A new route that forgets the extractor fails this test.
+The module `access` owns sign-in and sessions. It offers other modules one extractor that yields the signed-in organizer or rejects the request with status 401. A server slice test walks every operation in the OpenAPI document and asserts status 401 without a session. Only an allowlist is exempt, meaning health, catalogs, the addresses of privacy notice and imprint that every page links, the sign-in routes and the routes behind an invitation link. A new route that forgets the extractor fails this test.
 
 Limits for sign-in requests:
 
