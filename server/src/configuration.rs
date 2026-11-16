@@ -151,11 +151,19 @@ impl PublicUrl {
             .base
             .parse()
             .expect("public URL was checked at start-up");
-        format!(
-            "{}://{}",
-            uri.scheme_str().expect("public URL has a scheme"),
-            uri.authority().expect("public URL has a host")
-        )
+        let scheme = uri
+            .scheme_str()
+            .expect("public URL has a scheme")
+            .to_ascii_lowercase();
+        let host = uri
+            .host()
+            .expect("public URL has a host")
+            .to_ascii_lowercase();
+        let default_port = if scheme == "https" { 443 } else { 80 };
+        match uri.port_u16().filter(|port| *port != default_port) {
+            Some(port) => format!("{scheme}://{host}:{port}"),
+            None => format!("{scheme}://{host}"),
+        }
     }
 
     /// The port of an instance that runs on `localhost`, where browsers share cookies across ports. `None` for every other host.

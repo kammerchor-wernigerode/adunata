@@ -521,6 +521,11 @@ mod tests {
             "https://choir.example.org"
         );
         assert_eq!(origin("http://localhost:8081"), "http://localhost:8081");
+        assert_eq!(
+            origin("https://Choir.Example.org:443/"),
+            "https://choir.example.org"
+        );
+        assert_eq!(origin("http://localhost:80"), "http://localhost");
     }
 
     mod sign_in {
