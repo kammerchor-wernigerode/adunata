@@ -16,6 +16,7 @@ pub enum ErrorCode {
     LastOrganizer,
     BeforeFirstDay,
     Ended,
+    Cancelled,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

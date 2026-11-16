@@ -28,6 +28,8 @@ import type {
   GatheringInput,
   GatheringList,
   Health,
+  InvitationRequest,
+  Invited,
   LegalLinks,
   Member,
   MemberChange,
@@ -647,6 +649,125 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
         TContext
       > => {
       return useMutation(getChangeGatheringMutationOptions(options), queryClient);
+    }
+
+export type inviteResponse201 = {
+  data: Invited
+  status: 201
+}
+
+export type inviteResponse401 = {
+  data: void
+  status: 401
+}
+
+export type inviteResponse404 = {
+  data: void
+  status: 404
+}
+
+export type inviteResponse422 = {
+  data: ValidationErrors
+  status: 422
+}
+
+export type inviteResponseSuccess = (inviteResponse201) & {
+  headers: Headers;
+};
+export type inviteResponseError = (inviteResponse401 | inviteResponse404 | inviteResponse422) & {
+  headers: Headers;
+};
+
+export type inviteResponse = (inviteResponseSuccess | inviteResponseError)
+
+export const getInviteUrl = (id: number,) => {
+
+
+
+
+  return `/api/gatherings/${id}/invitations`
+}
+
+export const invite = async (id: number,
+    invitationRequest: InvitationRequest, options?: RequestInit): Promise<inviteResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+const res = await fetch(getInviteUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(invitationRequest)
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: inviteResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as inviteResponse
+}
+
+
+
+
+
+export const getInviteMutationKey = () => ['invite'] as const;
+
+export const getInviteMutationOptions = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof invite>>, TError,InviteMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof invite>>, TError,InviteMutationVariables, TContext> => {
+
+const mutationKey = getInviteMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof invite>>, InviteMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  invite(id,data,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InviteMutationResult = NonNullable<Awaited<ReturnType<typeof invite>>>
+    export type InviteMutationBody = InvitationRequest
+    export type InviteMutationError = void | ValidationErrors
+    export type InviteMutationVariables = {id: number;data: InvitationRequest}
+
+    export const useInvite = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof invite>>, TError,InviteMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof invite>>,
+        TError,
+        InviteMutationVariables,
+        TContext
+      > => {
+      return useMutation(getInviteMutationOptions(options), queryClient);
     }
 
 export type healthResponse200 = {

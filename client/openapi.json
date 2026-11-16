@@ -187,6 +187,61 @@
         }
       }
     },
+    "/api/gatherings/{id}/invitations": {
+      "post": {
+        "operationId": "invite",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the gathering",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Members invited and their mail queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invited"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such gathering"
+          },
+          "422": {
+            "description": "The gathering is cancelled or has ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "operationId": "health",
@@ -517,7 +572,8 @@
           "invalid",
           "lastOrganizer",
           "beforeFirstDay",
-          "ended"
+          "ended",
+          "cancelled"
         ]
       },
       "FieldError": {
@@ -661,6 +717,35 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "InvitationRequest": {
+        "type": "object",
+        "description": "Which members to invite. Without ids Adunata invites every active member who is not invited yet.",
+        "properties": {
+          "memberIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "Invited": {
+        "type": "object",
+        "description": "How many members Adunata invited.",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },

@@ -97,6 +97,23 @@ export const ChangeGatheringResponse = zod.object({
 }).describe('A span of days on which the ensemble meets, as organizers see it.')
 
 
+export const InviteParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const InviteBody = zod.object({
+  "memberIds": zod.array(zod.int()).nullish()
+}).describe('Which members to invite. Without ids Adunata invites every active member who is not invited yet.')
+
+export const inviteResponseCountMin = 0;
+
+
+
+export const InviteResponse = zod.object({
+  "count": zod.int().min(inviteResponseCountMin)
+}).describe('How many members Adunata invited.')
+
+
 export const HealthResponse = zod.object({
   "status": zod.enum(['ready', 'unavailable']),
   "cause": zod.union([zod.enum(['database']),zod.null()]).optional()

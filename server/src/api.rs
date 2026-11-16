@@ -6,7 +6,9 @@ use utoipa_axum::router::OpenApiRouter;
 
 use crate::access::SignInLimiter;
 use crate::configuration::{InstanceTimeZone, LegalLinks, Network, PublicUrl};
-use crate::{access, gatherings, health, legal, localization, members, serving, spike};
+use crate::{
+    access, gatherings, health, invitations, legal, localization, members, serving, spike,
+};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -32,6 +34,7 @@ fn routes() -> OpenApiRouter<AppState> {
         .merge(members::router())
         .merge(access::router())
         .merge(gatherings::router())
+        .merge(invitations::router())
 }
 
 pub fn router(state: AppState) -> Router {

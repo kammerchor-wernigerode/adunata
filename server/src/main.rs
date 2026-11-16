@@ -5,6 +5,7 @@ mod configuration;
 mod database;
 mod gatherings;
 mod health;
+mod invitations;
 mod legal;
 mod localization;
 mod mail;

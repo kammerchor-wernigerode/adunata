@@ -285,7 +285,6 @@ pub async fn grant_organizer(
 }
 
 /// The active members, the only ones that new invitations reach.
-#[cfg_attr(not(test), expect(dead_code, reason = "nobody is invited yet"))]
 pub async fn active_members(connection: &mut PgConnection) -> Result<Vec<Member>, sqlx::Error> {
     let query = format!("SELECT {COLUMNS} FROM members WHERE active ORDER BY id");
     sqlx::query_as(sqlx::AssertSqlSafe(query))
@@ -738,6 +737,15 @@ mod tests {
             .await
             .unwrap();
 
+        let gathering =
+            crate::invitations::testing::gathering(pool, "Probenwochenende", 10, 12).await;
+        sqlx::query("INSERT INTO invitations (gathering_id, member_id, secret_hash) VALUES ($1, $2, '\\x02')")
+            .bind(gathering)
+            .bind(id)
+            .execute(pool)
+            .await
+            .unwrap();
+
         let (status, _) = instance
             .send("DELETE", &format!("/api/members/{id}"), &Value::Null)
             .await;
@@ -749,7 +757,7 @@ mod tests {
                 .iter()
                 .all(|member| member["id"] != id)
         );
-        for table in ["mail_outbox", "sessions", "sign_in_links"] {
+        for table in ["mail_outbox", "sessions", "sign_in_links", "invitations"] {
             assert_eq!(count(pool, table, id).await, 0, "{table}");
         }
     }

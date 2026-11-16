@@ -19,6 +19,7 @@ const serverErrorMessages: Record<ErrorCode, string> = {
   lastOrganizer: 'error-invalid',
   beforeFirstDay: 'error-invalid',
   ended: 'error-invalid',
+  cancelled: 'error-invalid',
 }
 
 const attendanceOptions = ['accepted', 'tentative', 'declined'] as const

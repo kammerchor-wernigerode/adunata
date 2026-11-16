@@ -20,4 +20,5 @@ export const ErrorCode = {
   lastOrganizer: 'lastOrganizer',
   beforeFirstDay: 'beforeFirstDay',
   ended: 'ended',
+  cancelled: 'cancelled',
 } as const;

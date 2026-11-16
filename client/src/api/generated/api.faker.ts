@@ -17,6 +17,7 @@ import type {
   Gathering,
   GatheringList,
   Health,
+  Invited,
   LegalLinks,
   Member,
   SpikeResponse
@@ -32,6 +33,8 @@ export const getCreateGatheringResponseMock = (overrideResponse: Partial<Extract
 export const getGetGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
 
 export const getChangeGatheringResponseMock = (overrideResponse: Partial<Extract<Gathering, object>> = {}): Gathering => ({id: faker.number.int(), title: faker.string.alpha({length: {min: 10, max: 20}}), location: faker.string.alpha({length: {min: 10, max: 20}}), description: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), firstDay: faker.date.past().toISOString().slice(0, 10), lastDay: faker.date.past().toISOString().slice(0, 10), cancelled: faker.datatype.boolean(), ended: faker.datatype.boolean(), ...overrideResponse})
+
+export const getInviteResponseMock = (overrideResponse: Partial<Extract<Invited, object>> = {}): Invited => ({count: faker.number.int({min: 0}), ...overrideResponse})
 
 export const getHealthResponseMock = (overrideResponse: Partial<Extract<Health, object>> = {}): Health => ({status: faker.helpers.arrayElement(Object.values(Status)), cause: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Cause)),null,]), ...overrideResponse})
 

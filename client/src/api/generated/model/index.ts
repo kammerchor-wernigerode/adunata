@@ -13,6 +13,8 @@ export * from './gathering';
 export * from './gatheringInput';
 export * from './gatheringList';
 export * from './health';
+export * from './invitationRequest';
+export * from './invited';
 export * from './legalLinks';
 export * from './member';
 export * from './memberChange';
