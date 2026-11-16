@@ -45,7 +45,7 @@
 - [x] 6.1 Add the module `gatherings` with title, location, optional description, first and last day and its state. Verify with tests for the scenarios "Create a gathering", "Last day before first day" and "Gathering has ended"
 - [ ] 6.2 Let organizers edit a gathering that has not ended. Verify with a test for the scenario "Shorten a gathering" once responses exist
 - [x] 6.3 Add the client pages for the gathering list and for creating and editing a gathering. Verify with client slice tests with axe and with a test that upcoming gatherings come first ordered by first day
-- [ ] 6.4 Add `gatherings` to arc42 section 5 and verify that every link resolves
+- [x] 6.4 Add `gatherings` to arc42 section 5 and verify that every link resolves
 
 ## 7. Invitations and personal links
 

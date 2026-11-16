@@ -15,6 +15,7 @@ flowchart LR
     clientModule[client]
     configuration[configuration]
     database[database]
+    gatherings[gatherings]
     health[health]
     legal[legal]
     localization[localization]
@@ -32,6 +33,10 @@ flowchart LR
   api --> legal
   api --> members
   api --> access
+  api --> gatherings
+  gatherings --> access
+  gatherings --> database
+  gatherings --> validation
   access --> members
   access --> mail
   access --> localization
@@ -58,6 +63,7 @@ flowchart LR
 |client|Serves the files of the built client from the binary. Paths without a file extension get the client's entry page.|The HTTP router for all paths outside the API.|
 |configuration|Reads the settings of the instance from the environment.|The settings as one value.|
 |database|Opens the connection pool and applies pending migrations. It refuses a schema that is newer than the binary.|A connected pool.|
+|gatherings|Keeps gatherings with title, location, description and span. It splits them into upcoming and past by the date in the time zone of the instance and refuses changes to a gathering that has ended. It depends on no other feature module.|The gathering routes and a function that finds a gathering for other modules.|
 |health|Reports whether the instance can serve requests and which dependency is unavailable.|The route `/api/health`.|
 |legal|Exposes the addresses of the privacy notice and the imprint that every page links.|The route `/api/legal-links`.|
 |localization|Holds one Fluent catalog per language, formats messages and serves catalogs to the client.|Formatting of messages and date ranges. The catalog route.|
