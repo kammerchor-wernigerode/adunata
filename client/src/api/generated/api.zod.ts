@@ -97,6 +97,13 @@ export const ChangeGatheringResponse = zod.object({
 }).describe('A span of days on which the ensemble meets, as organizers see it.')
 
 
+export const CancelParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const CancelResponse = zod.void()
+
+
 export const ListInvitationsParams = zod.object({
   "id": zod.int().describe('Id of the gathering')
 })

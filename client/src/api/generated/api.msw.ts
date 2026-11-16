@@ -137,6 +137,16 @@ export const getChangeGatheringMockHandler = (overrideResponse?: Gathering | ((i
   }, options)
 }
 
+export const getCancelMockHandler = (overrideResponse?: void | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
+  return http.post<{ id: string }>('*/api/gatherings/:id/cancellation', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
+
+    return new HttpResponse(null,
+      { status: 204
+      })
+  }, options)
+}
+
 export const getListInvitationsMockHandler = (overrideResponse?: Invitation[] | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<Invitation[]> | Invitation[]), options?: RequestHandlerOptions) => {
   return http.get<{ id: string }>('*/api/gatherings/:id/invitations', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
 
@@ -324,6 +334,7 @@ export const getAdunataMock = () => [
   getCreateGatheringMockHandler(),
   getGetGatheringMockHandler(),
   getChangeGatheringMockHandler(),
+  getCancelMockHandler(),
   getListInvitationsMockHandler(),
   getInviteMockHandler(),
   getHealthMockHandler(),

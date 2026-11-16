@@ -187,6 +187,44 @@
         }
       }
     },
+    "/api/gatherings/{id}/cancellation": {
+      "post": {
+        "operationId": "cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the gathering",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Gathering cancelled and a mail queued for every invited member"
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such gathering"
+          },
+          "422": {
+            "description": "The gathering is cancelled already or has ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrors"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/gatherings/{id}/invitations": {
       "get": {
         "operationId": "list_invitations",

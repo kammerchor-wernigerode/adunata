@@ -653,6 +653,110 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       return useMutation(getChangeGatheringMutationOptions(options), queryClient);
     }
 
+export type cancelResponse204 = {
+  data: void
+  status: 204
+}
+
+export type cancelResponse401 = {
+  data: void
+  status: 401
+}
+
+export type cancelResponse404 = {
+  data: void
+  status: 404
+}
+
+export type cancelResponse422 = {
+  data: ValidationErrors
+  status: 422
+}
+
+export type cancelResponseSuccess = (cancelResponse204) & {
+  headers: Headers;
+};
+export type cancelResponseError = (cancelResponse401 | cancelResponse404 | cancelResponse422) & {
+  headers: Headers;
+};
+
+export type cancelResponse = (cancelResponseSuccess | cancelResponseError)
+
+export const getCancelUrl = (id: number,) => {
+
+
+
+
+  return `/api/gatherings/${id}/cancellation`
+}
+
+export const cancel = async (id: number, options?: RequestInit): Promise<cancelResponse> => {
+
+  const res = await fetch(getCancelUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: cancelResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as cancelResponse
+}
+
+
+
+
+
+export const getCancelMutationKey = () => ['cancel'] as const;
+
+export const getCancelMutationOptions = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancel>>, TError,CancelMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof cancel>>, TError,CancelMutationVariables, TContext> => {
+
+const mutationKey = getCancelMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancel>>, CancelMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  cancel(id,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelMutationResult = NonNullable<Awaited<ReturnType<typeof cancel>>>
+
+    export type CancelMutationError = void | ValidationErrors
+    export type CancelMutationVariables = {id: number}
+
+    export const useCancel = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancel>>, TError,CancelMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cancel>>,
+        TError,
+        CancelMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCancelMutationOptions(options), queryClient);
+    }
+
 export type listInvitationsResponse200 = {
   data: Invitation[]
   status: 200

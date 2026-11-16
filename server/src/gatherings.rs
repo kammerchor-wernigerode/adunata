@@ -233,6 +233,23 @@ async fn change_gathering(
     }
 }
 
+/// Marks a gathering as cancelled unless it is cancelled already or has ended. Returns the gathering as it was cancelled, or `None` when nothing changed.
+pub async fn cancel(
+    connection: &mut PgConnection,
+    id: i64,
+    today: Date,
+) -> Result<Option<Gathering>, sqlx::Error> {
+    let query = format!(
+        "UPDATE gatherings SET cancelled_at = now() WHERE id = $1 AND cancelled_at IS NULL AND last_day >= $2 RETURNING {COLUMNS}"
+    );
+    Ok(sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(query))
+        .bind(id)
+        .bind(today)
+        .fetch_optional(connection)
+        .await?
+        .map(|row| Gathering::from_row(row, today)))
+}
+
 /// The gathering with this id, judged against the given date.
 pub async fn find(
     connection: &mut PgConnection,

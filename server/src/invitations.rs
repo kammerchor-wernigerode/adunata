@@ -117,6 +117,83 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(list_invitations, invite))
         .routes(routes!(resend))
         .routes(routes!(revoke))
+        .routes(routes!(cancel))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/gatherings/{id}/cancellation",
+    params(("id" = i64, Path, description = "Id of the gathering")),
+    responses(
+        (status = 204, description = "Gathering cancelled and a mail queued for every invited member"),
+        (status = 401, description = "No valid organizer session"),
+        (status = 404, description = "No such gathering"),
+        (status = 422, description = "The gathering is cancelled already or has ended", body = crate::validation::ValidationErrors),
+    )
+)]
+async fn cancel(_: Organizer, State(state): State<AppState>, Path(id): Path<i64>) -> Response {
+    match cancel_gathering(&state, id).await {
+        Ok(Outcome::Done(())) => StatusCode::NO_CONTENT.into_response(),
+        Ok(Outcome::NotFound) => StatusCode::NOT_FOUND.into_response(),
+        Ok(Outcome::Closed(code)) => invalid(vec![field_error("gathering", code)]),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+/// Cancels a gathering and queues a mail to every invited member in one transaction. This module owns the action, because it knows the recipients.
+async fn cancel_gathering(state: &AppState, id: i64) -> Result<Outcome<()>, sqlx::Error> {
+    let today = state.time_zone.today();
+    let mut transaction = state.pool.begin().await?;
+    let Some(gathering) = gatherings::cancel(&mut transaction, id, today).await? else {
+        return Ok(match gatherings::find(&mut transaction, id, today).await? {
+            None => Outcome::NotFound,
+            Some(gathering) if gathering.cancelled => Outcome::Closed(ErrorCode::Cancelled),
+            Some(_) => Outcome::Closed(ErrorCode::Ended),
+        });
+    };
+    let invited: Vec<(i64, i64)> =
+        sqlx::query_as("SELECT id, member_id FROM invitations WHERE gathering_id = $1 ORDER BY id")
+            .bind(id)
+            .fetch_all(&mut *transaction)
+            .await?;
+    for (invitation_id, member_id) in invited {
+        if let Some(member) = members::find(&mut transaction, member_id).await? {
+            mail::enqueue(
+                &mut transaction,
+                &cancellation_mail(&member, &gathering, invitation_id),
+            )
+            .await?;
+        }
+    }
+    transaction.commit().await?;
+    Ok(Outcome::Done(()))
+}
+
+fn cancellation_mail(member: &Member, gathering: &Gathering, invitation_id: i64) -> Mail {
+    let localizer = localization::localizer();
+    let language = member.language.as_str();
+    let mut args = FluentArgs::new();
+    args.set("firstName", member.first_name.clone());
+    args.set("title", gathering.title.clone());
+    args.set("location", gathering.location.clone());
+    args.set(
+        "span",
+        localizer.date_span(language, gathering.first_day, gathering.last_day),
+    );
+    let greeting = localizer.message(language, "invitation-mail-greeting", &args);
+    let body = localizer.message(language, "cancellation-mail-body", &args);
+    Mail {
+        recipient: member.mail.clone(),
+        member_id: Some(member.id),
+        invitation_id: Some(invitation_id),
+        subject: localizer.message(language, "cancellation-mail-subject", &args),
+        text: format!("{greeting}\n\n{body}\n"),
+        html: format!(
+            "<p>{}</p><p>{}</p>",
+            mail::escape_html(&greeting),
+            mail::escape_html(&body)
+        ),
+    }
 }
 
 #[utoipa::path(
@@ -700,6 +777,95 @@ mod tests {
             json!({ "errors": [{ "field": "gathering", "code": "ended" }] })
         );
         assert_eq!(mails(&pool).await, 1);
+    }
+
+    #[tokio::test]
+    async fn cancel_with_mail_to_every_invited_member() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let (_, cookie) = signed_in_organizer(&pool).await;
+        member(&pool, "Johannes", "en").await;
+        let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+        invite(&pool, &cookie, weekend, json!({})).await;
+        let (status, _) = send(
+            api::testing::state(pool.clone()),
+            &cookie,
+            "POST",
+            &format!("/api/gatherings/{weekend}/cancellation"),
+            &Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        let cancellations: Vec<(String, String)> = sqlx::query_as(
+            "SELECT recipient, subject FROM mail_outbox WHERE subject NOT LIKE 'Invitation%' AND subject NOT LIKE 'Einladung%' ORDER BY recipient",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            cancellations,
+            vec![
+                (
+                    "Johannes@example.org".to_owned(),
+                    "Cancelled: Probenwochenende".to_owned()
+                ),
+                (
+                    "root@example.org".to_owned(),
+                    "Cancelled: Probenwochenende".to_owned()
+                ),
+            ]
+        );
+        let (status, body) = send(
+            api::testing::state(pool.clone()),
+            &cookie,
+            "POST",
+            &format!("/api/gatherings/{weekend}/cancellation"),
+            &Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            body,
+            json!({ "errors": [{ "field": "gathering", "code": "cancelled" }] })
+        );
+    }
+
+    #[test]
+    fn cancellation_mail_in_german() {
+        let (member, gathering) = sample();
+        let mail = cancellation_mail(&member, &gathering, 11);
+        assert_eq!(mail.subject, "Abgesagt: Probenwochenende");
+        assert!(mail.text.contains("Hallo Clara"), "{}", mail.text);
+        assert!(
+            mail.text.contains(
+                "Probenwochenende in Kloster Drübeck, 12.–14. März 2027, findet nicht statt."
+            ),
+            "{}",
+            mail.text
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelled_gathering_takes_no_invitations() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let (_, cookie) = signed_in_organizer(&pool).await;
+        let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+        send(
+            api::testing::state(pool.clone()),
+            &cookie,
+            "POST",
+            &format!("/api/gatherings/{weekend}/cancellation"),
+            &Value::Null,
+        )
+        .await;
+        let (status, body) = invite(&pool, &cookie, weekend, json!({})).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            body,
+            json!({ "errors": [{ "field": "gathering", "code": "cancelled" }] })
+        );
+        assert!(invitations(&pool, weekend).await.is_empty());
     }
 
     #[tokio::test]

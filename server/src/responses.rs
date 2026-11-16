@@ -190,6 +190,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn member_opens_a_cancelled_gathering() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        sqlx::query("UPDATE gatherings SET cancelled_at = now()")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let (status, page) = open(&pool, Some(&secret)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(page["state"], "cancelled");
+    }
+
+    #[tokio::test]
     async fn open_on_the_first_day() {
         let database = fresh_database().await;
         let pool = database.pool();
