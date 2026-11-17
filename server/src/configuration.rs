@@ -240,6 +240,10 @@ pub enum Problem {
         setting: &'static str,
         with: &'static str,
     },
+    BothForms {
+        plain: &'static str,
+        file: &'static str,
+    },
 }
 
 impl fmt::Display for Problem {
@@ -251,6 +255,12 @@ impl fmt::Display for Problem {
             }
             Self::RequiredWith { setting, with } => {
                 write!(formatter, "{setting} is required when {with} is set")
+            }
+            Self::BothForms { plain, file } => {
+                write!(
+                    formatter,
+                    "{plain} and {file} are both set in the same source, set only one of them"
+                )
             }
             Self::Unreadable { setting, path } => {
                 write!(
@@ -264,16 +274,18 @@ impl fmt::Display for Problem {
 
 /// Every setting as its table and key. The name of each variable derives from them.
 #[cfg(test)]
-const SETTINGS: [(&str, &str); 21] = [
+const SETTINGS: [(&str, &str); 23] = [
     ("http", "public-url"),
     ("http", "listen-address"),
     ("http", "trusted-proxies"),
     ("database", "url"),
+    ("database", "password"),
     ("database", "password-file"),
     ("smtp", "host"),
     ("smtp", "port"),
     ("smtp", "encryption"),
     ("smtp", "username"),
+    ("smtp", "password"),
     ("smtp", "password-file"),
     ("mail", "sender"),
     ("mail", "max-attempts"),
@@ -296,12 +308,18 @@ fn variable_name(table: &str, key: &str) -> String {
         .replace('-', "_")
 }
 
+/// Answers the name of a setting with its value, if the source sets it.
+pub type Source<'a> = &'a dyn Fn(&str) -> Option<String>;
+
 impl Configuration {
     pub fn from_environment() -> Result<Self, Vec<Problem>> {
-        Self::load(&|name| std::env::var(name).ok().filter(|value| !value.is_empty()))
+        Self::load(&[&|name| std::env::var(name).ok().filter(|value| !value.is_empty())])
     }
 
-    pub fn load(variable: &dyn Fn(&str) -> Option<String>) -> Result<Self, Vec<Problem>> {
+    /// Takes each setting from the first source that sets it.
+    pub fn load(sources: &[Source]) -> Result<Self, Vec<Problem>> {
+        let first = |name: &str| sources.iter().find_map(|source| source(name));
+        let variable: Source = &first;
         let mut problems = Vec::new();
         let listen_address = parse(
             &mut problems,
@@ -319,8 +337,8 @@ impl Configuration {
             variable("ADNT_HTTP_PUBLIC_URL").as_deref(),
             parse_public_url,
         );
-        let database = load_database(&mut problems, variable);
-        let smtp = load_smtp(&mut problems, variable);
+        let database = load_database(&mut problems, sources, variable);
+        let smtp = load_smtp(&mut problems, sources, variable);
         let mail_sender = parse(
             &mut problems,
             "ADNT_MAIL_SENDER",
@@ -397,7 +415,8 @@ impl Configuration {
 
 fn load_database(
     problems: &mut Vec<Problem>,
-    variable: &dyn Fn(&str) -> Option<String>,
+    sources: &[Source],
+    variable: Source,
 ) -> Option<PgConnectOptions> {
     let database = parse(
         problems,
@@ -406,17 +425,19 @@ fn load_database(
         variable("ADNT_DATABASE_URL").as_deref(),
         |value| value.parse::<PgConnectOptions>().ok(),
     );
-    let password = secret(problems, "ADNT_DATABASE_PASSWORD_FILE", variable);
+    let password = secret(
+        problems,
+        "ADNT_DATABASE_PASSWORD",
+        "ADNT_DATABASE_PASSWORD_FILE",
+        sources,
+    );
     match password {
         Some(password) => database.map(|database| database.password(&password)),
         None => database,
     }
 }
 
-fn load_smtp(
-    problems: &mut Vec<Problem>,
-    variable: &dyn Fn(&str) -> Option<String>,
-) -> Option<Smtp> {
+fn load_smtp(problems: &mut Vec<Problem>, sources: &[Source], variable: Source) -> Option<Smtp> {
     let host = parse(
         problems,
         "ADNT_SMTP_HOST",
@@ -439,7 +460,12 @@ fn load_smtp(
         Encryption::parse,
     );
     let username = variable("ADNT_SMTP_USERNAME");
-    let password = secret(problems, "ADNT_SMTP_PASSWORD_FILE", variable);
+    let password = secret(
+        problems,
+        "ADNT_SMTP_PASSWORD",
+        "ADNT_SMTP_PASSWORD_FILE",
+        sources,
+    );
     Some(Smtp {
         host: host?,
         port: port?,
@@ -613,14 +639,29 @@ fn parse<T>(
     parsed
 }
 
+/// Takes a secret from the first source that sets its plain value or its file. An empty file means no secret.
 fn secret(
     problems: &mut Vec<Problem>,
-    setting: &'static str,
-    variable: &dyn Fn(&str) -> Option<String>,
+    plain: &'static str,
+    file: &'static str,
+    sources: &[Source],
 ) -> Option<String> {
-    let path = variable(setting)?;
+    let (value, path) = sources
+        .iter()
+        .map(|source| (source(plain), source(file)))
+        .find(|(value, path)| value.is_some() || path.is_some())?;
+    let Some(path) = path else {
+        return value;
+    };
+    if value.is_some() {
+        problems.push(Problem::BothForms { plain, file });
+        return None;
+    }
     let Ok(content) = std::fs::read_to_string(&path) else {
-        problems.push(Problem::Unreadable { setting, path });
+        problems.push(Problem::Unreadable {
+            setting: file,
+            path,
+        });
         return None;
     };
     let secret = content.trim_end_matches(['\r', '\n']);
@@ -670,7 +711,38 @@ mod tests {
     }
 
     fn load(variables: &HashMap<&'static str, String>) -> Result<Configuration, Vec<Problem>> {
-        Configuration::load(&|name| variables.get(name).cloned())
+        Configuration::load(&[&|name| variables.get(name).cloned()])
+    }
+
+    fn load_two(
+        first: &HashMap<&'static str, String>,
+        second: &HashMap<&'static str, String>,
+    ) -> Result<Configuration, Vec<Problem>> {
+        Configuration::load(&[&|name| first.get(name).cloned(), &|name| {
+            second.get(name).cloned()
+        }])
+    }
+
+    fn database_debug(configuration: &Configuration) -> String {
+        format!("{:?}", configuration.database)
+    }
+
+    /// Loads once more without the public URL, so that `load` fails, and asserts that no problem shows the secret.
+    fn assert_no_problem_shows(
+        secret: &str,
+        first: &HashMap<&'static str, String>,
+        second: &HashMap<&'static str, String>,
+    ) {
+        let mut first = first.clone();
+        let mut second = second.clone();
+        first.remove("ADNT_HTTP_PUBLIC_URL");
+        second.remove("ADNT_HTTP_PUBLIC_URL");
+        let problems = load_two(&first, &second)
+            .err()
+            .expect("configuration without public URL must be rejected");
+        for problem in problems {
+            assert!(!problem.to_string().contains(secret), "{problem}");
+        }
     }
 
     fn secret_file(content: &str) -> String {
@@ -714,10 +786,10 @@ mod tests {
     #[test]
     fn load_reads_exactly_the_derived_names() {
         let asked = std::cell::RefCell::new(std::collections::BTreeSet::new());
-        let _ = Configuration::load(&|name| {
+        let _ = Configuration::load(&[&|name| {
             asked.borrow_mut().insert(name.to_owned());
             Some("x".to_owned())
-        });
+        }]);
         let derived: std::collections::BTreeSet<String> = derived_names().into_iter().collect();
         assert_eq!(asked.into_inner(), derived);
     }
@@ -767,6 +839,81 @@ mod tests {
             debug.contains("s3cret"),
             "database password must come from the file"
         );
+    }
+
+    #[test]
+    fn secret_as_a_plain_value() {
+        let mut variables = required();
+        variables.insert("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned());
+        variables.insert("ADNT_SMTP_PASSWORD", "mail-pl41n".to_owned());
+        let configuration = load(&variables).expect("configuration must be accepted");
+        assert_eq!(configuration.smtp.password.as_deref(), Some("mail-pl41n"));
+        assert!(database_debug(&configuration).contains("db-pl41n"));
+        assert_no_problem_shows("pl41n", &variables, &HashMap::new());
+    }
+
+    #[test]
+    fn both_forms_in_one_source() {
+        let mut variables = required();
+        variables.insert("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned());
+        variables.insert("ADNT_DATABASE_PASSWORD_FILE", secret_file("db-f1le"));
+        let problems = problems(&variables);
+        assert_eq!(
+            problems,
+            vec![Problem::BothForms {
+                plain: "ADNT_DATABASE_PASSWORD",
+                file: "ADNT_DATABASE_PASSWORD_FILE"
+            }]
+        );
+        let message = problems[0].to_string();
+        assert!(message.contains("ADNT_DATABASE_PASSWORD "), "{message}");
+        assert!(message.contains("ADNT_DATABASE_PASSWORD_FILE"), "{message}");
+        assert_no_problem_shows("pl41n", &variables, &HashMap::new());
+        assert_no_problem_shows("f1le", &variables, &HashMap::new());
+    }
+
+    #[test]
+    fn plain_value_in_first_source_wins_over_file_in_second() {
+        let mut environment = required();
+        environment.insert("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned());
+        let file = HashMap::from([("ADNT_DATABASE_PASSWORD_FILE", secret_file("db-f1le"))]);
+        let configuration = load_two(&environment, &file).expect("configuration must be accepted");
+        let debug = database_debug(&configuration);
+        assert!(debug.contains("db-pl41n"), "{debug}");
+        assert!(!debug.contains("db-f1le"), "{debug}");
+        assert_no_problem_shows("pl41n", &environment, &file);
+        assert_no_problem_shows("f1le", &environment, &file);
+    }
+
+    #[test]
+    fn empty_secret_file_does_not_fall_back() {
+        let mut environment = required();
+        environment.insert("ADNT_DATABASE_PASSWORD_FILE", secret_file("\n"));
+        let file = HashMap::from([("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned())]);
+        let configuration = load_two(&environment, &file).expect("configuration must be accepted");
+        assert!(!database_debug(&configuration).contains("db-pl41n"));
+        assert_no_problem_shows("pl41n", &environment, &file);
+    }
+
+    #[test]
+    fn unreadable_secret_file_does_not_fall_back() {
+        let mut environment = required();
+        environment.insert(
+            "ADNT_SMTP_PASSWORD_FILE",
+            "/nonexistent/adunata-secret".to_owned(),
+        );
+        let file = HashMap::from([("ADNT_SMTP_PASSWORD", "mail-pl41n".to_owned())]);
+        let problems = load_two(&environment, &file)
+            .err()
+            .expect("configuration must be rejected");
+        assert_eq!(
+            problems,
+            vec![Problem::Unreadable {
+                setting: "ADNT_SMTP_PASSWORD_FILE",
+                path: "/nonexistent/adunata-secret".to_owned()
+            }]
+        );
+        assert_no_problem_shows("pl41n", &environment, &file);
     }
 
     #[test]
