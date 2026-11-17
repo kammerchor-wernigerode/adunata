@@ -107,10 +107,12 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 
 |Directory|Command|Runs|
 |-|-|-|
-|`server/`|`cargo test`|Unit and slice tests against PostgreSQL and Mailpit|
+|`server/`|`cargo test`|Unit tests and integration tests against PostgreSQL and Mailpit|
+|`server/`|`cargo test --bins -- --skip integration::`|Unit tests only, without any service|
 |`server/`|`cargo clippy --all-targets -- --deny warnings`|Lints|
 |`server/`|`cargo fmt --check`|Formatting|
 |`client/`|`npm test`|Unit tests|
+|`client/`|`npm run test:integration`|Integration tests|
 |`client/`|`npm run lint`|Lints|
 
 `cargo test` finds PostgreSQL through `ADNT_DATABASE_URL` and Mailpit through `ADNT_SMTP_PORT` and `MAILPIT_UI_PORT`. It creates a separate database for each test and drops it when the test ends, so the user in `ADNT_DATABASE_URL` needs the right to create databases.
@@ -124,7 +126,7 @@ docker compose exec -T postgres psql -U adunata -tAc "select datname from pg_dat
 The end-to-end tests run against a release build in Nix:
 
 ```sh
-nix build .#checks.x86_64-linux.endToEnd
+nix build .#checks.x86_64-linux.e2e
 ```
 
 ### API contract
@@ -140,10 +142,10 @@ npm run generate
 
 ### Checks before a push
 
-CI runs the checks of the flake. Run the fast ones locally before each push. Replace `x86_64-linux` with your system, such as `aarch64-darwin`.
+CI runs the checks of the flake. Run the checks up to `integration` locally before each push. Replace `x86_64-linux` with your system, such as `aarch64-darwin`. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target.
 
 ```sh
-nix build .#checks.x86_64-linux.fast
+nix build .#checks.x86_64-linux.integration
 ```
 
 ### Parallel worktrees

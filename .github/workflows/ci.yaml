@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Allow virtual machines
+        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        with:
+          extra_nix_config: system-features = nixos-test benchmark big-parallel kvm
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', 'flake.lock', 'server/Cargo.lock', 'client/package-lock.json') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 8G
+      - name: Evaluation of every flake output
+        run: nix flake check --no-build --option abort-on-warn true
+      - name: Lint
+        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.lint
+      - name: Build
+        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.build
+      - name: Unit tests
+        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.test
+      - name: Integration tests
+        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.integration
+      - name: End-to-end tests
+        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.e2e
+      - name: Memory measurement
+        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.memory
+      - name: NixOS VM test
+        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.nixos

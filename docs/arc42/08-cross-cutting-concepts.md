@@ -136,7 +136,23 @@ On SIGTERM, Adunata stops accepting connections, lets requests in progress finis
 
 ## Testing
 
-Tests run at several levels. Each level checks what the level below cannot see. Every check runs through `nix flake check`, locally and in CI, so both use the same entry point.
+Tests run at several levels. Each level checks what the level below cannot see. Locally and in CI, every check runs as a check of the flake, so both use the same entry point.
+
+The flake groups its checks into targets that build on each other like the phases of a build lifecycle. Each target contains the one before it, so `nix build .#checks.<system>.integration` runs lint, build, unit and integration tests together. CI runs each target in a step of its own.
+
+|Target|Contains|Builds on|
+|-|-|-|
+|`lint`|Formatting of Rust, Nix and every file per `.editorconfig`, Clippy, oxlint|nothing|
+|`build`|The server with the embedded client|`lint`|
+|`test`|Unit tests of server and client|`build`|
+|`integration`|Integration tests of server and client, startup tests of the binary and the contract|`test`|
+|`e2e`|End-to-end tests, Linux only|`integration`|
+|`memory`|The memory measurement, Linux only|`integration`|
+|`nixos`|The NixOS VM test, Linux only|`integration`|
+
+A unit test has no input or output. It uses no database, no mail server, no socket, no file and no router. Every other test is an integration test. On the server it lives in a module named `integration`, on the client in a file named `*.integration.test.ts` or `*.integration.test.tsx`. The target `test` skips both and starts neither PostgreSQL nor Mailpit, so a test that needs them outside such a module fails there. Nothing enforces the rule for sockets, files and the router.
+
+Each check inside a target is also a check of its own, such as `clippy` or `serverIntegrationTests`, so a failing one runs again alone.
 
 |Level|What it checks|Example|
 |-|-|-|
