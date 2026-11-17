@@ -20,91 +20,27 @@ in
       description = "The Adunata package to run.";
     };
 
-    publicUrl = lib.mkOption {
-      type = lib.types.str;
-      example = "https://adunata.example.org";
-      description = "The address under which people reach the instance. Every link in a mail starts with it.";
-    };
-
-    timeZone = lib.mkOption {
-      type = lib.types.str;
-      example = "Europe/Berlin";
-      description = "IANA time zone of the instance. Adunata shows wall-clock times in it and compares them with the present.";
-    };
-
-    retention = {
-      commentDays = lib.mkOption {
-        type = lib.types.either lib.types.ints.unsigned (lib.types.enum [ "never" ]);
-        default = 30;
-        description = "Days after the last day of a gathering until Adunata clears the comments of its responses, or never.";
+    http = {
+      publicUrl = lib.mkOption {
+        type = lib.types.str;
+        example = "https://adunata.example.org";
+        description = "The address under which people reach the instance. Every link in a mail starts with it.";
       };
 
-      responseDays = lib.mkOption {
-        type = lib.types.either lib.types.ints.unsigned (lib.types.enum [ "never" ]);
-        default = 365;
-        description = "Days after the last day of a gathering until Adunata deletes its invitations and responses, or never.";
+      listenAddress = lib.mkOption {
+        type = lib.types.str;
+        default = "127.0.0.1:8080";
+        description = "Address and port on which Adunata accepts HTTP requests. Put a reverse proxy with HTTPS in front of it.";
       };
-    };
 
-    privacyUrl = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      example = "https://choir.example.org/privacy";
-      description = "Address of the privacy notice that every page and every invitation mail links.";
-    };
-
-    imprintUrl = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      example = "https://choir.example.org/imprint";
-      description = "Address of the imprint that every page and every invitation mail links.";
-    };
-
-    firstOrganizer = lib.mkOption {
-      type = lib.types.nullOr (
-        lib.types.submodule {
-          options = {
-            mail = lib.mkOption {
-              type = lib.types.str;
-              description = "Mail address of the first organizer.";
-            };
-            firstName = lib.mkOption {
-              type = lib.types.str;
-              description = "First name of the first organizer.";
-            };
-            lastName = lib.mkOption {
-              type = lib.types.str;
-              description = "Last name of the first organizer.";
-            };
-          };
-        }
-      );
-      default = null;
-      description = "The member whom Adunata makes organizer when the instance has no active organizer.";
-    };
-
-    trustedProxies = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [
-        "127.0.0.1/32"
-        "::1/128"
-      ];
-      description = "Networks in CIDR notation of the reverse proxies whose X-Forwarded-For header Adunata trusts.";
-    };
-
-    listenAddress = lib.mkOption {
-      type = lib.types.str;
-      default = "127.0.0.1:8080";
-      description = "Address and port on which Adunata accepts HTTP requests. Put a reverse proxy with HTTPS in front of it.";
-    };
-
-    defaultLanguage = lib.mkOption {
-      type = lib.types.enum [
-        "de"
-        "en"
-      ];
-      default = "en";
-      description = "Language of the first organizer and of members that grant-organizer creates.";
+      trustedProxies = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [
+          "127.0.0.1/32"
+          "::1/128"
+        ];
+        description = "Networks in CIDR notation of the reverse proxies whose X-Forwarded-For header Adunata trusts.";
+      };
     };
 
     database = {
@@ -124,20 +60,6 @@ in
         type = lib.types.nullOr lib.types.path;
         default = null;
         description = "File that holds the database password.";
-      };
-    };
-
-    mail = {
-      sender = lib.mkOption {
-        type = lib.types.str;
-        example = "Adunata <adunata@example.org>";
-        description = "The sender of every mail.";
-      };
-
-      maxAttempts = lib.mkOption {
-        type = lib.types.ints.between 1 100;
-        default = 8;
-        description = "How often Adunata tries to deliver a mail.";
       };
     };
 
@@ -175,9 +97,99 @@ in
         description = "File that holds the password at the mail server.";
       };
     };
+
+    mail = {
+      sender = lib.mkOption {
+        type = lib.types.str;
+        example = "Adunata <adunata@example.org>";
+        description = "The sender of every mail.";
+      };
+
+      maxAttempts = lib.mkOption {
+        type = lib.types.ints.between 1 100;
+        default = 8;
+        description = "How often Adunata tries to deliver a mail.";
+      };
+    };
+
+    localization = {
+      defaultLanguage = lib.mkOption {
+        type = lib.types.enum [
+          "de"
+          "en"
+        ];
+        default = "en";
+        description = "Language of the first organizer and of members that grant-organizer creates.";
+      };
+
+      timeZone = lib.mkOption {
+        type = lib.types.str;
+        example = "Europe/Berlin";
+        description = "IANA time zone of the instance. Adunata shows wall-clock times in it and compares them with the present.";
+      };
+    };
+
+    retention = {
+      commentDays = lib.mkOption {
+        type = lib.types.either lib.types.ints.unsigned (lib.types.enum [ "never" ]);
+        default = 30;
+        description = "Days after the last day of a gathering until Adunata clears the comments of its responses, or never.";
+      };
+
+      responseDays = lib.mkOption {
+        type = lib.types.either lib.types.ints.unsigned (lib.types.enum [ "never" ]);
+        default = 365;
+        description = "Days after the last day of a gathering until Adunata deletes its invitations and responses, or never.";
+      };
+    };
+
+    legal = {
+      privacyUrl = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "https://choir.example.org/privacy";
+        description = "Address of the privacy notice that every page and every invitation mail links.";
+      };
+
+      imprintUrl = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "https://choir.example.org/imprint";
+        description = "Address of the imprint that every page and every invitation mail links.";
+      };
+    };
+
+    bootstrap = {
+      organizerMail = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Mail address of the member whom Adunata makes organizer when the instance has no active organizer.";
+      };
+
+      organizerFirstName = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "First name of the first organizer. Required with organizerMail.";
+      };
+
+      organizerLastName = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Last name of the first organizer. Required with organizerMail.";
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion =
+          cfg.bootstrap.organizerMail == null
+          || (cfg.bootstrap.organizerFirstName != null && cfg.bootstrap.organizerLastName != null);
+        message = "services.adunata.bootstrap.organizerMail needs organizerFirstName and organizerLastName.";
+      }
+    ];
+
     services.postgresql = lib.mkIf cfg.database.createLocally {
       enable = true;
       ensureDatabases = [ "adunata" ];
@@ -197,33 +209,37 @@ in
       requires = lib.optional cfg.database.createLocally "postgresql.service";
 
       environment = {
-        ADUNATA_PUBLIC_URL = cfg.publicUrl;
-        ADUNATA_LISTEN_ADDRESS = cfg.listenAddress;
-        ADUNATA_TIME_ZONE = cfg.timeZone;
-        ADUNATA_TRUSTED_PROXIES = lib.concatStringsSep "," cfg.trustedProxies;
-        ADUNATA_RETENTION_COMMENT_DAYS = toString cfg.retention.commentDays;
-        ADUNATA_RETENTION_RESPONSE_DAYS = toString cfg.retention.responseDays;
-        ADUNATA_DEFAULT_LANGUAGE = cfg.defaultLanguage;
-        ADUNATA_DATABASE_URL = cfg.database.url;
-        ADUNATA_SMTP_HOST = cfg.smtp.host;
-        ADUNATA_SMTP_PORT = toString cfg.smtp.port;
-        ADUNATA_SMTP_ENCRYPTION = cfg.smtp.encryption;
-        ADUNATA_MAIL_SENDER = cfg.mail.sender;
-        ADUNATA_MAIL_MAX_ATTEMPTS = toString cfg.mail.maxAttempts;
+        ADNT_HTTP_PUBLIC_URL = cfg.http.publicUrl;
+        ADNT_HTTP_LISTEN_ADDRESS = cfg.http.listenAddress;
+        ADNT_HTTP_TRUSTED_PROXIES = lib.concatStringsSep "," cfg.http.trustedProxies;
+        ADNT_DATABASE_URL = cfg.database.url;
+        ADNT_SMTP_HOST = cfg.smtp.host;
+        ADNT_SMTP_PORT = toString cfg.smtp.port;
+        ADNT_SMTP_ENCRYPTION = cfg.smtp.encryption;
+        ADNT_MAIL_SENDER = cfg.mail.sender;
+        ADNT_MAIL_MAX_ATTEMPTS = toString cfg.mail.maxAttempts;
+        ADNT_LOCALIZATION_DEFAULT_LANGUAGE = cfg.localization.defaultLanguage;
+        ADNT_LOCALIZATION_TIME_ZONE = cfg.localization.timeZone;
+        ADNT_RETENTION_COMMENT_DAYS = toString cfg.retention.commentDays;
+        ADNT_RETENTION_RESPONSE_DAYS = toString cfg.retention.responseDays;
       }
-      // lib.optionalAttrs (cfg.smtp.username != null) { ADUNATA_SMTP_USERNAME = cfg.smtp.username; }
-      // lib.optionalAttrs (cfg.privacyUrl != null) { ADUNATA_PRIVACY_URL = cfg.privacyUrl; }
-      // lib.optionalAttrs (cfg.imprintUrl != null) { ADUNATA_IMPRINT_URL = cfg.imprintUrl; }
-      // lib.optionalAttrs (cfg.firstOrganizer != null) {
-        ADUNATA_FIRST_ORGANIZER_MAIL = cfg.firstOrganizer.mail;
-        ADUNATA_FIRST_ORGANIZER_FIRST_NAME = cfg.firstOrganizer.firstName;
-        ADUNATA_FIRST_ORGANIZER_LAST_NAME = cfg.firstOrganizer.lastName;
+      // lib.optionalAttrs (cfg.smtp.username != null) { ADNT_SMTP_USERNAME = cfg.smtp.username; }
+      // lib.optionalAttrs (cfg.legal.privacyUrl != null) {
+        ADNT_LEGAL_PRIVACY_URL = cfg.legal.privacyUrl;
+      }
+      // lib.optionalAttrs (cfg.legal.imprintUrl != null) {
+        ADNT_LEGAL_IMPRINT_URL = cfg.legal.imprintUrl;
+      }
+      // lib.optionalAttrs (cfg.bootstrap.organizerMail != null) {
+        ADNT_BOOTSTRAP_ORGANIZER_MAIL = cfg.bootstrap.organizerMail;
+        ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME = cfg.bootstrap.organizerFirstName;
+        ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME = cfg.bootstrap.organizerLastName;
       }
       // lib.optionalAttrs (cfg.database.passwordFile != null) {
-        ADUNATA_DATABASE_PASSWORD_FILE = "%d/database-password";
+        ADNT_DATABASE_PASSWORD_FILE = "%d/database-password";
       }
       // lib.optionalAttrs (cfg.smtp.passwordFile != null) {
-        ADUNATA_SMTP_PASSWORD_FILE = "%d/smtp-password";
+        ADNT_SMTP_PASSWORD_FILE = "%d/smtp-password";
       };
 
       serviceConfig = {

@@ -73,14 +73,14 @@ Start PostgreSQL and Mailpit from [`compose.yaml`](compose.yaml):
 docker compose up --detach --wait
 ```
 
-Set the variables that the development shell would set. The [configuration reference](docs/operating/configuration.md) explains each `ADUNATA_` variable. The `PG` variables tell the tests where to create their databases.
+Set the variables that the development shell would set. The [configuration reference](docs/operating/configuration.md) explains each `ADNT_` variable. The `PG` variables tell the tests where to create their databases.
 
 ```sh
 export PGHOST=localhost PGPORT=5432 PGUSER=adunata PGPASSWORD=adunata PGDATABASE=adunata
-export ADUNATA_PUBLIC_URL=http://localhost:8080
-export ADUNATA_DATABASE_URL=postgres://adunata:adunata@localhost/adunata
-export ADUNATA_SMTP_HOST=localhost ADUNATA_SMTP_PORT=1025 ADUNATA_SMTP_ENCRYPTION=none
-export ADUNATA_MAIL_SENDER="Adunata <adunata@localhost>" ADUNATA_TIME_ZONE=Europe/Berlin
+export ADNT_HTTP_PUBLIC_URL=http://localhost:8080
+export ADNT_DATABASE_URL=postgres://adunata:adunata@localhost/adunata
+export ADNT_SMTP_HOST=localhost ADNT_SMTP_PORT=1025 ADNT_SMTP_ENCRYPTION=none
+export ADNT_MAIL_SENDER="Adunata <adunata@localhost>" ADNT_LOCALIZATION_TIME_ZONE=Europe/Berlin
 ```
 
 ### Run Adunata
@@ -103,7 +103,7 @@ To work on the client, keep the server running and start the Vite development se
 npm run dev
 ```
 
-It serves the client on <http://localhost:5173> and reloads on every change. It forwards requests to `/api` to the server on port 8080. `ADUNATA_VITE_PORT` changes the port of Vite. The forwarding follows `ADUNATA_LISTEN_ADDRESS`.
+It serves the client on <http://localhost:5173> and reloads on every change. It forwards requests to `/api` to the server on port 8080. `ADUNATA_VITE_PORT` changes the port of Vite. The forwarding follows `ADNT_HTTP_LISTEN_ADDRESS`.
 
 ### Tests and lints
 
@@ -163,6 +163,8 @@ Each worktree gets a slot `n`. Slot 0 belongs to the main checkout, which keeps 
 - installs and builds the client, so the server compiles right away
 
 The server listens on `port_base + 10n` and Vite on `port_base + 10n + 1`. Mail of every worktree goes to the same Mailpit. The database name depends only on the slot, so only one clone of Adunata per PostgreSQL server can use the plugin.
+
+`.envrc.local` keeps the names of the settings from the time the plugin wrote it. After rebasing a worktree onto a commit that renames a setting, run `git wt refresh` in that worktree.
 
 |Option|Default|Meaning|
 |-|-|-|

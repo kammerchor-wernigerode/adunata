@@ -31,7 +31,7 @@ Sign-in requests are limited to three links per hour per address and 20 requests
 
 ## Retention of personal data
 
-Personal data expires by default. Once per hour a task of the module `responses` applies two periods that count from the last day of a gathering. After `ADUNATA_RETENTION_COMMENT_DAYS`, 30 by default, it clears the comments of the gathering's responses. After `ADUNATA_RETENTION_RESPONSE_DAYS`, 365 by default, it deletes the gathering's invitations, and their responses go along through the foreign key. The gathering itself stays, so organizers see a past gathering without invitations. The value `never` keeps the data. The same task deletes ended sessions and sign-in links that are used or expired.
+Personal data expires by default. Once per hour a task of the module `responses` applies two periods that count from the last day of a gathering. After `ADNT_RETENTION_COMMENT_DAYS`, 30 by default, it clears the comments of the gathering's responses. After `ADNT_RETENTION_RESPONSE_DAYS`, 365 by default, it deletes the gathering's invitations, and their responses go along through the foreign key. The gathering itself stays, so organizers see a past gathering without invitations. The value `never` keeps the data. The same task deletes ended sessions and sign-in links that are used or expired.
 
 Each module deletes its own rows through a public function, so `responses` asks `invitations` and `access` to do so. Deleting a member deletes the member's invitations, responses, sessions, sign-in links and waiting mail through foreign keys. Mail loses its content once its delivery ends, see mail delivery below.
 
@@ -39,7 +39,7 @@ Each module deletes its own rows through a public function, so `responses` asks 
 
 The days of a gathering are dates. Times of arrival and departure are wall-clock times without an offset, such as `2027-03-14T18:00`. The database, the API, the client and mail carry them unchanged, so every view shows the same time. [ADR 0012](../decisions/0012-wall-clock-times-in-the-instance-time-zone.md) records why.
 
-The required setting `ADUNATA_TIME_ZONE` names the time zone of the instance. One function in the module `configuration` turns an instant into the date and wall-clock time of the instance. Every comparison with the present goes through it, such as whether a gathering has begun. Instants such as the end of a session stay `timestamptz` in the database and pass through the same function before they reach the API or a mail. The binary embeds the time zone database, so hosts and images need no zone files.
+The required setting `ADNT_LOCALIZATION_TIME_ZONE` names the time zone of the instance. One function in the module `configuration` turns an instant into the date and wall-clock time of the instance. Every comparison with the present goes through it, such as whether a gathering has begun. Instants such as the end of a session stay `timestamptz` in the database and pass through the same function before they reach the API or a mail. The binary embeds the time zone database, so hosts and images need no zone files.
 
 ## Personal links
 
@@ -59,7 +59,7 @@ One layer around the whole router sets these headers on every response, whether 
 
 Every API response also carries `Cache-Control: no-store`, so no cache keeps personal data. The client must therefore ship every script and style as a file and set styles only through the DOM, never as an inline element.
 
-A middleware on `/api` rejects every request with a method other than `GET` or `HEAD` whose `Origin` header differs from the origin of `ADUNATA_PUBLIC_URL`. A page on another origin can therefore not change data through the browser of a signed-in organizer. A request without `Origin` does not come from a browser page and passes. In development the Vite server forwards `/api` and sets `Origin` to the public URL.
+A middleware on `/api` rejects every request with a method other than `GET` or `HEAD` whose `Origin` header differs from the origin of `ADNT_HTTP_PUBLIC_URL`. A page on another origin can therefore not change data through the browser of a signed-in organizer. A request without `Origin` does not come from a browser page and passes. In development the Vite server forwards `/api` and sets `Origin` to the public URL.
 
 ## User interface
 

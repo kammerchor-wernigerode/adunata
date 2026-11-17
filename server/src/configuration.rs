@@ -14,7 +14,7 @@ const DEFAULT_LANGUAGE: &str = "en";
 const DEFAULT_TRUSTED_PROXIES: &str = "127.0.0.1/32,::1/128";
 const DEFAULT_RETENTION_COMMENT_DAYS: &str = "30";
 const DEFAULT_RETENTION_RESPONSE_DAYS: &str = "365";
-const FIRST_ORGANIZER_MAIL: &str = "ADUNATA_FIRST_ORGANIZER_MAIL";
+const FIRST_ORGANIZER_MAIL: &str = "ADNT_BOOTSTRAP_ORGANIZER_MAIL";
 
 pub struct Configuration {
     pub listen_address: SocketAddr,
@@ -262,6 +262,40 @@ impl fmt::Display for Problem {
     }
 }
 
+/// Every setting as its table and key. The name of each variable derives from them.
+#[cfg(test)]
+const SETTINGS: [(&str, &str); 21] = [
+    ("http", "public-url"),
+    ("http", "listen-address"),
+    ("http", "trusted-proxies"),
+    ("database", "url"),
+    ("database", "password-file"),
+    ("smtp", "host"),
+    ("smtp", "port"),
+    ("smtp", "encryption"),
+    ("smtp", "username"),
+    ("smtp", "password-file"),
+    ("mail", "sender"),
+    ("mail", "max-attempts"),
+    ("localization", "default-language"),
+    ("localization", "time-zone"),
+    ("retention", "comment-days"),
+    ("retention", "response-days"),
+    ("legal", "privacy-url"),
+    ("legal", "imprint-url"),
+    ("bootstrap", "organizer-mail"),
+    ("bootstrap", "organizer-first-name"),
+    ("bootstrap", "organizer-last-name"),
+];
+
+/// The environment variable of a setting, such as `ADNT_HTTP_PUBLIC_URL` for `public-url` in the table `http`.
+#[cfg(test)]
+fn variable_name(table: &str, key: &str) -> String {
+    format!("ADNT_{table}_{key}")
+        .to_ascii_uppercase()
+        .replace('-', "_")
+}
+
 impl Configuration {
     pub fn from_environment() -> Result<Self, Vec<Problem>> {
         Self::load(&|name| std::env::var(name).ok().filter(|value| !value.is_empty()))
@@ -271,52 +305,42 @@ impl Configuration {
         let mut problems = Vec::new();
         let listen_address = parse(
             &mut problems,
-            "ADUNATA_LISTEN_ADDRESS",
+            "ADNT_HTTP_LISTEN_ADDRESS",
             "a socket address such as 127.0.0.1:8080",
-            Some(with_default(variable, "ADUNATA_LISTEN_ADDRESS", DEFAULT_LISTEN_ADDRESS).as_str()),
+            Some(
+                with_default(variable, "ADNT_HTTP_LISTEN_ADDRESS", DEFAULT_LISTEN_ADDRESS).as_str(),
+            ),
             |value| value.parse().ok(),
         );
         let public_url = parse(
             &mut problems,
-            "ADUNATA_PUBLIC_URL",
+            "ADNT_HTTP_PUBLIC_URL",
             "an absolute HTTPS URL such as https://adunata.example.org",
-            variable("ADUNATA_PUBLIC_URL").as_deref(),
+            variable("ADNT_HTTP_PUBLIC_URL").as_deref(),
             parse_public_url,
         );
         let database = load_database(&mut problems, variable);
         let smtp = load_smtp(&mut problems, variable);
         let mail_sender = parse(
             &mut problems,
-            "ADUNATA_MAIL_SENDER",
+            "ADNT_MAIL_SENDER",
             "a mailbox such as Adunata <adunata@example.org>",
-            variable("ADUNATA_MAIL_SENDER").as_deref(),
+            variable("ADNT_MAIL_SENDER").as_deref(),
             |value| value.parse::<Mailbox>().ok(),
         );
-        let mail_max_attempts = parse(
+        let mail_max_attempts = load_mail_max_attempts(&mut problems, variable);
+        let default_language = parse(
             &mut problems,
-            "ADUNATA_MAIL_MAX_ATTEMPTS",
-            "a whole number from 1 to 100",
+            "ADNT_LOCALIZATION_DEFAULT_LANGUAGE",
+            "a supported language: de or en",
             Some(
                 with_default(
                     variable,
-                    "ADUNATA_MAIL_MAX_ATTEMPTS",
-                    DEFAULT_MAIL_MAX_ATTEMPTS,
+                    "ADNT_LOCALIZATION_DEFAULT_LANGUAGE",
+                    DEFAULT_LANGUAGE,
                 )
                 .as_str(),
             ),
-            |value| {
-                value
-                    .parse::<i32>()
-                    .ok()
-                    .filter(|attempts| (1..=100).contains(attempts))
-            },
-        );
-
-        let default_language = parse(
-            &mut problems,
-            "ADUNATA_DEFAULT_LANGUAGE",
-            "a supported language: de or en",
-            Some(with_default(variable, "ADUNATA_DEFAULT_LANGUAGE", DEFAULT_LANGUAGE).as_str()),
             |value| crate::localization::is_supported(value).then(|| value.to_owned()),
         );
 
@@ -324,8 +348,8 @@ impl Configuration {
         let trusted_proxies = load_trusted_proxies(&mut problems, variable);
         let retention = load_retention(&mut problems, variable);
         let legal_links = LegalLinks {
-            privacy: optional_link(&mut problems, "ADUNATA_PRIVACY_URL", variable),
-            imprint: optional_link(&mut problems, "ADUNATA_IMPRINT_URL", variable),
+            privacy: optional_link(&mut problems, "ADNT_LEGAL_PRIVACY_URL", variable),
+            imprint: optional_link(&mut problems, "ADNT_LEGAL_IMPRINT_URL", variable),
         };
         let first_organizer = load_first_organizer(&mut problems, variable);
 
@@ -377,12 +401,12 @@ fn load_database(
 ) -> Option<PgConnectOptions> {
     let database = parse(
         problems,
-        "ADUNATA_DATABASE_URL",
+        "ADNT_DATABASE_URL",
         "a PostgreSQL URL such as postgres://adunata@localhost/adunata",
-        variable("ADUNATA_DATABASE_URL").as_deref(),
+        variable("ADNT_DATABASE_URL").as_deref(),
         |value| value.parse::<PgConnectOptions>().ok(),
     );
-    let password = secret(problems, "ADUNATA_DATABASE_PASSWORD_FILE", variable);
+    let password = secret(problems, "ADNT_DATABASE_PASSWORD_FILE", variable);
     match password {
         Some(password) => database.map(|database| database.password(&password)),
         None => database,
@@ -395,33 +419,59 @@ fn load_smtp(
 ) -> Option<Smtp> {
     let host = parse(
         problems,
-        "ADUNATA_SMTP_HOST",
+        "ADNT_SMTP_HOST",
         "a host name",
-        variable("ADUNATA_SMTP_HOST").as_deref(),
+        variable("ADNT_SMTP_HOST").as_deref(),
         |value| Some(value.to_owned()),
     );
     let port = parse(
         problems,
-        "ADUNATA_SMTP_PORT",
+        "ADNT_SMTP_PORT",
         "a port number",
-        Some(with_default(variable, "ADUNATA_SMTP_PORT", DEFAULT_SMTP_PORT).as_str()),
+        Some(with_default(variable, "ADNT_SMTP_PORT", DEFAULT_SMTP_PORT).as_str()),
         |value| value.parse().ok(),
     );
     let encryption = parse(
         problems,
-        "ADUNATA_SMTP_ENCRYPTION",
+        "ADNT_SMTP_ENCRYPTION",
         "one of starttls, tls or none",
-        Some(with_default(variable, "ADUNATA_SMTP_ENCRYPTION", DEFAULT_SMTP_ENCRYPTION).as_str()),
+        Some(with_default(variable, "ADNT_SMTP_ENCRYPTION", DEFAULT_SMTP_ENCRYPTION).as_str()),
         Encryption::parse,
     );
-    let password = secret(problems, "ADUNATA_SMTP_PASSWORD_FILE", variable);
+    let username = variable("ADNT_SMTP_USERNAME");
+    let password = secret(problems, "ADNT_SMTP_PASSWORD_FILE", variable);
     Some(Smtp {
         host: host?,
         port: port?,
         encryption: encryption?,
-        username: variable("ADUNATA_SMTP_USERNAME"),
+        username,
         password,
     })
+}
+
+fn load_mail_max_attempts(
+    problems: &mut Vec<Problem>,
+    variable: &dyn Fn(&str) -> Option<String>,
+) -> Option<i32> {
+    parse(
+        problems,
+        "ADNT_MAIL_MAX_ATTEMPTS",
+        "a whole number from 1 to 100",
+        Some(
+            with_default(
+                variable,
+                "ADNT_MAIL_MAX_ATTEMPTS",
+                DEFAULT_MAIL_MAX_ATTEMPTS,
+            )
+            .as_str(),
+        ),
+        |value| {
+            value
+                .parse::<i32>()
+                .ok()
+                .filter(|attempts| (1..=100).contains(attempts))
+        },
+    )
 }
 
 fn load_time_zone(
@@ -430,9 +480,9 @@ fn load_time_zone(
 ) -> Option<InstanceTimeZone> {
     parse(
         problems,
-        "ADUNATA_TIME_ZONE",
+        "ADNT_LOCALIZATION_TIME_ZONE",
         "an IANA time zone such as Europe/Berlin",
-        variable("ADUNATA_TIME_ZONE").as_deref(),
+        variable("ADNT_LOCALIZATION_TIME_ZONE").as_deref(),
         InstanceTimeZone::parse,
     )
 }
@@ -443,9 +493,16 @@ fn load_trusted_proxies(
 ) -> Option<Vec<Network>> {
     parse(
         problems,
-        "ADUNATA_TRUSTED_PROXIES",
+        "ADNT_HTTP_TRUSTED_PROXIES",
         "a comma-separated list of networks such as 172.18.0.0/16,::1/128",
-        Some(with_default(variable, "ADUNATA_TRUSTED_PROXIES", DEFAULT_TRUSTED_PROXIES).as_str()),
+        Some(
+            with_default(
+                variable,
+                "ADNT_HTTP_TRUSTED_PROXIES",
+                DEFAULT_TRUSTED_PROXIES,
+            )
+            .as_str(),
+        ),
         |value| value.split(',').map(Network::parse).collect(),
     )
 }
@@ -464,11 +521,11 @@ fn load_retention(
         )
     };
     let comments = period(
-        "ADUNATA_RETENTION_COMMENT_DAYS",
+        "ADNT_RETENTION_COMMENT_DAYS",
         DEFAULT_RETENTION_COMMENT_DAYS,
     );
     let responses = period(
-        "ADUNATA_RETENTION_RESPONSE_DAYS",
+        "ADNT_RETENTION_RESPONSE_DAYS",
         DEFAULT_RETENTION_RESPONSE_DAYS,
     );
     Some(Retention {
@@ -525,8 +582,8 @@ fn load_first_organizer(
         }
         name.map(|name| name.trim().to_owned())
     };
-    let first_name = name("ADUNATA_FIRST_ORGANIZER_FIRST_NAME");
-    let last_name = name("ADUNATA_FIRST_ORGANIZER_LAST_NAME");
+    let first_name = name("ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME");
+    let last_name = name("ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME");
     Some(FirstOrganizer {
         mail: mail?,
         first_name: first_name?,
@@ -596,19 +653,19 @@ mod tests {
     fn required() -> HashMap<&'static str, String> {
         HashMap::from([
             (
-                "ADUNATA_PUBLIC_URL",
+                "ADNT_HTTP_PUBLIC_URL",
                 "https://adunata.example.org".to_owned(),
             ),
             (
-                "ADUNATA_DATABASE_URL",
+                "ADNT_DATABASE_URL",
                 "postgres://adunata@localhost/adunata".to_owned(),
             ),
-            ("ADUNATA_SMTP_HOST", "mail.example.org".to_owned()),
+            ("ADNT_SMTP_HOST", "mail.example.org".to_owned()),
             (
-                "ADUNATA_MAIL_SENDER",
+                "ADNT_MAIL_SENDER",
                 "Adunata <adunata@example.org>".to_owned(),
             ),
-            ("ADUNATA_TIME_ZONE", "Europe/Berlin".to_owned()),
+            ("ADNT_LOCALIZATION_TIME_ZONE", "Europe/Berlin".to_owned()),
         ])
     }
 
@@ -630,6 +687,39 @@ mod tests {
         load(variables)
             .err()
             .expect("configuration must be rejected")
+    }
+
+    fn derived_names() -> Vec<String> {
+        SETTINGS
+            .iter()
+            .map(|(table, key)| variable_name(table, key))
+            .collect()
+    }
+
+    #[test]
+    fn variable_name_of_a_key_with_dashes() {
+        assert_eq!(
+            variable_name("bootstrap", "organizer-mail"),
+            "ADNT_BOOTSTRAP_ORGANIZER_MAIL"
+        );
+    }
+
+    #[test]
+    fn derived_names_are_unique() {
+        let names = derived_names();
+        let unique: std::collections::BTreeSet<&String> = names.iter().collect();
+        assert_eq!(unique.len(), names.len());
+    }
+
+    #[test]
+    fn load_reads_exactly_the_derived_names() {
+        let asked = std::cell::RefCell::new(std::collections::BTreeSet::new());
+        let _ = Configuration::load(&|name| {
+            asked.borrow_mut().insert(name.to_owned());
+            Some("x".to_owned())
+        });
+        let derived: std::collections::BTreeSet<String> = derived_names().into_iter().collect();
+        assert_eq!(asked.into_inner(), derived);
     }
 
     #[test]
@@ -668,8 +758,8 @@ mod tests {
     #[test]
     fn read_a_secret_from_a_file() {
         let mut variables = required();
-        variables.insert("ADUNATA_DATABASE_PASSWORD_FILE", secret_file("s3cret\n"));
-        variables.insert("ADUNATA_SMTP_PASSWORD_FILE", secret_file("mail-s3cret"));
+        variables.insert("ADNT_DATABASE_PASSWORD_FILE", secret_file("s3cret\n"));
+        variables.insert("ADNT_SMTP_PASSWORD_FILE", secret_file("mail-s3cret"));
         let configuration = load(&variables).expect("configuration must be accepted");
         assert_eq!(configuration.smtp.password.as_deref(), Some("mail-s3cret"));
         let debug = format!("{:?}", configuration.database);
@@ -682,8 +772,8 @@ mod tests {
     #[test]
     fn empty_secret_file_counts_as_unset() {
         let mut variables = required();
-        variables.insert("ADUNATA_SMTP_USERNAME", "adunata@example.org".to_owned());
-        variables.insert("ADUNATA_SMTP_PASSWORD_FILE", secret_file("\n"));
+        variables.insert("ADNT_SMTP_USERNAME", "adunata@example.org".to_owned());
+        variables.insert("ADNT_SMTP_PASSWORD_FILE", secret_file("\n"));
         let configuration = load(&variables).expect("configuration must be accepted");
         assert_eq!(configuration.smtp.password, None);
     }
@@ -692,41 +782,37 @@ mod tests {
     fn secret_file_unreadable() {
         let mut variables = required();
         variables.insert(
-            "ADUNATA_SMTP_PASSWORD_FILE",
+            "ADNT_SMTP_PASSWORD_FILE",
             "/nonexistent/adunata-secret".to_owned(),
         );
         let problems = problems(&variables);
         assert_eq!(
             problems,
             vec![Problem::Unreadable {
-                setting: "ADUNATA_SMTP_PASSWORD_FILE",
+                setting: "ADNT_SMTP_PASSWORD_FILE",
                 path: "/nonexistent/adunata-secret".to_owned()
             }]
         );
-        assert!(
-            problems[0]
-                .to_string()
-                .contains("ADUNATA_SMTP_PASSWORD_FILE")
-        );
+        assert!(problems[0].to_string().contains("ADNT_SMTP_PASSWORD_FILE"));
     }
 
     #[test]
     fn several_settings_missing() {
         let mut variables = required();
-        variables.remove("ADUNATA_PUBLIC_URL");
-        variables.remove("ADUNATA_SMTP_HOST");
-        variables.remove("ADUNATA_TIME_ZONE");
+        variables.remove("ADNT_HTTP_PUBLIC_URL");
+        variables.remove("ADNT_SMTP_HOST");
+        variables.remove("ADNT_LOCALIZATION_TIME_ZONE");
         assert_eq!(
             problems(&variables),
             vec![
                 Problem::Missing {
-                    setting: "ADUNATA_PUBLIC_URL"
+                    setting: "ADNT_HTTP_PUBLIC_URL"
                 },
                 Problem::Missing {
-                    setting: "ADUNATA_SMTP_HOST"
+                    setting: "ADNT_SMTP_HOST"
                 },
                 Problem::Missing {
-                    setting: "ADUNATA_TIME_ZONE"
+                    setting: "ADNT_LOCALIZATION_TIME_ZONE"
                 },
             ]
         );
@@ -735,17 +821,20 @@ mod tests {
     #[test]
     fn unknown_time_zone() {
         let mut variables = required();
-        variables.insert("ADUNATA_TIME_ZONE", "Europe/Wernigerode".to_owned());
-        variables.remove("ADUNATA_SMTP_HOST");
+        variables.insert(
+            "ADNT_LOCALIZATION_TIME_ZONE",
+            "Europe/Wernigerode".to_owned(),
+        );
+        variables.remove("ADNT_SMTP_HOST");
         let problems = problems(&variables);
         assert_eq!(
             problems,
             vec![
                 Problem::Missing {
-                    setting: "ADUNATA_SMTP_HOST"
+                    setting: "ADNT_SMTP_HOST"
                 },
                 Problem::Malformed {
-                    setting: "ADUNATA_TIME_ZONE",
+                    setting: "ADNT_LOCALIZATION_TIME_ZONE",
                     expected: "an IANA time zone such as Europe/Berlin"
                 },
             ]
@@ -755,20 +844,23 @@ mod tests {
     #[test]
     fn optional_settings() {
         let mut variables = required();
-        variables.insert("ADUNATA_RETENTION_COMMENT_DAYS", "never".to_owned());
-        variables.insert("ADUNATA_RETENTION_RESPONSE_DAYS", "90".to_owned());
+        variables.insert("ADNT_RETENTION_COMMENT_DAYS", "never".to_owned());
+        variables.insert("ADNT_RETENTION_RESPONSE_DAYS", "90".to_owned());
         variables.insert(
-            "ADUNATA_PRIVACY_URL",
+            "ADNT_LEGAL_PRIVACY_URL",
             "https://choir.example.org/privacy".to_owned(),
         );
         variables.insert(
-            "ADUNATA_IMPRINT_URL",
+            "ADNT_LEGAL_IMPRINT_URL",
             "https://choir.example.org/imprint".to_owned(),
         );
-        variables.insert("ADUNATA_FIRST_ORGANIZER_MAIL", "ada@example.org".to_owned());
-        variables.insert("ADUNATA_FIRST_ORGANIZER_FIRST_NAME", "Ada".to_owned());
-        variables.insert("ADUNATA_FIRST_ORGANIZER_LAST_NAME", "Lovelace".to_owned());
-        variables.insert("ADUNATA_TRUSTED_PROXIES", "172.18.0.0/16".to_owned());
+        variables.insert(
+            "ADNT_BOOTSTRAP_ORGANIZER_MAIL",
+            "ada@example.org".to_owned(),
+        );
+        variables.insert("ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME", "Ada".to_owned());
+        variables.insert("ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME", "Lovelace".to_owned());
+        variables.insert("ADNT_HTTP_TRUSTED_PROXIES", "172.18.0.0/16".to_owned());
         let configuration = load(&variables).expect("configuration must be accepted");
         assert_eq!(
             configuration.retention,
@@ -795,19 +887,22 @@ mod tests {
     #[test]
     fn first_organizer_without_both_names() {
         let mut variables = required();
-        variables.insert("ADUNATA_FIRST_ORGANIZER_MAIL", "ada@example.org".to_owned());
-        variables.insert("ADUNATA_FIRST_ORGANIZER_FIRST_NAME", "Ada".to_owned());
+        variables.insert(
+            "ADNT_BOOTSTRAP_ORGANIZER_MAIL",
+            "ada@example.org".to_owned(),
+        );
+        variables.insert("ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME", "Ada".to_owned());
         let problems = problems(&variables);
         assert_eq!(
             problems,
             vec![Problem::RequiredWith {
-                setting: "ADUNATA_FIRST_ORGANIZER_LAST_NAME",
-                with: "ADUNATA_FIRST_ORGANIZER_MAIL"
+                setting: "ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME",
+                with: "ADNT_BOOTSTRAP_ORGANIZER_MAIL"
             }]
         );
         assert_eq!(
             problems[0].to_string(),
-            "ADUNATA_FIRST_ORGANIZER_LAST_NAME is required when ADUNATA_FIRST_ORGANIZER_MAIL is set"
+            "ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME is required when ADNT_BOOTSTRAP_ORGANIZER_MAIL is set"
         );
     }
 
@@ -815,11 +910,11 @@ mod tests {
     fn retention_other_than_days_or_never() {
         for value in ["-1", "30d", "forever", "1.5"] {
             let mut variables = required();
-            variables.insert("ADUNATA_RETENTION_COMMENT_DAYS", value.to_owned());
+            variables.insert("ADNT_RETENTION_COMMENT_DAYS", value.to_owned());
             assert_eq!(
                 problems(&variables),
                 vec![Problem::Malformed {
-                    setting: "ADUNATA_RETENTION_COMMENT_DAYS",
+                    setting: "ADNT_RETENTION_COMMENT_DAYS",
                     expected: "a whole number of days or never"
                 }],
                 "{value} must be rejected"
@@ -831,13 +926,13 @@ mod tests {
     fn malformed_optional_settings() {
         let mut variables = required();
         variables.insert(
-            "ADUNATA_PRIVACY_URL",
+            "ADNT_LEGAL_PRIVACY_URL",
             "choir.example.org/privacy".to_owned(),
         );
-        variables.insert("ADUNATA_TRUSTED_PROXIES", "10.0.0.0/33".to_owned());
-        variables.insert("ADUNATA_FIRST_ORGANIZER_MAIL", "ada".to_owned());
-        variables.insert("ADUNATA_FIRST_ORGANIZER_FIRST_NAME", "Ada".to_owned());
-        variables.insert("ADUNATA_FIRST_ORGANIZER_LAST_NAME", "Lovelace".to_owned());
+        variables.insert("ADNT_HTTP_TRUSTED_PROXIES", "10.0.0.0/33".to_owned());
+        variables.insert("ADNT_BOOTSTRAP_ORGANIZER_MAIL", "ada".to_owned());
+        variables.insert("ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME", "Ada".to_owned());
+        variables.insert("ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME", "Lovelace".to_owned());
         let settings: Vec<&str> = problems(&variables)
             .iter()
             .map(|problem| match problem {
@@ -848,9 +943,9 @@ mod tests {
         assert_eq!(
             settings,
             vec![
-                "ADUNATA_TRUSTED_PROXIES",
-                "ADUNATA_PRIVACY_URL",
-                "ADUNATA_FIRST_ORGANIZER_MAIL"
+                "ADNT_HTTP_TRUSTED_PROXIES",
+                "ADNT_LEGAL_PRIVACY_URL",
+                "ADNT_BOOTSTRAP_ORGANIZER_MAIL"
             ]
         );
     }
@@ -925,12 +1020,12 @@ mod tests {
             "https://adunata.example.org/?a=b",
         ] {
             let mut variables = required();
-            variables.insert("ADUNATA_PUBLIC_URL", url.to_owned());
+            variables.insert("ADNT_HTTP_PUBLIC_URL", url.to_owned());
             let problems = problems(&variables);
             assert_eq!(problems.len(), 1, "{url} must be rejected");
             let message = problems[0].to_string();
             assert!(
-                message.contains("ADUNATA_PUBLIC_URL") && message.contains("HTTPS"),
+                message.contains("ADNT_HTTP_PUBLIC_URL") && message.contains("HTTPS"),
                 "{message}"
             );
         }
@@ -939,7 +1034,7 @@ mod tests {
     #[test]
     fn localhost_may_use_http() {
         let mut variables = required();
-        variables.insert("ADUNATA_PUBLIC_URL", "http://localhost:8080/".to_owned());
+        variables.insert("ADNT_HTTP_PUBLIC_URL", "http://localhost:8080/".to_owned());
         let configuration = load(&variables).expect("configuration must be accepted");
         assert_eq!(
             configuration.public_url.link("/gatherings"),

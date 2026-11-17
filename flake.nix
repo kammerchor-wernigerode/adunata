@@ -156,7 +156,7 @@
                 "serve"
               ];
               Env = [
-                "ADUNATA_LISTEN_ADDRESS=0.0.0.0:8080"
+                "ADNT_HTTP_LISTEN_ADDRESS=0.0.0.0:8080"
                 "PATH=${staticServer}/bin"
               ];
               ExposedPorts."8080/tcp" = { };
@@ -171,12 +171,12 @@
             initdb --username="$PGUSER" --auth=trust --no-instructions >/dev/null
             pg_ctl start --wait --silent --options="-k $PGHOST -c listen_addresses="
             mailpit --smtp 127.0.0.1:11025 --listen 127.0.0.1:18025 --quiet &
-            ADUNATA_DATABASE_URL="postgres:///postgres?host=$PGHOST&user=$PGUSER" \
-              ADUNATA_LISTEN_ADDRESS=127.0.0.1:18080 ADUNATA_PUBLIC_URL=http://localhost:18080 \
-              ADUNATA_SMTP_HOST=127.0.0.1 ADUNATA_SMTP_PORT=11025 ADUNATA_SMTP_ENCRYPTION=none \
-              ADUNATA_MAIL_SENDER="Adunata <adunata@example.org>" ADUNATA_TIME_ZONE=Europe/Berlin \
-              ADUNATA_FIRST_ORGANIZER_MAIL=organizer@example.org ADUNATA_FIRST_ORGANIZER_FIRST_NAME=Ada \
-              ADUNATA_FIRST_ORGANIZER_LAST_NAME=Lovelace \
+            ADNT_DATABASE_URL="postgres:///postgres?host=$PGHOST&user=$PGUSER" \
+              ADNT_HTTP_LISTEN_ADDRESS=127.0.0.1:18080 ADNT_HTTP_PUBLIC_URL=http://localhost:18080 \
+              ADNT_SMTP_HOST=127.0.0.1 ADNT_SMTP_PORT=11025 ADNT_SMTP_ENCRYPTION=none \
+              ADNT_MAIL_SENDER="Adunata <adunata@example.org>" ADNT_LOCALIZATION_TIME_ZONE=Europe/Berlin \
+              ADNT_BOOTSTRAP_ORGANIZER_MAIL=organizer@example.org ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME=Ada \
+              ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME=Lovelace \
               ${staticServer}/bin/adunata serve &
             adunataPid=$!
             for _ in $(seq 100); do (echo > /dev/tcp/127.0.0.1/18080) 2>/dev/null && break; sleep 0.1; done
@@ -395,13 +395,13 @@
           MP_SMTP_BIND_ADDR = "localhost:1025";
           MP_UI_BIND_ADDR = "localhost:8025";
 
-          ADUNATA_PUBLIC_URL = "http://localhost:8080";
-          ADUNATA_DATABASE_URL = "postgres://adunata:adunata@localhost/adunata";
-          ADUNATA_SMTP_HOST = "localhost";
-          ADUNATA_SMTP_PORT = "1025";
-          ADUNATA_SMTP_ENCRYPTION = "none";
-          ADUNATA_MAIL_SENDER = "Adunata <adunata@localhost>";
-          ADUNATA_TIME_ZONE = "Europe/Berlin";
+          ADNT_HTTP_PUBLIC_URL = "http://localhost:8080";
+          ADNT_DATABASE_URL = "postgres://adunata:adunata@localhost/adunata";
+          ADNT_SMTP_HOST = "localhost";
+          ADNT_SMTP_PORT = "1025";
+          ADNT_SMTP_ENCRYPTION = "none";
+          ADNT_MAIL_SENDER = "Adunata <adunata@localhost>";
+          ADNT_LOCALIZATION_TIME_ZONE = "Europe/Berlin";
         };
       });
     };

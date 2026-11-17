@@ -147,7 +147,7 @@ async fn serve() {
         Ok(access::FirstOrganizerOutcome::Created) => tracing::info!("first organizer created"),
         Ok(access::FirstOrganizerOutcome::AlreadyPresent) => {}
         Ok(access::FirstOrganizerOutcome::NobodyCanSignIn) => tracing::warn!(
-            "the instance has no active organizer, so nobody can sign in. Set ADUNATA_FIRST_ORGANIZER_MAIL with both names or run adunata grant-organizer"
+            "the instance has no active organizer, so nobody can sign in. Set ADNT_BOOTSTRAP_ORGANIZER_MAIL with both names or run adunata grant-organizer"
         ),
         Err(error) => {
             tracing::error!(%error, "first organizer could not be created");

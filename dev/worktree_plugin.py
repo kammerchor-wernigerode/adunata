@@ -17,11 +17,11 @@ OPTIONS = [
 ]
 
 SANITIZE_ENV = [
-    "ADUNATA_LISTEN_ADDRESS",
-    "ADUNATA_PUBLIC_URL",
+    "ADNT_HTTP_LISTEN_ADDRESS",
+    "ADNT_HTTP_PUBLIC_URL",
     "ADUNATA_E2E_URL",
     "ADUNATA_VITE_PORT",
-    "ADUNATA_DATABASE_URL",
+    "ADNT_DATABASE_URL",
     "PGHOST",
     "PGPORT",
     "PGUSER",
@@ -76,11 +76,11 @@ def teardown(ctx) -> None:
 def environment_of(ctx) -> str:
     port = server_port(ctx)
     return (
-        f"export ADUNATA_LISTEN_ADDRESS=127.0.0.1:{port}\n"
-        f"export ADUNATA_PUBLIC_URL=http://localhost:{port}\n"
+        f"export ADNT_HTTP_LISTEN_ADDRESS=127.0.0.1:{port}\n"
+        f"export ADNT_HTTP_PUBLIC_URL=http://localhost:{port}\n"
         f"export ADUNATA_E2E_URL=http://localhost:{port}\n"
         f"export ADUNATA_VITE_PORT={port + 1}\n"
-        f"export ADUNATA_DATABASE_URL=${{ADUNATA_DATABASE_URL%/*}}/{database_of(ctx)}\n"
+        f"export ADNT_DATABASE_URL=${{ADNT_DATABASE_URL%/*}}/{database_of(ctx)}\n"
     )
 
 
