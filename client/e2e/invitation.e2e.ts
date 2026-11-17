@@ -26,7 +26,24 @@ function isoDay(offset: number): string {
   return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
 }
 
+/** Waits until no finite CSS transition or animation runs any more, so that axe sees the final colors after a change of the color scheme. A transition that a newer one replaces rejects its promise, so the check repeats until none is left. Finished and paused animations do not count. */
+async function settle(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const running = () =>
+      document
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.playState === 'running' && animation.effect?.getComputedTiming().endTime !== Infinity,
+        )
+    while (running().length > 0) {
+      await Promise.allSettled(running().map((animation) => animation.finished))
+    }
+  })
+}
+
 async function violations(page: Page): Promise<string[]> {
+  await settle(page)
   const results = await new AxeBuilder({ page }).analyze()
   return results.violations.map((violation) => `${violation.id}: ${violation.help}`)
 }
