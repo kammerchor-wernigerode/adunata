@@ -103,19 +103,26 @@
           # Dependencies compile without the client, so a change to the client keeps them cached.
           forDependencies = args: removeAttrs args [ "preBuild" ];
           cargoArtifacts = craneLib.buildDepsOnly (forDependencies serverArgs);
-          server = craneLib.buildPackage (
+          serverArtifacts = craneLib.cargoBuild (
             serverArgs
             // {
               inherit cargoArtifacts;
               doCheck = false;
             }
           );
+          server = craneLib.buildPackage (
+            serverArgs
+            // {
+              cargoArtifacts = serverArtifacts;
+              doCheck = false;
+            }
+          );
           testArtifacts = craneLib.mkCargoDerivation (
             serverArgs
             // {
-              inherit cargoArtifacts;
+              cargoArtifacts = serverArtifacts;
               pnameSuffix = "-tests";
-              buildPhaseCargoCommand = "cargoWithProfile test --locked --bins --no-run";
+              buildPhaseCargoCommand = "cargoWithProfile test --locked --bins --test startup --no-run";
             }
           );
           serverTests =
@@ -231,7 +238,7 @@
 
           serverIntegrationTests = serverTests (serverArgs // testServices) "-integration-tests" ''
             cargoWithProfile test --locked --bins -- integration::
-            cargoWithProfile test --locked --test startup
+            ADUNATA_TEST_BINARY=${server}/bin/adunata cargoWithProfile test --locked --test startup
           '';
 
           contract = clientPackage {

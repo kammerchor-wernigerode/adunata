@@ -34,12 +34,18 @@ fn run(arguments: &[&str], variables: &[(&str, &str)]) -> (Option<i32>, String, 
     run_in(&WorkingDirectory::new().path, arguments, variables)
 }
 
+/// The binary under test. Nix points `ADUNATA_TEST_BINARY` at the installed binary, because the path that Cargo compiles in belongs to another build directory there.
+fn binary() -> String {
+    std::env::var("ADUNATA_TEST_BINARY")
+        .unwrap_or_else(|_| env!("CARGO_BIN_EXE_adunata").to_owned())
+}
+
 fn run_in(
     directory: &Path,
     arguments: &[&str],
     variables: &[(&str, &str)],
 ) -> (Option<i32>, String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_adunata"))
+    let output = Command::new(binary())
         .current_dir(directory)
         .env_clear()
         .envs(variables.iter().copied())
