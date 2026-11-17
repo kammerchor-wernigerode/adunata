@@ -333,6 +333,13 @@ const SETTINGS: [(&str, &str); 23] = [
 /// The only setting that takes an array, whose strings Adunata joins with commas.
 const LIST_SETTING: (&str, &str) = ("http", "trusted-proxies");
 
+/// Settings that the file accepts only as strings, so that a credential reaches the server exactly as written.
+const CREDENTIAL_SETTINGS: [(&str, &str); 3] = [
+    ("database", "password"),
+    ("smtp", "username"),
+    ("smtp", "password"),
+];
+
 /// The environment variable of a setting, such as `ADNT_HTTP_PUBLIC_URL` for `public-url` in the table `http`.
 fn variable_name(table: &str, key: &str) -> String {
     format!("ADNT_{table}_{key}")
@@ -344,15 +351,22 @@ fn variable_name(table: &str, key: &str) -> String {
 pub type Source<'a> = &'a dyn Fn(&str) -> Option<String>;
 
 impl Configuration {
-    /// Reads the environment and, if one is named, the configuration file. The environment wins.
-    pub fn from_environment(file: Option<&str>) -> Result<Self, Vec<Problem>> {
-        let environment = |name: &str| std::env::var(name).ok().filter(|value| !value.is_empty());
+    /// Reads the environment of the process and, if one is named, the configuration file.
+    pub fn from_environment_and_file(file: Option<&str>) -> Result<Self, Vec<Problem>> {
+        Self::from_sources(
+            &|name| std::env::var(name).ok().filter(|value| !value.is_empty()),
+            file,
+        )
+    }
+
+    /// Reads the given environment and, if one is named, the configuration file. The environment wins.
+    fn from_sources(environment: Source, file: Option<&str>) -> Result<Self, Vec<Problem>> {
         let Some(file) = file else {
-            return Self::load(&[&environment]);
+            return Self::load(&[environment]);
         };
         let (settings, mut problems) = read_file(file).map_err(|problem| vec![problem])?;
         let from_file = |name: &str| settings.get(name).cloned();
-        match Self::load(&[&environment, &from_file]) {
+        match Self::load(&[environment, &from_file]) {
             Ok(configuration) if problems.is_empty() => Ok(configuration),
             Ok(_) => Err(problems),
             Err(mut others) => {
@@ -521,10 +535,7 @@ fn load_smtp(problems: &mut Vec<Problem>, sources: &[Source], variable: Source) 
     })
 }
 
-fn load_mail_max_attempts(
-    problems: &mut Vec<Problem>,
-    variable: &dyn Fn(&str) -> Option<String>,
-) -> Option<i32> {
+fn load_mail_max_attempts(problems: &mut Vec<Problem>, variable: Source) -> Option<i32> {
     parse(
         problems,
         "ADNT_MAIL_MAX_ATTEMPTS",
@@ -546,10 +557,7 @@ fn load_mail_max_attempts(
     )
 }
 
-fn load_time_zone(
-    problems: &mut Vec<Problem>,
-    variable: &dyn Fn(&str) -> Option<String>,
-) -> Option<InstanceTimeZone> {
+fn load_time_zone(problems: &mut Vec<Problem>, variable: Source) -> Option<InstanceTimeZone> {
     parse(
         problems,
         "ADNT_LOCALIZATION_TIME_ZONE",
@@ -559,10 +567,7 @@ fn load_time_zone(
     )
 }
 
-fn load_trusted_proxies(
-    problems: &mut Vec<Problem>,
-    variable: &dyn Fn(&str) -> Option<String>,
-) -> Option<Vec<Network>> {
+fn load_trusted_proxies(problems: &mut Vec<Problem>, variable: Source) -> Option<Vec<Network>> {
     parse(
         problems,
         "ADNT_HTTP_TRUSTED_PROXIES",
@@ -579,10 +584,7 @@ fn load_trusted_proxies(
     )
 }
 
-fn load_retention(
-    problems: &mut Vec<Problem>,
-    variable: &dyn Fn(&str) -> Option<String>,
-) -> Option<Retention> {
+fn load_retention(problems: &mut Vec<Problem>, variable: Source) -> Option<Retention> {
     let mut period = |setting, default| {
         parse(
             problems,
@@ -609,7 +611,7 @@ fn load_retention(
 fn optional_link(
     problems: &mut Vec<Problem>,
     setting: &'static str,
-    variable: &dyn Fn(&str) -> Option<String>,
+    variable: Source,
 ) -> Option<String> {
     let value = variable(setting)?;
     parse(
@@ -627,10 +629,7 @@ fn is_web_address(value: &str) -> bool {
         .is_ok_and(|uri| matches!(uri.scheme_str(), Some("http" | "https")) && uri.host().is_some())
 }
 
-fn load_first_organizer(
-    problems: &mut Vec<Problem>,
-    variable: &dyn Fn(&str) -> Option<String>,
-) -> Option<FirstOrganizer> {
+fn load_first_organizer(problems: &mut Vec<Problem>, variable: Source) -> Option<FirstOrganizer> {
     let mail = variable(FIRST_ORGANIZER_MAIL)?;
     let mail = parse(
         problems,
@@ -663,7 +662,7 @@ fn load_first_organizer(
     })
 }
 
-fn with_default(variable: &dyn Fn(&str) -> Option<String>, setting: &str, default: &str) -> String {
+fn with_default(variable: Source, setting: &str, default: &str) -> String {
     variable(setting).unwrap_or_else(|| default.to_owned())
 }
 
@@ -727,16 +726,12 @@ fn read_file(file: &str) -> Result<FileSettings, Problem> {
 
 /// Never uses the `Display` of a parser error, because it quotes the line and with it any secret on that line.
 fn parse_file(file: &str, text: &str) -> Result<FileSettings, Problem> {
-    let tables = text.parse::<toml::Table>().map_err(|error| {
-        let (line, column) = position(text, error.span().map_or(0, |span| span.start));
-        Problem::UnusableFile {
+    let tables = text
+        .parse::<toml::Table>()
+        .map_err(|error| Problem::UnusableFile {
             file: file.to_owned(),
-            reason: format!(
-                "cannot be parsed at line {line}, column {column}: {}",
-                error.message()
-            ),
-        }
-    })?;
+            reason: parse_failure(text, error.span(), error.message()),
+        })?;
     let mut settings = HashMap::new();
     let mut problems = Vec::new();
     for (table, keys) in &tables {
@@ -756,7 +751,7 @@ fn parse_file(file: &str, text: &str) -> Result<FileSettings, Problem> {
                 });
                 continue;
             }
-            match setting_value((table.as_str(), key.as_str()) == LIST_SETTING, value) {
+            match setting_value(Shape::of((table, key)), value) {
                 Ok(Some(value)) => {
                     settings.insert(variable_name(table, key), value);
                 }
@@ -772,20 +767,59 @@ fn parse_file(file: &str, text: &str) -> Result<FileSettings, Problem> {
     Ok((settings, problems))
 }
 
+/// The values a key of the file takes.
+#[derive(Clone, Copy)]
+enum Shape {
+    /// A string only, because TOML would turn a bare `0x1F` or `1_000` into another text.
+    Text,
+    TextOrNumber,
+    TextOrList,
+}
+
+impl Shape {
+    fn of(setting: (&str, &str)) -> Self {
+        if setting == LIST_SETTING {
+            Self::TextOrList
+        } else if CREDENTIAL_SETTINGS.contains(&setting) {
+            Self::Text
+        } else {
+            Self::TextOrNumber
+        }
+    }
+
+    fn expected(self) -> &'static str {
+        match self {
+            Self::Text => "a string",
+            Self::TextOrNumber => "a string or a whole number",
+            Self::TextOrList => "a string or a non-empty array of strings",
+        }
+    }
+}
+
 /// Turns a value of the file into the text a variable would hold. An empty string counts as not set.
-fn setting_value(list: bool, value: &toml::Value) -> Result<Option<String>, &'static str> {
-    match value {
-        toml::Value::String(text) => Ok((!text.is_empty()).then(|| text.clone())),
-        toml::Value::Integer(number) => Ok(Some(number.to_string())),
-        toml::Value::Array(items) if list => items
+fn setting_value(shape: Shape, value: &toml::Value) -> Result<Option<String>, &'static str> {
+    match (shape, value) {
+        (_, toml::Value::String(text)) => Ok((!text.is_empty()).then(|| text.clone())),
+        (Shape::TextOrNumber, toml::Value::Integer(number)) => Ok(Some(number.to_string())),
+        (Shape::TextOrList, toml::Value::Array(items)) => items
             .iter()
             .map(toml::Value::as_str)
             .collect::<Option<Vec<&str>>>()
             .filter(|items| !items.is_empty())
             .map(|items| Some(items.join(",")))
-            .ok_or("a string or a non-empty array of strings"),
-        _ if list => Err("a string or a non-empty array of strings"),
-        _ => Err("a string or a whole number"),
+            .ok_or(shape.expected()),
+        _ => Err(shape.expected()),
+    }
+}
+
+/// Names the position of a parse error only when the parser knows it.
+fn parse_failure(text: &str, span: Option<std::ops::Range<usize>>, message: &str) -> String {
+    match span {
+        Some(span) => {
+            let (line, column) = position(text, span.start);
+            format!("cannot be parsed at line {line}, column {column}: {message}")
+        }
+        None => format!("cannot be parsed: {message}"),
     }
 }
 
@@ -1018,6 +1052,79 @@ mod tests {
             "{problem}"
         );
         assert!(!problem.contains("pa$$word"), "{problem}");
+    }
+
+    const REQUIRED_FILE: &str = "[http]\npublic-url = \"https://adunata.example.org\"\nlisten-address = \"no address\"\n[database]\nurl = \"postgres://adunata@localhost/adunata\"\n[smtp]\nhost = \"mail.example.org\"\n[mail]\nsender = \"Adunata <adunata@example.org>\"\n[localization]\ntime-zone = \"Europe/Berlin\"\n";
+
+    #[test]
+    fn start_from_a_configuration_file() {
+        let file = secret_file(&REQUIRED_FILE.replace("listen-address = \"no address\"\n", ""));
+        let configuration = Configuration::from_sources(&|_| None, Some(&file))
+            .expect("configuration must be accepted");
+        assert_eq!(configuration.smtp.host, "mail.example.org");
+    }
+
+    #[test]
+    fn environment_overrides_the_file() {
+        let file = secret_file(REQUIRED_FILE);
+        let configuration = Configuration::from_sources(
+            &|name| (name == "ADNT_HTTP_LISTEN_ADDRESS").then(|| "127.0.0.1:9000".to_owned()),
+            Some(&file),
+        )
+        .expect("configuration must be accepted");
+        assert_eq!(configuration.listen_address.to_string(), "127.0.0.1:9000");
+
+        let problems = Configuration::from_sources(&|_| None, Some(&file))
+            .err()
+            .expect("listen address of the file must be rejected");
+        assert_eq!(
+            problems,
+            vec![Problem::Malformed {
+                setting: "ADNT_HTTP_LISTEN_ADDRESS",
+                expected: "a socket address such as 127.0.0.1:8080"
+            }]
+        );
+    }
+
+    #[test]
+    fn problems_of_the_file_join_the_others() {
+        let file = secret_file("[smpt]\nhost = \"mail.example.org\"\n");
+        let problems = Configuration::from_sources(&|_| None, Some(&file))
+            .err()
+            .expect("configuration must be rejected");
+        assert!(
+            matches!(problems[0], Problem::UnknownKey { .. }),
+            "{problems:?}"
+        );
+        assert!(problems.contains(&Problem::Missing {
+            setting: "ADNT_HTTP_PUBLIC_URL"
+        }));
+    }
+
+    #[test]
+    fn credentials_in_the_file_take_only_strings() {
+        let problems =
+            file_problems("[database]\npassword = 0x1F\n[smtp]\nusername = 1_000\npassword = 5\n");
+        assert_eq!(
+            problems,
+            vec![
+                "database.password in the configuration file adunata.toml must be a string",
+                "smtp.password in the configuration file adunata.toml must be a string",
+                "smtp.username in the configuration file adunata.toml must be a string",
+            ]
+        );
+        assert_eq!(
+            file_settings("[database]\npassword = \"0x1F\"\n"),
+            HashMap::from([("ADNT_DATABASE_PASSWORD".to_owned(), "0x1F".to_owned())])
+        );
+    }
+
+    #[test]
+    fn parse_error_without_position() {
+        assert_eq!(
+            parse_failure("a = 1\n", None, "invalid table"),
+            "cannot be parsed: invalid table"
+        );
     }
 
     #[test]

@@ -38,7 +38,7 @@ Each setting has a key in a table of the [configuration file](#configuration-fil
 
 Name a file in TOML with the option `--config <path>` or the variable `ADNT_CONFIG_FILE`. The option wins over the variable. Without either, or with an empty value, Adunata reads no file. It never looks for a file on its own.
 
-The file holds the tables and keys of the [settings](#settings) and nothing else. A key accepts only the spelling in the table, so `public_url` in `[http]` is an unknown key. A key takes a string or a whole number. `trusted-proxies` also takes a non-empty array of strings. An empty string counts as not set.
+The file holds the tables and keys of the [settings](#settings) and nothing else. A key accepts only the spelling in the table, so `public_url` in `[http]` is an unknown key. A key takes a string or a whole number. `trusted-proxies` also takes a non-empty array of strings. `password` and `username` take only a string, because TOML would read a bare `0x1F` or `1_000` as a number and Adunata would sign in with its decimal text. An empty string counts as not set.
 
 Adunata takes each setting from the first of these sources that sets it:
 

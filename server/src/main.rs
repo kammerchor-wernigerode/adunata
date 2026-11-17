@@ -19,18 +19,18 @@ mod validation;
 
 use std::time::Duration;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use configuration::Configuration;
 
 /// Adunata organizes the gatherings of choirs and instrumental ensembles.
 #[derive(Parser)]
-#[command(version, about, arg_required_else_help = true)]
+#[command(version, about)]
 struct Cli {
     /// Configuration file in TOML. A setting in the environment wins over the same setting in the file.
     #[arg(long, global = true, env = "ADNT_CONFIG_FILE", value_name = "PATH")]
     config: Option<String>,
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Subcommand)]
@@ -74,8 +74,13 @@ fn name(value: &str) -> Result<String, String> {
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
+    let Some(command) = cli.command else {
+        eprint!("{}", Cli::command().render_help());
+        std::process::exit(2);
+    };
+    tracing_subscriber::fmt().json().init();
     let file = cli.config.filter(|path| !path.is_empty());
-    match cli.command {
+    match command {
         Command::Serve => serve(configuration(file.as_deref())).await,
         Command::GrantOrganizer {
             mail,
@@ -100,8 +105,7 @@ async fn main() {
 }
 
 fn configuration(file: Option<&str>) -> Configuration {
-    tracing_subscriber::fmt().json().init();
-    Configuration::from_environment(file).unwrap_or_else(|problems| {
+    Configuration::from_environment_and_file(file).unwrap_or_else(|problems| {
         for problem in problems {
             tracing::error!(%problem, "configuration is invalid");
         }

@@ -28,7 +28,7 @@ Without a named file, Adunata SHALL take every setting from the environment alon
 - **THEN** Adunata reads its settings only from the environment
 
 ### Requirement: Unusable configuration file
-When the named file cannot be read or parsed, Adunata SHALL refuse to start and report only that problem. The message SHALL name the file and, for a parse error, the line and the column. It SHALL NOT contain the content of the line.
+When the named file cannot be read or parsed, Adunata SHALL refuse to start and report only that problem. The message SHALL name the file and, for a parse error whose position the parser reports, the line and the column. It SHALL NOT contain the content of the line.
 
 #### Scenario: Named file missing
 - **WHEN** `ADNT_CONFIG_FILE` names a file that does not exist
@@ -63,11 +63,15 @@ The name of the environment variable of a setting SHALL be `ADNT_`, the table, `
 - **THEN** its name is `ADNT_BOOTSTRAP_ORGANIZER_MAIL`
 
 ### Requirement: Values in the configuration file
-A key SHALL take a string, an integer or, where a setting takes a list, a non-empty array of strings. An empty string SHALL count as not set. Adunata SHALL refuse to start when a value has a type the setting does not take, and its message SHALL name the file and the key but not the value.
+A key SHALL take a string, an integer or, where a setting takes a list, a non-empty array of strings. A password or a username SHALL take only a string. An empty string SHALL count as not set. Adunata SHALL refuse to start when a value has a type the setting does not take, and its message SHALL name the file and the key but not the value.
 
 #### Scenario: Unsupported type
 - **WHEN** the configuration file sets `port` in the table `smtp` to `true`
 - **THEN** Adunata exits with a non-zero status and a message that names the key `smtp.port`
+
+#### Scenario: Password as a number
+- **WHEN** the configuration file sets `password` in the table `database` to the bare number `0x1F`
+- **THEN** Adunata exits with a non-zero status and a message that names the key `database.password`
 
 #### Scenario: Empty list of proxies
 - **WHEN** the configuration file sets `trusted-proxies` in the table `http` to an empty array
