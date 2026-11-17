@@ -351,6 +351,14 @@
             installPhase = "touch $out";
           };
         };
+
+      vmTest =
+        pkgs: built:
+        import ./nix/test.nix {
+          inherit pkgs;
+          inherit (built) release image;
+          module = self.nixosModules.default;
+        };
     in
     {
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
@@ -422,10 +430,29 @@
           };
           nixos = pkgs.linkFarm "nixos" {
             inherit integration;
-            vm = import ./nix/test.nix {
-              inherit pkgs;
-              inherit (built) release image;
-              module = self.nixosModules.default;
+            vm = vmTest pkgs built;
+          };
+        }
+      );
+
+      legacyPackages = forAllSystems (
+        pkgs:
+        let
+          system = pkgs.stdenv.hostPlatform.system;
+          builtForLinux =
+            build
+              nixpkgs.legacyPackages.${builtins.replaceStrings [ "darwin" ] [ "linux" ] system};
+          inherit (self.checks.${system}) integration;
+        in
+        pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+          vmChecks = {
+            e2e = pkgs.linkFarm "e2e" {
+              inherit integration;
+              inherit (builtForLinux) endToEnd;
+            };
+            nixos = pkgs.linkFarm "nixos" {
+              inherit integration;
+              vm = vmTest pkgs builtForLinux;
             };
           };
         }

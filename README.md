@@ -129,6 +129,12 @@ The end-to-end tests run against a release build in Nix:
 nix build .#checks.x86_64-linux.e2e
 ```
 
+On macOS this needs a Linux builder, as the [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes:
+
+```sh
+nix build .#vmChecks.e2e
+```
+
 ### API contract
 
 The client calls the server through code that [Orval](https://orval.dev) generates from the OpenAPI document of the server. After a change to the API, regenerate both and commit them:

@@ -154,6 +154,8 @@ A unit test has no input or output. It uses no database, no mail server, no sock
 
 Each check inside a target is also a check of its own, such as `clippy` or `serverIntegrationTests`, so a failing one runs again alone.
 
+On macOS with a Linux builder, such as the `linux-builder` of nix-darwin, `nix build .#vmChecks.e2e` and `nix build .#vmChecks.nixos` run the targets `e2e` and `nixos`. The builder builds their Linux artifacts for the same architecture. QEMU starts the virtual machines of `nixos` on the Mac with HVF. `nix flake check` leaves both out, so it needs no Linux builder.
+
 |Level|What it checks|Example|
 |-|-|-|
 |Unit|Logic without any input or output, such as formatting a message.|`plural_forms_in_german` in [`server/src/localization.rs`](../../server/src/localization.rs)|
