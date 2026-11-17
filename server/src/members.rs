@@ -388,7 +388,7 @@ fn validate(member: &MemberChange) -> Vec<FieldError> {
 }
 
 #[cfg(test)]
-mod tests {
+mod integration {
     use axum::body::{Body, to_bytes};
     use axum::http::{Request, header};
     use serde_json::{Value, json};

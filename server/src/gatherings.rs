@@ -324,164 +324,12 @@ fn validate(input: &GatheringInput) -> Vec<FieldError> {
 
 #[cfg(test)]
 mod tests {
-    use axum::body::{Body, to_bytes};
-    use axum::http::{Request, header};
-    use serde_json::{Value, json};
-    use time::Duration;
-    use tower::ServiceExt;
-
     use super::*;
-    use crate::access::testing::signed_in_organizer;
-    use crate::api;
-    use crate::database::testing::fresh_database;
+    use time::Duration;
+    use time::macros::date;
 
-    async fn send(
-        pool: &sqlx::PgPool,
-        cookie: &str,
-        method: &str,
-        path: &str,
-        body: &Value,
-    ) -> (StatusCode, Value) {
-        let request = Request::builder()
-            .method(method)
-            .uri(path)
-            .header(header::CONTENT_TYPE, "application/json")
-            .header(header::COOKIE, cookie)
-            .body(Body::from(body.to_string()))
-            .unwrap();
-        let response = api::router(api::testing::state(pool.clone()))
-            .oneshot(request)
-            .await
-            .unwrap();
-        let status = response.status();
-        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        (
-            status,
-            serde_json::from_slice(&bytes).unwrap_or(Value::Null),
-        )
-    }
-
-    fn today() -> Date {
-        crate::configuration::InstanceTimeZone::parse("Europe/Berlin")
-            .unwrap()
-            .today()
-    }
-
-    fn day(offset: i64) -> String {
-        (today() + Duration::days(offset)).to_string()
-    }
-
-    fn weekend(first: i64, last: i64) -> Value {
-        json!({ "title": "Probenwochenende", "location": "Kloster Drübeck", "firstDay": day(first), "lastDay": day(last) })
-    }
-
-    #[tokio::test]
-    async fn create_a_gathering() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        let (status, created) =
-            send(&pool, &cookie, "POST", "/api/gatherings", &weekend(10, 12)).await;
-        assert_eq!(status, StatusCode::CREATED);
-        assert_eq!(created["cancelled"], false);
-        assert_eq!(created["ended"], false);
-        assert_eq!(created["description"], Value::Null);
-        let (_, list) = send(&pool, &cookie, "GET", "/api/gatherings", &Value::Null).await;
-        assert_eq!(list["upcoming"][0]["id"], created["id"]);
-        assert_eq!(list["past"], json!([]));
-    }
-
-    #[tokio::test]
-    async fn last_day_before_first_day() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        let (status, body) =
-            send(&pool, &cookie, "POST", "/api/gatherings", &weekend(12, 10)).await;
-        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(
-            body,
-            json!({ "errors": [{ "field": "lastDay", "code": "beforeFirstDay" }] })
-        );
-    }
-
-    #[tokio::test]
-    async fn gathering_has_ended() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        for (first, last) in [(-3, -1), (-10, -8), (0, 0), (5, 6), (2, 3)] {
-            send(
-                &pool,
-                &cookie,
-                "POST",
-                "/api/gatherings",
-                &weekend(first, last),
-            )
-            .await;
-        }
-        let (_, list) = send(&pool, &cookie, "GET", "/api/gatherings", &Value::Null).await;
-        let firsts = |key: &str| -> Vec<String> {
-            list[key]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|gathering| gathering["firstDay"].as_str().unwrap().to_owned())
-                .collect()
-        };
-        assert_eq!(firsts("upcoming"), vec![day(0), day(2), day(5)]);
-        assert_eq!(firsts("past"), vec![day(-3), day(-10)]);
-        assert!(
-            list["past"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .all(|gathering| gathering["ended"] == true)
-        );
-    }
-
-    #[tokio::test]
-    async fn edit_a_gathering_that_has_not_ended() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        let (_, created) = send(&pool, &cookie, "POST", "/api/gatherings", &weekend(0, 2)).await;
-        let mut change = weekend(1, 2);
-        change["description"] = json!("Wir proben das Programm für April.");
-        let (status, changed) = send(
-            &pool,
-            &cookie,
-            "PUT",
-            &format!("/api/gatherings/{}", created["id"]),
-            &change,
-        )
-        .await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(changed["firstDay"], day(1));
-        assert_eq!(changed["description"], "Wir proben das Programm für April.");
-    }
-
-    #[tokio::test]
-    async fn ended_gathering_stays_as_it_was() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        let (_, created) = send(&pool, &cookie, "POST", "/api/gatherings", &weekend(-3, -1)).await;
-        let (status, body) = send(
-            &pool,
-            &cookie,
-            "PUT",
-            &format!("/api/gatherings/{}", created["id"]),
-            &weekend(-3, 0),
-        )
-        .await;
-        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(
-            body,
-            json!({ "errors": [{ "field": "gathering", "code": "ended" }] })
-        );
-        let (status, _) = send(&pool, &cookie, "PUT", "/api/gatherings/999", &weekend(1, 2)).await;
-        assert_eq!(status, StatusCode::NOT_FOUND);
+    fn fixed_day() -> Date {
+        date!(2027 - 03 - 14)
     }
 
     #[test]
@@ -492,14 +340,177 @@ mod tests {
                 title: "t".to_owned(),
                 location: "l".to_owned(),
                 description: None,
-                first_day: today(),
-                last_day: today(),
+                first_day: fixed_day(),
+                last_day: fixed_day(),
                 cancelled: false,
             },
-            today(),
+            fixed_day(),
         );
-        assert!(gathering.has_begun(today()));
-        assert!(!gathering.has_begun(today() - Duration::days(1)));
+        assert!(gathering.has_begun(fixed_day()));
+        assert!(!gathering.has_begun(fixed_day() - Duration::days(1)));
         assert!(!gathering.ended);
+    }
+
+    mod integration {
+        use super::*;
+        use crate::access::testing::signed_in_organizer;
+        use crate::api;
+        use crate::database::testing::fresh_database;
+        use axum::body::{Body, to_bytes};
+        use axum::http::{Request, header};
+        use serde_json::{Value, json};
+        use tower::ServiceExt;
+
+        fn today() -> Date {
+            crate::configuration::InstanceTimeZone::parse("Europe/Berlin")
+                .unwrap()
+                .today()
+        }
+
+        async fn send(
+            pool: &sqlx::PgPool,
+            cookie: &str,
+            method: &str,
+            path: &str,
+            body: &Value,
+        ) -> (StatusCode, Value) {
+            let request = Request::builder()
+                .method(method)
+                .uri(path)
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::COOKIE, cookie)
+                .body(Body::from(body.to_string()))
+                .unwrap();
+            let response = api::router(api::testing::state(pool.clone()))
+                .oneshot(request)
+                .await
+                .unwrap();
+            let status = response.status();
+            let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            (
+                status,
+                serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+            )
+        }
+
+        fn day(offset: i64) -> String {
+            (today() + Duration::days(offset)).to_string()
+        }
+
+        fn weekend(first: i64, last: i64) -> Value {
+            json!({ "title": "Probenwochenende", "location": "Kloster Drübeck", "firstDay": day(first), "lastDay": day(last) })
+        }
+
+        #[tokio::test]
+        async fn create_a_gathering() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (status, created) =
+                send(&pool, &cookie, "POST", "/api/gatherings", &weekend(10, 12)).await;
+            assert_eq!(status, StatusCode::CREATED);
+            assert_eq!(created["cancelled"], false);
+            assert_eq!(created["ended"], false);
+            assert_eq!(created["description"], Value::Null);
+            let (_, list) = send(&pool, &cookie, "GET", "/api/gatherings", &Value::Null).await;
+            assert_eq!(list["upcoming"][0]["id"], created["id"]);
+            assert_eq!(list["past"], json!([]));
+        }
+
+        #[tokio::test]
+        async fn last_day_before_first_day() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (status, body) =
+                send(&pool, &cookie, "POST", "/api/gatherings", &weekend(12, 10)).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                body,
+                json!({ "errors": [{ "field": "lastDay", "code": "beforeFirstDay" }] })
+            );
+        }
+
+        #[tokio::test]
+        async fn gathering_has_ended() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            for (first, last) in [(-3, -1), (-10, -8), (0, 0), (5, 6), (2, 3)] {
+                send(
+                    &pool,
+                    &cookie,
+                    "POST",
+                    "/api/gatherings",
+                    &weekend(first, last),
+                )
+                .await;
+            }
+            let (_, list) = send(&pool, &cookie, "GET", "/api/gatherings", &Value::Null).await;
+            let firsts = |key: &str| -> Vec<String> {
+                list[key]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|gathering| gathering["firstDay"].as_str().unwrap().to_owned())
+                    .collect()
+            };
+            assert_eq!(firsts("upcoming"), vec![day(0), day(2), day(5)]);
+            assert_eq!(firsts("past"), vec![day(-3), day(-10)]);
+            assert!(
+                list["past"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|gathering| gathering["ended"] == true)
+            );
+        }
+
+        #[tokio::test]
+        async fn edit_a_gathering_that_has_not_ended() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (_, created) =
+                send(&pool, &cookie, "POST", "/api/gatherings", &weekend(0, 2)).await;
+            let mut change = weekend(1, 2);
+            change["description"] = json!("Wir proben das Programm für April.");
+            let (status, changed) = send(
+                &pool,
+                &cookie,
+                "PUT",
+                &format!("/api/gatherings/{}", created["id"]),
+                &change,
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(changed["firstDay"], day(1));
+            assert_eq!(changed["description"], "Wir proben das Programm für April.");
+        }
+
+        #[tokio::test]
+        async fn ended_gathering_stays_as_it_was() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (_, created) =
+                send(&pool, &cookie, "POST", "/api/gatherings", &weekend(-3, -1)).await;
+            let (status, body) = send(
+                &pool,
+                &cookie,
+                "PUT",
+                &format!("/api/gatherings/{}", created["id"]),
+                &weekend(-3, 0),
+            )
+            .await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                body,
+                json!({ "errors": [{ "field": "gathering", "code": "ended" }] })
+            );
+            let (status, _) =
+                send(&pool, &cookie, "PUT", "/api/gatherings/999", &weekend(1, 2)).await;
+            assert_eq!(status, StatusCode::NOT_FOUND);
+        }
     }
 }

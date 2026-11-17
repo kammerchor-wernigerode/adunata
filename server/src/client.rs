@@ -32,7 +32,7 @@ fn is_client_route(path: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
+mod integration {
     use super::*;
     use axum::body::Body;
     use axum::http::Request;

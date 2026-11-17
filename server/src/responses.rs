@@ -621,7 +621,7 @@ async fn invitation_page(State(state): State<AppState>, link: PersonalLink) -> R
 }
 
 #[cfg(test)]
-mod tests {
+mod integration {
     use axum::body::{Body, to_bytes};
     use axum::http::{Request, StatusCode, header};
     use serde_json::{Value, json};

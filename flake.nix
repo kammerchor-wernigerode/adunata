@@ -69,9 +69,15 @@
           serverArgs = {
             src = serverSource;
             strictDeps = true;
+            meta.mainProgram = "adunata";
+            preBuild = ''
+              mkdir -p ../client
+              ln -sfn ${client} ../client/dist
+            '';
+          };
+          testServices = {
             # The tests bind PostgreSQL and Mailpit to the loopback address, which the macOS sandbox forbids otherwise.
             __darwinAllowLocalNetworking = true;
-            meta.mainProgram = "adunata";
             nativeCheckInputs = [
               pkgs.postgresql_17
               pkgs.mailpit
@@ -86,27 +92,45 @@
               mailpit --smtp "127.0.0.1:$ADNT_SMTP_PORT" --listen "127.0.0.1:$MAILPIT_UI_PORT" --quiet &
               mailpitPid=$!
               for _ in $(seq 50); do (echo > "/dev/tcp/127.0.0.1/$MAILPIT_UI_PORT") 2>/dev/null && break; sleep 0.1; done
+              stopTestServices() {
+                kill "$mailpitPid"
+                pg_ctl stop --wait --silent
+              }
+              failureHooks+=(stopTestServices)
             '';
-            postCheck = ''
-              kill "$mailpitPid"
-              pg_ctl stop --wait --silent
-            '';
-            preBuild = ''
-              mkdir -p ../client
-              ln -sfn ${client} ../client/dist
-            '';
+            postCheck = "stopTestServices";
           };
-          # Dependencies compile without the client and without the services of the tests, so a change to the client keeps them cached.
-          forDependencies =
-            args:
-            removeAttrs args [
-              "preBuild"
-              "preCheck"
-              "postCheck"
-              "nativeCheckInputs"
-            ];
+          # Dependencies compile without the client, so a change to the client keeps them cached.
+          forDependencies = args: removeAttrs args [ "preBuild" ];
           cargoArtifacts = craneLib.buildDepsOnly (forDependencies serverArgs);
-          server = craneLib.buildPackage (serverArgs // { inherit cargoArtifacts; });
+          server = craneLib.buildPackage (
+            serverArgs
+            // {
+              inherit cargoArtifacts;
+              doCheck = false;
+            }
+          );
+          testArtifacts = craneLib.mkCargoDerivation (
+            serverArgs
+            // {
+              inherit cargoArtifacts;
+              pnameSuffix = "-tests";
+              buildPhaseCargoCommand = "cargoWithProfile test --locked --bins --no-run";
+            }
+          );
+          serverTests =
+            args: suffix: command:
+            craneLib.mkCargoDerivation (
+              args
+              // {
+                cargoArtifacts = testArtifacts;
+                pnameSuffix = suffix;
+                buildPhaseCargoCommand = "";
+                doCheck = true;
+                checkPhaseCargoCommand = command;
+                doInstallCargoArtifacts = false;
+              }
+            );
           openapi = pkgs.runCommand "adunata-openapi" { } "${server}/bin/adunata openapi > $out";
 
           muslTargets = {
@@ -201,6 +225,15 @@
 
           rustFormatting = craneLib.cargoFmt { src = serverSource; };
 
+          serverUnitTests =
+            serverTests serverArgs "-unit-tests"
+              "cargoWithProfile test --locked --bins -- --skip integration::";
+
+          serverIntegrationTests = serverTests (serverArgs // testServices) "-integration-tests" ''
+            cargoWithProfile test --locked --bins -- integration::
+            cargoWithProfile test --locked --test startup
+          '';
+
           contract = clientPackage {
             pname = "adunata-contract";
             buildPhase = ''
@@ -218,9 +251,15 @@
             installPhase = "touch $out";
           };
 
-          clientTest = clientPackage {
-            pname = "adunata-client-test";
+          clientUnitTests = clientPackage {
+            pname = "adunata-client-unit-tests";
             buildPhase = "npm test";
+            installPhase = "touch $out";
+          };
+
+          clientIntegrationTests = clientPackage {
+            pname = "adunata-client-integration-tests";
+            buildPhase = "npm run test:integration";
             installPhase = "touch $out";
           };
 
@@ -312,6 +351,14 @@
             installPhase = "touch $out";
           };
         };
+
+      vmTest =
+        pkgs: built:
+        import ./nix/test.nix {
+          inherit pkgs;
+          inherit (built) release image;
+          module = self.nixosModules.default;
+        };
     in
     {
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
@@ -335,15 +382,8 @@
           built = build pkgs;
         in
         let
-          fastChecks = {
-            inherit (built)
-              server
-              clippy
-              rustFormatting
-              clientLint
-              clientTest
-              contract
-              ;
+          lintChecks = {
+            inherit (built) clippy rustFormatting clientLint;
 
             nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
               find ${self} -name '*.nix' -exec nixfmt --check {} +
@@ -358,17 +398,62 @@
                   touch $out
                 '';
           };
+          buildChecks = { inherit (built) server; };
+          testChecks = { inherit (built) serverUnitTests clientUnitTests; };
+          integrationChecks = { inherit (built) serverIntegrationTests clientIntegrationTests contract; };
+
+          lint = pkgs.linkFarm "lint" lintChecks;
+          build = pkgs.linkFarm "build" ({ inherit lint; } // buildChecks);
+          test = pkgs.linkFarm "test" ({ inherit build; } // testChecks);
+          integration = pkgs.linkFarm "integration" ({ inherit test; } // integrationChecks);
         in
-        fastChecks
+        lintChecks
+        // buildChecks
+        // testChecks
+        // integrationChecks
         // {
-          fast = pkgs.linkFarm "fast-checks" fastChecks;
+          inherit
+            lint
+            build
+            test
+            integration
+            ;
         }
         // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          inherit (built) memory endToEnd;
-          nixos = import ./nix/test.nix {
-            inherit pkgs;
-            inherit (built) release image;
-            module = self.nixosModules.default;
+          e2e = pkgs.linkFarm "e2e" {
+            inherit integration;
+            inherit (built) endToEnd;
+          };
+          memory = pkgs.linkFarm "memory" {
+            inherit integration;
+            inherit (built) memory;
+          };
+          nixos = pkgs.linkFarm "nixos" {
+            inherit integration;
+            vm = vmTest pkgs built;
+          };
+        }
+      );
+
+      legacyPackages = forAllSystems (
+        pkgs:
+        let
+          system = pkgs.stdenv.hostPlatform.system;
+          builtForLinux =
+            build
+              nixpkgs.legacyPackages.${builtins.replaceStrings [ "darwin" ] [ "linux" ] system};
+          inherit (self.checks.${system}) integration;
+        in
+        pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+          vmChecks = {
+            e2e = pkgs.linkFarm "e2e" {
+              inherit integration;
+              inherit (builtForLinux) endToEnd;
+            };
+            nixos = pkgs.linkFarm "nixos" {
+              inherit integration;
+              vm = vmTest pkgs builtForLinux;
+            };
           };
         }
       );

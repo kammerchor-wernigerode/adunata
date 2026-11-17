@@ -26,10 +26,10 @@ This file routes. It names where things live and the rules that apply everywhere
 
 ## Pull requests
 
-CI runs fast checks on every push to a pull request. Pull requests that are ready for review also run the end-to-end test, the memory measurement and the NixOS test, which take much longer.
+CI runs the checks up to `integration` on every push to a pull request. Pull requests that are ready for review and pushes to `main` also run `e2e`, `memory` and `nixos`, which take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes the checks.
 
 - Open a pull request as a draft. Pushing to a draft needs no approval.
-- Before each push, run the fast checks locally with `nix build .#checks.<system>.fast`, where `<system>` is the local Nix system such as `aarch64-linux`. Never push a state that fails them.
+- Before each push, run the checks up to integration locally with `nix build .#checks.<system>.integration`, where `<system>` is the local Nix system such as `aarch64-linux`. Never push a state that fails them.
 - Push once per round of feedback. Collect every remark of a review, fix them together and then push.
 - Mark the pull request ready for review once the work is complete.
 - After an approval, push only after asking.

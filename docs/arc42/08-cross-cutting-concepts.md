@@ -27,7 +27,7 @@ Members never sign in. They reach their invitation through a personal link. Orga
 
 The module `access` owns sign-in, sessions and the first organizer. Other modules protect a route by taking the extractor `Organizer` as an argument. It loads the session from the cookie with its member and answers with status 401 unless the member is active and holds the organizer role. Revoking the role or deactivating a member therefore ends every session at the next request. The client sends a visitor without a session to the sign-in page.
 
-A slice test in [`server/src/api.rs`](../../server/src/api.rs) calls every operation of the OpenAPI document without a session and expects status 401. Only health, catalogs, the legal links, sign-in and sign-out and the routes behind an invitation link are exempt. A new route that forgets the extractor fails this test.
+An integration test in [`server/src/api.rs`](../../server/src/api.rs) calls every operation of the OpenAPI document without a session and expects status 401. Only health, catalogs, the legal links, sign-in and sign-out and the routes behind an invitation link are exempt. A new route that forgets the extractor fails this test.
 
 Sign-in requests are limited to three links per hour per address and 20 requests per hour per network address. Behind a trusted proxy the network address is the rightmost entry of `X-Forwarded-For` that is no trusted proxy.
 
@@ -91,7 +91,7 @@ Every route sets its own page title through the main heading. After a route chan
 - After a rejected save, focus moves to the first invalid field.
 - A successful save is announced through an element with `role="status"`.
 
-Every page runs axe in its client slice test. Axe in jsdom computes neither colors nor layout, so end-to-end tests check contrast of control boundaries and focus indicators and the layout at narrow widths.
+Every page runs axe in its client integration test. Axe in jsdom computes neither colors nor layout, so end-to-end tests check contrast of control boundaries and focus indicators and the layout at narrow widths.
 
 ## Persistence and migrations
 
@@ -136,13 +136,31 @@ On SIGTERM, Adunata stops accepting connections, lets requests in progress finis
 
 ## Testing
 
-Tests run at several levels. Each level checks what the level below cannot see. Every check runs through `nix flake check`, locally and in CI, so both use the same entry point.
+Tests run at several levels. Each level checks what the level below cannot see. Locally and in CI, every check runs as a check of the flake, so both use the same entry point.
+
+The flake groups its checks into targets that build on each other like the phases of a build lifecycle. Each target contains the one before it, so `nix build .#checks.<system>.integration` runs lint, build, unit and integration tests together. CI runs each target in a step of its own.
+
+|Target|Contains|Builds on|
+|-|-|-|
+|`lint`|Formatting of Rust, Nix and every file per `.editorconfig`, Clippy, oxlint|nothing|
+|`build`|The server with the embedded client|`lint`|
+|`test`|Unit tests of server and client|`build`|
+|`integration`|Integration tests of server and client, startup tests of the binary and the contract|`test`|
+|`e2e`|End-to-end tests, Linux only|`integration`|
+|`memory`|The memory measurement, Linux only|`integration`|
+|`nixos`|The NixOS VM test, Linux only|`integration`|
+
+A unit test has no input or output. It uses no database, no mail server, no socket, no file and no router. Every other test is an integration test. On the server it lives in a module named `integration`, on the client in a file named `*.integration.test.ts` or `*.integration.test.tsx`. The target `test` skips both and starts neither PostgreSQL nor Mailpit, so a test that needs them outside such a module fails there. Nothing enforces the rule for sockets, files and the router.
+
+Each check inside a target is also a check of its own, such as `clippy` or `serverIntegrationTests`, so a failing one runs again alone.
+
+On macOS with a Linux builder, such as the `linux-builder` of nix-darwin, `nix build .#vmChecks.e2e` and `nix build .#vmChecks.nixos` run the targets `e2e` and `nixos`. The builder builds their Linux artifacts for the same architecture. QEMU starts the virtual machines of `nixos` on the Mac with HVF. `nix flake check` leaves both out, so it needs no Linux builder.
 
 |Level|What it checks|Example|
 |-|-|-|
-|Unit|Logic without input or output, such as formatting a message.|`plural_forms_in_german` in [`server/src/localization.rs`](../../server/src/localization.rs)|
-|Server slice|An API handler called in process with real routing against a real PostgreSQL. Each test gets its own empty database with all migrations applied and drops it afterwards. Mail goes to a real Mailpit.|`duplicate_address` in [`server/src/members.rs`](../../server/src/members.rs)|
-|Client slice|A component against the API mocks that Orval generates, driven like a user would. Accessibility checks with axe run on rendered components.|[`client/src/members/Members.test.tsx`](../../client/src/members/Members.test.tsx)|
+|Unit|Logic without any input or output, such as formatting a message.|`plural_forms_in_german` in [`server/src/localization.rs`](../../server/src/localization.rs)|
+|Server integration|An API handler called in process with real routing against a real PostgreSQL. Each test gets its own empty database with all migrations applied and drops it afterwards. Mail goes to a real Mailpit.|`duplicate_address` in [`server/src/members.rs`](../../server/src/members.rs)|
+|Client integration|A component against the API mocks that Orval generates, driven like a user would. Accessibility checks with axe run on rendered components.|[`client/src/members/Members.integration.test.tsx`](../../client/src/members/Members.integration.test.tsx)|
 |Contract|The committed OpenAPI document matches the server. The generated client code matches the document.|The check `contract` in [`flake.nix`](../../flake.nix)|
 |End to end|A few complete flows in a browser against the real binary, PostgreSQL and Mailpit, with accessibility checks by axe in light and dark mode, contrast of controls and reflow at 390 px with 200 % text. Runs on Linux.|[`client/e2e/invitation.e2e.ts`](../../client/e2e/invitation.e2e.ts)|
 |NixOS VM|Each supported installation, meaning the NixOS module, the OCI image and the release binary with its example unit, starts in a virtual machine, migrates the database, reports healthy and serves the client. Runs on Linux with KVM.|[`nix/test.nix`](../../nix/test.nix)|
