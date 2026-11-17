@@ -148,42 +148,77 @@ nix build .#checks.x86_64-linux.fast
 
 ### Parallel worktrees
 
-Several worktrees run side by side when each one has its own ports and database. The plugin [`dev/worktree_plugin.py`](dev/worktree_plugin.py) for [git-worktree-init](https://github.com/V1ncNet/git-worktree-init) sets them up for every new linked worktree and again on `git wt refresh`. It needs Nix and direnv as described in [With Nix](#with-nix). Install git-worktree-init as its README describes, then enable the plugin once in the main checkout:
+Several worktrees run side by side when each one has its own ports and its own services. The plugin [`dev/worktree_plugin.py`](dev/worktree_plugin.py) for [git-worktree-init](https://github.com/V1ncNet/git-worktree-init) sets them up for every new linked worktree and again on `git wt refresh`. It touches no service, so it works while Docker is stopped. Install git-worktree-init as its README describes, then enable the plugin once in the main checkout:
 
 ```sh
 git config worktree-init.plugin dev/worktree_plugin.py
 ```
 
-Each worktree gets a slot `n`. Slot 0 belongs to the main checkout, which keeps ports 8080 and 5173 and the database `adunata`. For a new worktree, the plugin:
+Each worktree gets a slot `n` with the port base `b = port_base + 10n`. Slot 0 belongs to the main checkout, which keeps the defaults of [Settings](#settings) and the Compose project `adunata`.
 
-- writes `.envrc.local` with the variables of its slot, keeps the previous file as `.envrc.local.bak` and runs `direnv allow` if direnv is installed
-- creates the database `adunata_wt<n>` on the shared PostgreSQL server, which migrations fill on the first start
-- installs and builds the client, so the server compiles right away
+|Port|Service|
+|-|-|
+|`b`|Server|
+|`b + 1`|Vite|
+|`b + 2`|PostgreSQL|
+|`b + 3`|SMTP of Mailpit|
+|`b + 4`|Web interface of Mailpit|
 
-The server listens on `port_base + 10n` and Vite on `port_base + 10n + 1`. Mail of every worktree goes to the same Mailpit. The database name depends only on the slot, so only one clone of Adunata per PostgreSQL server can use the plugin.
+For a new worktree, the plugin:
 
-`.envrc.local` keeps the names of the settings from the time the plugin wrote it. After rebasing a worktree onto a commit that renames a setting, run `git wt refresh` in that worktree.
+- writes the root `.env` with the Compose project `adunata-<b>` and its ports, `server/.env.local` with the addresses of server, database and Mailpit as well as `client/.env.local` with the ports of Vite, the server and Mailpit
+- replaces only the lines of its own keys in these files and keeps every other line, so you can add your own settings there. It keeps the previous version of a file it changes as `<name>.bak`
+- installs and builds the client, inside `nix develop` if Nix is installed, so the server compiles right away
+
+Start the services of a worktree in its root, as in the main checkout:
+
+```sh
+docker compose up --detach --wait
+```
+
+The database `adunata` of a worktree starts empty. Migrations fill it on the first start of the server. To copy the database of the main checkout instead, run this in the root of the worktree before the server starts there for the first time:
+
+```sh
+docker compose -p adunata exec -T postgres pg_dump -U adunata --no-owner adunata | docker compose exec -T postgres psql -U adunata -q -v ON_ERROR_STOP=1 adunata
+```
 
 |Option|Default|Meaning|
 |-|-|-|
-|`port_base`|`18000`|Port from which the ports of the slots count. Change it per repository if another project uses the same range.|
-|`clone_db`|off|Copies the database of the main checkout instead of starting empty. If the copy is interrupted, drop the database with `dropdb adunata_wt<n>` and run `git wt refresh` again.|
+|`port_base`|`18000`|Port from which the ports of the slots count. Change it per repository if another project uses the same range. Two clones of Adunata on one machine need different values, because the Compose project of a worktree is named after its ports.|
 
-Set an option per repository with `git config worktree-init.port-base 19000` or for one worktree with a flag:
+Set the option per repository with `git config worktree-init.port-base 19000`. After a change, an existing worktree keeps its Compose project under the old name. `git wt remove` then no longer finds it. Remove such a project with `docker compose -p adunata-<b> down --volumes`.
 
-```sh
-git wt add --clone-db -- -b feature/foo ../adunata.foo
-```
+Remove a worktree with `git wt remove`. It runs `docker compose -p adunata-<b> down --volumes`, which deletes the containers and the database of the worktree. While Docker is stopped, it prints a warning with that command and removes the worktree anyway. A worktree removed with plain `git worktree remove` keeps its Compose project until the next sweep. `git wt prune`, `git wt add` and `git wt refresh` each run one.
 
-Remove a worktree with `git wt remove`, which drops its database first. It fails while PostgreSQL is down. A worktree removed with plain `git worktree remove` keeps its database until the next sweep. `git wt prune`, `git wt add` and `git wt refresh` each run one.
-
-git-worktree-init skips the worktrees of Claude Code under `.claude/worktrees/` by default. Include them by clearing that pattern:
+git-worktree-init skips the worktrees of Claude Code under `.claude/worktrees/` by default. Such a worktree gets no root `.env`, so `docker compose` there uses the project `adunata` of the main checkout and its services. `docker compose down --volumes` in such a worktree deletes the database of the main checkout. Include these worktrees by clearing the pattern:
 
 ```sh
 git config worktree-init.ignorePaths ""
 ```
 
-Claude Code removes its worktrees with plain `git worktree remove`, so their databases go away at the next sweep. Its shell has no direnv hook, so it runs commands through `direnv exec . <command>`.
+Run `git wt refresh` in an existing worktree before you start its services the first time.
+
+#### Switching from a shared database server
+
+If a `pg_ctl` server with its data in `~/.local/share/adunata/pgdata` still runs on port 5432, dump its database and stop it before you start the services with Compose. The development shell provides no PostgreSQL, so `nix shell nixpkgs#postgresql_17` provides `pg_dump` and `pg_ctl`:
+
+```sh
+PGPASSWORD=adunata pg_dump --no-owner --host=/tmp --username=adunata adunata > adunata.sql
+pg_ctl stop --pgdata="$HOME/.local/share/adunata/pgdata"
+```
+
+Start the services with Compose and restore the dump into them once:
+
+```sh
+docker compose up --detach --wait
+docker compose exec -T postgres psql -U adunata -q adunata < adunata.sql
+```
+
+If a worktree still has `.envrc.local`, rebase it onto `main` before you run `git wt refresh` there. On an older branch the plugin keeps `.envrc.local` and asks for the rebase instead. If the server of the main checkout still holds databases `adunata_wt<n>`, drop them in the root of the main checkout:
+
+```sh
+docker compose exec -T postgres psql -U adunata -tAc "select datname from pg_database where datname ~ '^adunata_wt[0-9]+$'" | xargs -rn1 docker compose exec -T postgres dropdb -U adunata --force
+```
 
 ## Contributing
 
