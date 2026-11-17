@@ -362,9 +362,7 @@ mod tests {
         use tower::ServiceExt;
 
         fn today() -> Date {
-            crate::configuration::InstanceTimeZone::parse("Europe/Berlin")
-                .unwrap()
-                .today()
+            api::testing::day(0)
         }
 
         async fn send(

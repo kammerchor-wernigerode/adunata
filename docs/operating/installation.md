@@ -100,7 +100,7 @@ The reverse proxy on the host reaches Adunata through the published port. Docker
 
 ## Release binary
 
-Each release publishes `adunata-x86_64-linux.tar.gz`. It holds a statically linked binary that runs on any Linux distribution with systemd, an example unit and an example environment file.
+Each release publishes `adunata-x86_64-linux.tar.gz`. It holds a binary for Linux distributions with systemd, glibc 2.34 or newer and libgcc_s, an example unit and an example environment file. On a distribution based on musl, such as Alpine, use the container instead.
 
 ```sh
 tar --extract --gzip --file adunata-x86_64-linux.tar.gz

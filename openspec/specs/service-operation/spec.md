@@ -7,7 +7,7 @@ Lets operators install, start, update, monitor and stop an Adunata instance on t
 ## Requirements
 
 ### Requirement: Supported installation methods
-Adunata SHALL be installable as a NixOS module, as an OCI image and as a release binary for Linux. Each method SHALL run Adunata built from the same source. The container image and the release binary SHALL contain the same statically linked binary. No method SHALL need a runtime other than PostgreSQL and a mail server.
+Adunata SHALL be installable as a NixOS module, as an OCI image and as a release binary for Linux with glibc 2.34 or newer. Each method SHALL run Adunata built from the same source. The container image and the release binary SHALL contain the same binary. No method SHALL need a runtime other than PostgreSQL and a mail server. Besides them, the release binary SHALL need only glibc and libgcc_s of the distribution.
 
 #### Scenario: Install on NixOS
 - **WHEN** an operator enables the Adunata module in a NixOS configuration and points it at a database and a mail server

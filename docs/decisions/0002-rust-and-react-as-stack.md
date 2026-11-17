@@ -35,7 +35,7 @@ We considered TypeScript on server and client, which is one language with shared
 
 ## Status
 
-Accepted
+Accepted. [ADR 0015](0015-release-binary-linked-against-glibc.md) supersedes the static binary.
 
 ## Consequences
 

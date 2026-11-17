@@ -18,7 +18,7 @@ We considered a Dockerfile next to a Nix package, which means two build definiti
 
 ## Status
 
-Accepted
+Accepted. [ADR 0015](0015-release-binary-linked-against-glibc.md) supersedes the statically linked binary.
 
 ## Consequences
 
