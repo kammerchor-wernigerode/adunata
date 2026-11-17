@@ -429,6 +429,23 @@ impl SettingsFiles {
     }
 }
 
+/// A setting for tests, which find their services through the settings of the server. The settings files are read once in every build profile and must be valid, so that a broken `.env.local` never sends tests to the services of another checkout.
+#[cfg(test)]
+pub fn test_setting(name: &str) -> Option<String> {
+    static FILES: std::sync::LazyLock<SettingsFiles> = std::sync::LazyLock::new(|| {
+        let files = SettingsFiles::read(std::env::current_dir().ok().as_deref());
+        assert!(
+            files.problems.is_empty(),
+            "settings files are invalid: {:?}",
+            files.problems
+        );
+        files
+    });
+    FILES.layered(name, &|name| {
+        std::env::var(name).ok().filter(|value| !value.is_empty())
+    })
+}
+
 /// Parses `KEY=value` lines, skipping blank lines and `#` comments and dropping empty values. Fails with the number of the first malformed line.
 ///
 /// Quotes and trailing comments count as malformed, because other dotenv readers strip them while this parser would keep them.

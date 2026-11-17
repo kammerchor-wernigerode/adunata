@@ -187,16 +187,16 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     use super::*;
+    use crate::configuration::test_setting;
     use crate::database::testing::fresh_database;
     use crate::test_logs::captured_logs;
 
     static NEXT: AtomicU32 = AtomicU32::new(0);
 
-    fn env_port(name: &str, default: u16) -> u16 {
-        std::env::var(name)
-            .ok()
+    fn setting_port(name: &str) -> u16 {
+        test_setting(name)
             .and_then(|value| value.parse().ok())
-            .unwrap_or(default)
+            .unwrap_or_else(|| panic!("{name} must name the port of the test Mailpit"))
     }
 
     fn smtp(port: u16, encryption: Encryption) -> Smtp {
@@ -226,7 +226,7 @@ mod tests {
     }
 
     async fn mailpit_count(token: &str) -> u64 {
-        let port = env_port("ADUNATA_TEST_MAILPIT_HTTP_PORT", 8025);
+        let port = setting_port("MAILPIT_UI_PORT");
         let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
             .await
             .unwrap();
@@ -277,12 +277,9 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        deliver_due(
-            &pool,
-            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
-        )
-        .await
-        .unwrap();
+        deliver_due(&pool, &delivery(setting_port("ADNT_SMTP_PORT")))
+            .await
+            .unwrap();
         assert_eq!(state(&pool).await, (2, true, false));
         assert_eq!(mailpit_count(&token).await, 1);
     }
@@ -325,7 +322,7 @@ mod tests {
     }
 
     async fn mailpit_message(token: &str) -> serde_json::Value {
-        let port = env_port("ADUNATA_TEST_MAILPIT_HTTP_PORT", 8025);
+        let port = setting_port("MAILPIT_UI_PORT");
         let search = mailpit_get(port, &format!("/api/v1/search?query={token}")).await;
         let id = search["messages"][0]["ID"].as_str().unwrap().to_owned();
         mailpit_get(port, &format!("/api/v1/message/{id}")).await
@@ -348,12 +345,9 @@ mod tests {
         let pool = database.pool();
         let token = unique_token();
         enqueue_test_mail(&pool, &token).await;
-        deliver_due(
-            &pool,
-            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
-        )
-        .await
-        .unwrap();
+        deliver_due(&pool, &delivery(setting_port("ADNT_SMTP_PORT")))
+            .await
+            .unwrap();
         let message = mailpit_message(&token).await;
         assert_eq!(message["From"]["Address"], "adunata@example.org");
         assert_eq!(message["To"][0]["Address"], "organizer@example.org");
@@ -365,7 +359,7 @@ mod tests {
         let pool = database.pool();
         let token = unique_token();
         enqueue_test_mail(&pool, &token).await;
-        let port = env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025);
+        let port = setting_port("ADNT_SMTP_PORT");
         let encrypted = Delivery {
             transport: transport(&smtp(port, Encryption::StartTls)).unwrap(),
             ..delivery(port)
@@ -427,12 +421,9 @@ mod tests {
         pool.close().await;
 
         let restarted = PgPool::connect_with(options).await.unwrap();
-        deliver_due(
-            &restarted,
-            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
-        )
-        .await
-        .unwrap();
+        deliver_due(&restarted, &delivery(setting_port("ADNT_SMTP_PORT")))
+            .await
+            .unwrap();
         assert_eq!(state(&restarted).await, (1, true, false));
         assert_eq!(mailpit_count(&token).await, 1);
     }
@@ -452,12 +443,9 @@ mod tests {
         let pool = database.pool();
         enqueue_test_mail(&pool, &unique_token()).await;
         assert!(content_left(&pool).await);
-        deliver_due(
-            &pool,
-            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
-        )
-        .await
-        .unwrap();
+        deliver_due(&pool, &delivery(setting_port("ADNT_SMTP_PORT")))
+            .await
+            .unwrap();
         assert_eq!(state(&pool).await, (1, true, false));
         assert!(!content_left(&pool).await);
     }
@@ -485,7 +473,7 @@ mod tests {
         let pool = database.pool();
         let token = unique_token();
         enqueue_test_mail(&pool, &token).await;
-        let mailpit = delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025));
+        let mailpit = delivery(setting_port("ADNT_SMTP_PORT"));
         deliver_due(&pool, &mailpit).await.unwrap();
         make_due(&pool).await;
         deliver_due(&pool, &mailpit).await.unwrap();
@@ -510,12 +498,9 @@ mod tests {
         };
         enqueue(&mut connection, &mail).await.unwrap();
         drop(connection);
-        deliver_due(
-            &pool,
-            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
-        )
-        .await
-        .unwrap();
+        deliver_due(&pool, &delivery(setting_port("ADNT_SMTP_PORT")))
+            .await
+            .unwrap();
         let message = mailpit_message(&token).await;
         assert!(message["Text"].as_str().unwrap().contains(&link));
         assert!(message["HTML"].as_str().unwrap().contains(&link));
@@ -538,12 +523,9 @@ mod tests {
         };
         enqueue(&mut connection, &mail).await.unwrap();
         drop(connection);
-        deliver_due(
-            &pool,
-            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
-        )
-        .await
-        .unwrap();
+        deliver_due(&pool, &delivery(setting_port("ADNT_SMTP_PORT")))
+            .await
+            .unwrap();
         let html = mailpit_message(&token).await["HTML"]
             .as_str()
             .unwrap()
@@ -574,12 +556,9 @@ mod tests {
         };
         enqueue(&mut connection, &mail).await.unwrap();
         drop(connection);
-        deliver_due(
-            &pool,
-            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
-        )
-        .await
-        .unwrap();
+        deliver_due(&pool, &delivery(setting_port("ADNT_SMTP_PORT")))
+            .await
+            .unwrap();
         let message = mailpit_message(&token).await;
         assert_eq!(message["To"][0]["Name"], "Ada Lovelace");
         assert_eq!(message["To"][0]["Address"], "ada@example.org");
@@ -611,12 +590,9 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        deliver_due(
-            &pool,
-            &delivery(env_port("ADUNATA_TEST_MAILPIT_SMTP_PORT", 1025)),
-        )
-        .await
-        .unwrap();
+        deliver_due(&pool, &delivery(setting_port("ADNT_SMTP_PORT")))
+            .await
+            .unwrap();
         assert_eq!(
             mailpit_message(&token).await["To"][0]["Address"],
             "new@example.org"

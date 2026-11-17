@@ -81,10 +81,11 @@
               mkdir -p "$PGHOST"
               initdb --username="$PGUSER" --auth=trust --no-instructions >/dev/null
               pg_ctl start --wait --silent --options="-k $PGHOST -c listen_addresses="
-              export ADUNATA_TEST_MAILPIT_SMTP_PORT=11025 ADUNATA_TEST_MAILPIT_HTTP_PORT=18025
-              mailpit --smtp "127.0.0.1:$ADUNATA_TEST_MAILPIT_SMTP_PORT" --listen "127.0.0.1:$ADUNATA_TEST_MAILPIT_HTTP_PORT" --quiet &
+              export ADNT_DATABASE_URL="postgres:///postgres?host=$PGHOST&user=$PGUSER"
+              export ADNT_SMTP_PORT=11025 MAILPIT_UI_PORT=18025
+              mailpit --smtp "127.0.0.1:$ADNT_SMTP_PORT" --listen "127.0.0.1:$MAILPIT_UI_PORT" --quiet &
               mailpitPid=$!
-              for _ in $(seq 50); do (echo > "/dev/tcp/127.0.0.1/$ADUNATA_TEST_MAILPIT_HTTP_PORT") 2>/dev/null && break; sleep 0.1; done
+              for _ in $(seq 50); do (echo > "/dev/tcp/127.0.0.1/$MAILPIT_UI_PORT") 2>/dev/null && break; sleep 0.1; done
             '';
             postCheck = ''
               kill "$mailpitPid"

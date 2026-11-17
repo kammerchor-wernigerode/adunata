@@ -11,9 +11,9 @@ Each group is one commit that passes `nix build .#checks.<system>.fast`.
 
 ## 2. Tests find services through the settings
 
-- [ ] 2.1 Let `empty_database` in `server/src/database.rs` connect through `ADUNATA_DATABASE_URL` from the lookup instead of the `PG` variables. Let the mail tests in `server/src/mail.rs` take `ADUNATA_SMTP_PORT` and `MAILPIT_UI_PORT` from the lookup and drop `ADUNATA_TEST_MAILPIT_SMTP_PORT` and `ADUNATA_TEST_MAILPIT_HTTP_PORT`. Verify that `cargo test` passes in a shell without any `PG` or `ADUNATA_` variable.
-- [ ] 2.2 Let `preCheck` in `flake.nix` export `ADUNATA_DATABASE_URL=postgres:///postgres?host=$PGHOST&user=adunata`, `ADUNATA_SMTP_PORT` and `MAILPIT_UI_PORT` for its Mailpit. Do the same for every other check that sets the removed variables. Verify that `nix build .#checks.<system>.fast` passes.
-- [ ] 2.3 Update the README sentence on `cargo test` to say that tests find PostgreSQL and Mailpit through `ADUNATA_DATABASE_URL`, `ADUNATA_SMTP_PORT` and `MAILPIT_UI_PORT`. Verify that the README renders the variable names as written.
+- [x] 2.1 Let `empty_database` in `server/src/database.rs` connect through `ADUNATA_DATABASE_URL` from the lookup instead of the `PG` variables. Let the mail tests in `server/src/mail.rs` take `ADUNATA_SMTP_PORT` and `MAILPIT_UI_PORT` from the lookup and drop `ADUNATA_TEST_MAILPIT_SMTP_PORT` and `ADUNATA_TEST_MAILPIT_HTTP_PORT`. Verify that `cargo test` passes in a shell without any `PG` or `ADUNATA_` variable.
+- [x] 2.2 Let `preCheck` in `flake.nix` export `ADUNATA_DATABASE_URL=postgres:///postgres?host=$PGHOST&user=adunata`, `ADUNATA_SMTP_PORT` and `MAILPIT_UI_PORT` for its Mailpit. Do the same for every other check that sets the removed variables. Verify that `nix build .#checks.<system>.fast` passes.
+- [x] 2.3 Update the README sentence on `cargo test` to say that tests find PostgreSQL and Mailpit through `ADUNATA_DATABASE_URL`, `ADUNATA_SMTP_PORT` and `MAILPIT_UI_PORT`. Verify that the README renders the variable names as written.
 
 ## 3. Client reads its settings file
 

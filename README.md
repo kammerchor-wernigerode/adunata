@@ -115,7 +115,7 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 |`client/`|`npm test`|Unit tests|
 |`client/`|`npm run lint`|Lints|
 
-`cargo test` creates a separate database for each test and drops it when the test ends, so the user in `PGUSER` needs the right to create databases.
+`cargo test` finds PostgreSQL through `ADNT_DATABASE_URL` and Mailpit through `ADNT_SMTP_PORT` and `MAILPIT_UI_PORT`. It creates a separate database for each test and drops it when the test ends, so the user in `ADNT_DATABASE_URL` needs the right to create databases.
 
 A test run that is killed leaves its databases behind. Drop them while no tests run in any worktree:
 
