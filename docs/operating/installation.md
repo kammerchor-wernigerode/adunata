@@ -45,7 +45,7 @@ The service runs as a dynamic user with a hardened sandbox. `systemctl status ad
 
 ## Container
 
-Each release publishes an image to `ghcr.io/kammerchor-wernigerode/adunata`. The image listens on port 8080 and runs as an unprivileged user. A Compose file with PostgreSQL could look like this:
+Each release publishes an image to `ghcr.io/kammerchor-wernigerode/adunata`. The image listens on port 8080 and runs as an unprivileged user. It sets `ADNT_HTTP_LISTEN_ADDRESS` to `0.0.0.0:8080`, which wins over `listen-address` in a configuration file, so change the port with that variable. A Compose file with PostgreSQL could look like this:
 
 ```yaml
 services:

@@ -184,9 +184,15 @@ in
     assertions = [
       {
         assertion =
-          cfg.bootstrap.organizerMail == null
-          || (cfg.bootstrap.organizerFirstName != null && cfg.bootstrap.organizerLastName != null);
-        message = "services.adunata.bootstrap.organizerMail needs organizerFirstName and organizerLastName.";
+          let
+            unset = map (option: option == null) [
+              cfg.bootstrap.organizerMail
+              cfg.bootstrap.organizerFirstName
+              cfg.bootstrap.organizerLastName
+            ];
+          in
+          lib.all lib.id unset || !lib.any lib.id unset;
+        message = "services.adunata.bootstrap needs organizerMail, organizerFirstName and organizerLastName together or none of them.";
       }
     ];
 
