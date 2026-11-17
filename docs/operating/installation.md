@@ -1,6 +1,6 @@
 # Installation
 
-Adunata runs as one service next to PostgreSQL and a mail server. Put a reverse proxy with HTTPS in front of it, such as Caddy or nginx, and point `ADUNATA_PUBLIC_URL` at the address the proxy serves. The [configuration reference](configuration.md) lists every setting.
+Adunata runs as one service next to PostgreSQL and a mail server. Put a reverse proxy with HTTPS in front of it, such as Caddy or nginx, and point `ADNT_HTTP_PUBLIC_URL` at the address the proxy serves. The [configuration reference](configuration.md) lists every setting.
 
 There are three supported ways to install Adunata. A NixOS test runs each of them in a virtual machine, see [`nix/test.nix`](../../nix/test.nix).
 
@@ -20,9 +20,11 @@ Add Adunata to the inputs of your system flake and import its module:
         {
           services.adunata = {
             enable = true;
-            publicUrl = "https://adunata.example.org";
-            timeZone = "Europe/Berlin";
-            trustedProxies = [ "127.0.0.1/32" "::1/128" ];
+            http = {
+              publicUrl = "https://adunata.example.org";
+              trustedProxies = [ "127.0.0.1/32" "::1/128" ];
+            };
+            localization.timeZone = "Europe/Berlin";
             mail.sender = "Adunata <adunata@example.org>";
             smtp = {
               host = "mail.example.org";
@@ -43,7 +45,7 @@ The service runs as a dynamic user with a hardened sandbox. `systemctl status ad
 
 ## Container
 
-Each release publishes an image to `ghcr.io/kammerchor-wernigerode/adunata`. The image listens on port 8080 and runs as an unprivileged user. A Compose file with PostgreSQL could look like this:
+Each release publishes an image to `ghcr.io/kammerchor-wernigerode/adunata`. The image listens on port 8080 and runs as an unprivileged user. It sets `ADNT_HTTP_LISTEN_ADDRESS` to `0.0.0.0:8080`, which wins over `listen-address` in a configuration file, so change the port with that variable. A Compose file with PostgreSQL could look like this:
 
 ```yaml
 services:
@@ -54,13 +56,13 @@ services:
     networks:
       - adunata
     environment:
-      ADUNATA_PUBLIC_URL: https://adunata.example.org
-      ADUNATA_DATABASE_URL: postgres://adunata@postgres/adunata
-      ADUNATA_DATABASE_PASSWORD_FILE: /run/secrets/database-password
-      ADUNATA_SMTP_HOST: mail.example.org
-      ADUNATA_MAIL_SENDER: Adunata <adunata@example.org>
-      ADUNATA_TIME_ZONE: Europe/Berlin
-      ADUNATA_TRUSTED_PROXIES: 172.30.0.1/32
+      ADNT_HTTP_PUBLIC_URL: https://adunata.example.org
+      ADNT_DATABASE_URL: postgres://adunata@postgres/adunata
+      ADNT_DATABASE_PASSWORD_FILE: /run/secrets/database-password
+      ADNT_SMTP_HOST: mail.example.org
+      ADNT_MAIL_SENDER: Adunata <adunata@example.org>
+      ADNT_LOCALIZATION_TIME_ZONE: Europe/Berlin
+      ADNT_HTTP_TRUSTED_PROXIES: 172.30.0.1/32
     secrets:
       - database-password
     depends_on:
@@ -94,7 +96,7 @@ volumes:
   postgres:
 ```
 
-The reverse proxy on the host reaches Adunata through the published port. Docker forwards these connections from the gateway of the network `adunata`, so `ADUNATA_TRUSTED_PROXIES` names that gateway. A proxy that runs as a container in the same network needs its own address there instead.
+The reverse proxy on the host reaches Adunata through the published port. Docker forwards these connections from the gateway of the network `adunata`, so `ADNT_HTTP_TRUSTED_PROXIES` names that gateway. A proxy that runs as a container in the same network needs its own address there instead.
 
 ## Release binary
 
@@ -118,7 +120,7 @@ systemctl enable --now adunata
 
 ## First organizer
 
-Set `ADUNATA_FIRST_ORGANIZER_MAIL` with both names, as the [configuration reference](configuration.md) describes. On NixOS set `services.adunata.firstOrganizer`. When Adunata starts and finds no active organizer, it creates this member with the organizer role. The organizer then opens the instance, enters the address and signs in with the link from the mail. Once an organizer exists, Adunata ignores the settings.
+Set `ADNT_BOOTSTRAP_ORGANIZER_MAIL` with both names, as the [configuration reference](configuration.md) describes. On NixOS set `organizerMail`, `organizerFirstName` and `organizerLastName` in `services.adunata.bootstrap`. When Adunata starts and finds no active organizer, it creates this member with the organizer role. The organizer then opens the instance, enters the address and signs in with the link from the mail. Once an organizer exists, Adunata ignores the settings.
 
 ## Commands
 
@@ -132,7 +134,7 @@ An operator who lost access to every organizer mailbox makes another member an o
 adunata grant-organizer organizer@example.org Ada Lovelace
 ```
 
-The command reads the same settings as the server, connects to the database and makes the member with that address an active organizer. It creates the member with both names if no member has the address. In a container run it with `docker compose exec adunata adunata grant-organizer …` or the equivalent of your platform. On NixOS and with the release binary run it as the service user with the settings of the service.
+The command reads the same settings as the server, so pass it the same `--config` or `ADNT_CONFIG_FILE` if the service uses a [configuration file](configuration.md#configuration-file). It connects to the database and makes the member with that address an active organizer. It creates the member with both names if no member has the address. In a container run it with `docker compose exec adunata adunata grant-organizer …` or the equivalent of your platform. On NixOS and with the release binary run it as the service user with the settings of the service.
 
 ## Updates
 

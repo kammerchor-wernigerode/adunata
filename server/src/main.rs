@@ -19,15 +19,18 @@ mod validation;
 
 use std::time::Duration;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use configuration::Configuration;
 
 /// Adunata organizes the gatherings of choirs and instrumental ensembles.
 #[derive(Parser)]
-#[command(version, about, arg_required_else_help = true)]
+#[command(version, about)]
 struct Cli {
+    /// Configuration file in TOML. A setting in the environment wins over the same setting in the file.
+    #[arg(long, global = true, env = "ADNT_CONFIG_FILE", value_name = "PATH")]
+    config: Option<String>,
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Subcommand)]
@@ -70,13 +73,28 @@ fn name(value: &str) -> Result<String, String> {
 
 #[tokio::main]
 async fn main() {
-    match Cli::parse().command {
-        Command::Serve => serve().await,
+    let cli = Cli::parse();
+    let Some(command) = cli.command else {
+        eprint!("{}", Cli::command().render_help());
+        std::process::exit(2);
+    };
+    tracing_subscriber::fmt().json().init();
+    let file = cli.config.filter(|path| !path.is_empty());
+    match command {
+        Command::Serve => serve(configuration(file.as_deref())).await,
         Command::GrantOrganizer {
             mail,
             first_name,
             last_name,
-        } => grant_organizer(&mail, &first_name, &last_name).await,
+        } => {
+            grant_organizer(
+                configuration(file.as_deref()),
+                &mail,
+                &first_name,
+                &last_name,
+            )
+            .await;
+        }
         Command::Openapi => {
             let document = api::document()
                 .to_pretty_json()
@@ -86,8 +104,8 @@ async fn main() {
     }
 }
 
-fn configuration() -> Configuration {
-    Configuration::from_environment().unwrap_or_else(|problems| {
+fn configuration(file: Option<&str>) -> Configuration {
+    Configuration::from_environment_and_file(file).unwrap_or_else(|problems| {
         for problem in problems {
             tracing::error!(%problem, "configuration is invalid");
         }
@@ -105,9 +123,12 @@ async fn connect(configuration: &Configuration) -> sqlx::PgPool {
 }
 
 /// Makes the member with a mail address an active organizer, for an operator who lost every organizer mailbox.
-async fn grant_organizer(mail: &str, first_name: &str, last_name: &str) {
-    tracing_subscriber::fmt().json().init();
-    let configuration = configuration();
+async fn grant_organizer(
+    configuration: Configuration,
+    mail: &str,
+    first_name: &str,
+    last_name: &str,
+) {
     let pool = connect(&configuration).await;
     let mut connection = pool.acquire().await.unwrap_or_else(|error| {
         tracing::error!(%error, "database is not ready");
@@ -133,9 +154,7 @@ async fn grant_organizer(mail: &str, first_name: &str, last_name: &str) {
     }
 }
 
-async fn serve() {
-    tracing_subscriber::fmt().json().init();
-    let configuration = configuration();
+async fn serve(configuration: Configuration) {
     let pool = connect(&configuration).await;
     match access::ensure_first_organizer(
         &pool,
@@ -147,7 +166,7 @@ async fn serve() {
         Ok(access::FirstOrganizerOutcome::Created) => tracing::info!("first organizer created"),
         Ok(access::FirstOrganizerOutcome::AlreadyPresent) => {}
         Ok(access::FirstOrganizerOutcome::NobodyCanSignIn) => tracing::warn!(
-            "the instance has no active organizer, so nobody can sign in. Set ADUNATA_FIRST_ORGANIZER_MAIL with both names or run adunata grant-organizer"
+            "the instance has no active organizer, so nobody can sign in. Set ADNT_BOOTSTRAP_ORGANIZER_MAIL with both names or run adunata grant-organizer"
         ),
         Err(error) => {
             tracing::error!(%error, "first organizer could not be created");

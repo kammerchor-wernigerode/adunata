@@ -14,8 +14,8 @@ pkgs.testers.runNixOSTest {
         imports = [ module ];
         services.adunata = {
           enable = true;
-          publicUrl = "http://localhost:8080";
-          timeZone = "Europe/Berlin";
+          http.publicUrl = "http://localhost:8080";
+          localization.timeZone = "Europe/Berlin";
           mail.sender = "Adunata <adunata@example.org>";
           smtp = {
             host = "127.0.0.1";
@@ -110,12 +110,12 @@ pkgs.testers.runNixOSTest {
         container.succeed("podman load --input ${image}")
         container.succeed(
             "podman run --detach --network host"
-            " --env ADUNATA_LISTEN_ADDRESS=127.0.0.1:8080"
-            " --env ADUNATA_PUBLIC_URL=http://localhost:8080"
-            " --env ADUNATA_DATABASE_URL=postgres://adunata@127.0.0.1/adunata"
-            " --env ADUNATA_SMTP_HOST=127.0.0.1"
-            " --env 'ADUNATA_MAIL_SENDER=Adunata <adunata@example.org>'"
-            " --env ADUNATA_TIME_ZONE=Europe/Berlin"
+            " --env ADNT_HTTP_LISTEN_ADDRESS=127.0.0.1:8080"
+            " --env ADNT_HTTP_PUBLIC_URL=http://localhost:8080"
+            " --env ADNT_DATABASE_URL=postgres://adunata@127.0.0.1/adunata"
+            " --env ADNT_SMTP_HOST=127.0.0.1"
+            " --env 'ADNT_MAIL_SENDER=Adunata <adunata@example.org>'"
+            " --env ADNT_LOCALIZATION_TIME_ZONE=Europe/Berlin"
             " adunata:latest"
         )
         container.wait_for_open_port(8080)

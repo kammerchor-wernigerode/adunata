@@ -15,3 +15,4 @@
 |0011|[Personal links in the URL fragment](../decisions/0011-personal-links-in-the-url-fragment.md)|Accepted|
 |0012|[Wall-clock times in the instance time zone](../decisions/0012-wall-clock-times-in-the-instance-time-zone.md)|Accepted|
 |0013|[Mail loses its content once its delivery ends](../decisions/0013-mail-loses-its-content-once-its-delivery-ends.md)|Accepted|
+|0014|[Optional configuration file in TOML](../decisions/0014-optional-configuration-file-in-toml.md)|Accepted|

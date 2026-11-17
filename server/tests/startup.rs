@@ -1,80 +1,12 @@
 use std::process::Command;
 
-/// Starts the binary without the public URL, the mail server host and the time zone. The database URL points to a server that does not exist, so a start that touched the database would report it instead.
-#[test]
-fn several_settings_missing_stops_before_anything_opens() {
-    let output = Command::new(env!("CARGO_BIN_EXE_adunata"))
-        .arg("serve")
-        .env_clear()
-        .env(
-            "ADUNATA_DATABASE_URL",
-            "postgres://adunata@127.0.0.1:1/adunata",
-        )
-        .env("ADUNATA_MAIL_SENDER", "Adunata <adunata@example.org>")
-        .output()
-        .expect("binary must run");
+const UNREACHABLE_DATABASE: &str = "postgres://adunata@127.0.0.1:1/adunata";
 
-    assert_eq!(output.status.code(), Some(1));
-    let log = String::from_utf8_lossy(&output.stdout);
-    assert!(log.contains("ADUNATA_PUBLIC_URL"), "{log}");
-    assert!(log.contains("ADUNATA_SMTP_HOST"), "{log}");
-    assert!(log.contains("ADUNATA_TIME_ZONE"), "{log}");
-    assert!(!log.contains("database is not ready"), "{log}");
-    assert!(!log.contains("accepting requests"), "{log}");
-}
-
-#[test]
-fn malformed_value_names_setting_and_format() {
-    let output = Command::new(env!("CARGO_BIN_EXE_adunata"))
-        .arg("serve")
-        .env_clear()
-        .env("ADUNATA_PUBLIC_URL", "http://adunata.example.org")
-        .env(
-            "ADUNATA_DATABASE_URL",
-            "postgres://adunata@127.0.0.1:1/adunata",
-        )
-        .env("ADUNATA_SMTP_HOST", "mail.example.org")
-        .env("ADUNATA_MAIL_SENDER", "Adunata <adunata@example.org>")
-        .env("ADUNATA_TIME_ZONE", "Europe/Berlin")
-        .output()
-        .expect("binary must run");
-
-    assert_eq!(output.status.code(), Some(1));
-    let log = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        log.contains("ADUNATA_PUBLIC_URL must be an absolute HTTPS URL"),
-        "{log}"
-    );
-}
-
-#[test]
-fn unknown_time_zone_stops_before_the_database() {
-    let output = Command::new(env!("CARGO_BIN_EXE_adunata"))
-        .arg("serve")
-        .env_clear()
-        .env("ADUNATA_PUBLIC_URL", "https://adunata.example.org")
-        .env(
-            "ADUNATA_DATABASE_URL",
-            "postgres://adunata@127.0.0.1:1/adunata",
-        )
-        .env("ADUNATA_SMTP_HOST", "mail.example.org")
-        .env("ADUNATA_MAIL_SENDER", "Adunata <adunata@example.org>")
-        .env("ADUNATA_TIME_ZONE", "Europe/Wernigerode")
-        .output()
-        .expect("binary must run");
-
-    assert_eq!(output.status.code(), Some(1));
-    let log = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        log.contains("ADUNATA_TIME_ZONE must be an IANA time zone"),
-        "{log}"
-    );
-    assert!(!log.contains("database is not ready"), "{log}");
-}
-
-fn run(arguments: &[&str]) -> (Option<i32>, String, String) {
+/// Runs the binary with only the given arguments and variables. Returns the exit code, standard output and standard error.
+fn run(arguments: &[&str], variables: &[(&str, &str)]) -> (Option<i32>, String, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_adunata"))
         .env_clear()
+        .envs(variables.iter().copied())
         .args(arguments)
         .output()
         .expect("binary must run");
@@ -85,9 +17,124 @@ fn run(arguments: &[&str]) -> (Option<i32>, String, String) {
     )
 }
 
+/// Runs `serve` and returns the exit code and everything the binary printed.
+fn serve(arguments: &[&str], variables: &[(&str, &str)]) -> (Option<i32>, String) {
+    let arguments: Vec<&str> = arguments.iter().copied().chain(["serve"]).collect();
+    let (code, output, error) = run(&arguments, variables);
+    (code, format!("{output}{error}"))
+}
+
+fn configuration_file(name: &str, content: &str) -> String {
+    let directory = std::env::temp_dir().join(format!("adunata-startup-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("temporary directory must be writable");
+    let path = directory.join(name);
+    std::fs::write(&path, content).expect("configuration file must be writable");
+    path.to_string_lossy().into_owned()
+}
+
+/// Starts without the public URL, the mail server host and the time zone. The database URL points to a server that does not exist, so a start that touched the database would report it instead.
+#[test]
+fn several_settings_missing_stops_before_anything_opens() {
+    let (code, log) = serve(
+        &[],
+        &[
+            ("ADNT_DATABASE_URL", UNREACHABLE_DATABASE),
+            ("ADNT_MAIL_SENDER", "Adunata <adunata@example.org>"),
+        ],
+    );
+    assert_eq!(code, Some(1));
+    assert!(log.contains("ADNT_HTTP_PUBLIC_URL"), "{log}");
+    assert!(log.contains("ADNT_SMTP_HOST"), "{log}");
+    assert!(log.contains("ADNT_LOCALIZATION_TIME_ZONE"), "{log}");
+    assert!(!log.contains("database is not ready"), "{log}");
+    assert!(!log.contains("accepting requests"), "{log}");
+}
+
+#[test]
+fn malformed_value_names_setting_and_format() {
+    let (code, log) = serve(
+        &[],
+        &[
+            ("ADNT_HTTP_PUBLIC_URL", "http://adunata.example.org"),
+            ("ADNT_DATABASE_URL", UNREACHABLE_DATABASE),
+            ("ADNT_SMTP_HOST", "mail.example.org"),
+            ("ADNT_MAIL_SENDER", "Adunata <adunata@example.org>"),
+            ("ADNT_LOCALIZATION_TIME_ZONE", "Europe/Berlin"),
+        ],
+    );
+    assert_eq!(code, Some(1));
+    assert!(
+        log.contains("ADNT_HTTP_PUBLIC_URL must be an absolute HTTPS URL"),
+        "{log}"
+    );
+}
+
+#[test]
+fn unknown_time_zone_stops_before_the_database() {
+    let (code, log) = serve(
+        &[],
+        &[
+            ("ADNT_HTTP_PUBLIC_URL", "https://adunata.example.org"),
+            ("ADNT_DATABASE_URL", UNREACHABLE_DATABASE),
+            ("ADNT_SMTP_HOST", "mail.example.org"),
+            ("ADNT_MAIL_SENDER", "Adunata <adunata@example.org>"),
+            ("ADNT_LOCALIZATION_TIME_ZONE", "Europe/Wernigerode"),
+        ],
+    );
+    assert_eq!(code, Some(1));
+    assert!(
+        log.contains("ADNT_LOCALIZATION_TIME_ZONE must be an IANA time zone"),
+        "{log}"
+    );
+    assert!(!log.contains("database is not ready"), "{log}");
+}
+
+#[test]
+fn option_wins_over_variable() {
+    let file = configuration_file("option.toml", "[smpt]\nhost = \"mail.example.org\"\n");
+    let (code, log) = serve(
+        &["--config", &file],
+        &[("ADNT_CONFIG_FILE", "/nonexistent/adunata.toml")],
+    );
+    assert_eq!(code, Some(1));
+    assert!(log.contains(&file), "{log}");
+    assert!(log.contains("smpt.host"), "{log}");
+    assert!(!log.contains("/nonexistent/adunata.toml"), "{log}");
+}
+
+#[test]
+fn empty_variable_names_no_file() {
+    let (code, log) = serve(&[], &[("ADNT_CONFIG_FILE", "")]);
+    assert_eq!(code, Some(1));
+    assert!(log.contains("is required but not set"), "{log}");
+    assert!(!log.contains("configuration file"), "{log}");
+}
+
+#[test]
+fn named_file_missing() {
+    let (code, log) = serve(&[], &[("ADNT_CONFIG_FILE", "/nonexistent/adunata.toml")]);
+    assert_eq!(code, Some(1));
+    assert!(log.contains("/nonexistent/adunata.toml"), "{log}");
+    assert!(!log.contains("is required but not set"), "{log}");
+}
+
+#[test]
+fn parse_error_never_shows_the_line() {
+    let file = configuration_file(
+        "secret.toml",
+        "[http]\npublic-url = \"https://adunata.example.org\"\n\n[database]\npassword = pa$$word\n",
+    );
+    let (code, log) = serve(&["--config", &file], &[]);
+    assert_eq!(code, Some(1));
+    assert!(log.contains(&file), "{log}");
+    assert!(log.contains("line 5, column 12"), "{log}");
+    assert!(!log.contains("pa$$word"), "{log}");
+    assert!(!log.contains("is required but not set"), "{log}");
+}
+
 #[test]
 fn grant_organizer_needs_mail_and_both_names() {
-    let (code, _, error) = run(&["grant-organizer", "ada@example.org", "Ada"]);
+    let (code, _, error) = run(&["grant-organizer", "ada@example.org", "Ada"], &[]);
     assert_eq!(code, Some(2));
     assert!(error.contains("<LAST_NAME>"), "{error}");
     assert!(error.contains("Usage: adunata grant-organizer"), "{error}");
@@ -95,33 +142,39 @@ fn grant_organizer_needs_mail_and_both_names() {
 
 #[test]
 fn grant_organizer_rejects_a_malformed_address() {
-    let (code, _, error) = run(&["grant-organizer", "ada", "Ada", "Lovelace"]);
+    let (code, _, error) = run(&["grant-organizer", "ada", "Ada", "Lovelace"], &[]);
     assert_eq!(code, Some(2));
     assert!(error.contains("expected a mail address"), "{error}");
 }
 
 #[test]
 fn without_a_command_the_binary_prints_its_help() {
-    let (code, _, error) = run(&[]);
-    assert_eq!(code, Some(2));
-    for command in ["serve", "grant-organizer", "openapi"] {
-        assert!(error.contains(command), "{error}");
+    for variables in [
+        &[][..],
+        &[("ADNT_CONFIG_FILE", "/etc/adunata/adunata.toml")],
+    ] {
+        let (code, _, error) = run(&[], variables);
+        assert_eq!(code, Some(2));
+        for command in ["serve", "grant-organizer", "openapi"] {
+            assert!(error.contains(command), "{error}");
+        }
+        assert!(error.contains("Usage: adunata"), "{error}");
     }
 }
 
 #[test]
 fn help_and_version_succeed() {
-    let (code, help, _) = run(&["help", "grant-organizer"]);
+    let (code, help, _) = run(&["help", "grant-organizer"], &[]);
     assert_eq!(code, Some(0));
     assert!(help.contains("lost every organizer mailbox"), "{help}");
-    let (code, version, _) = run(&["--version"]);
+    let (code, version, _) = run(&["--version"], &[]);
     assert_eq!(code, Some(0));
     assert!(version.starts_with("adunata "), "{version}");
 }
 
 #[test]
 fn unknown_command() {
-    let (code, _, error) = run(&["serv"]);
+    let (code, _, error) = run(&["serv"], &[]);
     assert_eq!(code, Some(2));
     assert!(error.contains("serve"), "{error}");
 }

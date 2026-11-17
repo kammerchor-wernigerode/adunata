@@ -68,7 +68,7 @@ flowchart LR
 |access|Signs organizers in by mail link, keeps their sessions, limits sign-in requests, checks the `Origin` of requests that change data, creates the first organizer and resolves the network address of a client behind trusted proxies.|The sign-in and session routes, the extractor `Organizer` for organizer routes, the layer for the `Origin` check and the function for the first organizer.|
 |api|Collects the routes of all modules and describes them as one OpenAPI document.|The HTTP router and the OpenAPI document.|
 |client|Serves the files of the built client from the binary. Paths without a file extension get the client's entry page.|The HTTP router for all paths outside the API.|
-|configuration|Reads the settings of the instance from the environment.|The settings as one value.|
+|configuration|Reads the settings of the instance from the environment and an optional configuration file.|The settings as one value.|
 |database|Opens the connection pool and applies pending migrations. It refuses a schema that is newer than the binary.|A connected pool.|
 |gatherings|Keeps gatherings with title, location, description and span. It splits them into upcoming and past by the date in the time zone of the instance and refuses changes to a gathering that has ended. It depends on no other feature module.|The gathering routes and a function that finds a gathering for other modules.|
 |health|Reports whether the instance can serve requests and which dependency is unavailable.|The route `/api/health`.|

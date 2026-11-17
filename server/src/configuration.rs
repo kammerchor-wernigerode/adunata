@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::net::{IpAddr, SocketAddr};
 
@@ -14,7 +15,7 @@ const DEFAULT_LANGUAGE: &str = "en";
 const DEFAULT_TRUSTED_PROXIES: &str = "127.0.0.1/32,::1/128";
 const DEFAULT_RETENTION_COMMENT_DAYS: &str = "30";
 const DEFAULT_RETENTION_RESPONSE_DAYS: &str = "365";
-const FIRST_ORGANIZER_MAIL: &str = "ADUNATA_FIRST_ORGANIZER_MAIL";
+const FIRST_ORGANIZER_MAIL: &str = "ADNT_BOOTSTRAP_ORGANIZER_MAIL";
 
 pub struct Configuration {
     pub listen_address: SocketAddr,
@@ -240,6 +241,23 @@ pub enum Problem {
         setting: &'static str,
         with: &'static str,
     },
+    BothForms {
+        plain: &'static str,
+        file: &'static str,
+    },
+    UnusableFile {
+        file: String,
+        reason: String,
+    },
+    UnknownKey {
+        file: String,
+        key: String,
+    },
+    UnsupportedValue {
+        file: String,
+        key: String,
+        expected: &'static str,
+    },
 }
 
 impl fmt::Display for Problem {
@@ -252,71 +270,155 @@ impl fmt::Display for Problem {
             Self::RequiredWith { setting, with } => {
                 write!(formatter, "{setting} is required when {with} is set")
             }
+            Self::BothForms { plain, file } => {
+                write!(
+                    formatter,
+                    "{plain} and {file} are both set in the same source, set only one of them"
+                )
+            }
             Self::Unreadable { setting, path } => {
                 write!(
                     formatter,
                     "{setting} names the file {path}, which cannot be read"
                 )
             }
+            Self::UnusableFile { file, reason } => {
+                write!(formatter, "the configuration file {file} {reason}")
+            }
+            Self::UnknownKey { file, key } => {
+                write!(
+                    formatter,
+                    "the configuration file {file} sets {key}, which is no setting"
+                )
+            }
+            Self::UnsupportedValue {
+                file,
+                key,
+                expected,
+            } => write!(
+                formatter,
+                "{key} in the configuration file {file} must be {expected}"
+            ),
         }
     }
 }
 
+/// Every setting as its table and key. The name of each variable derives from them.
+const SETTINGS: [(&str, &str); 23] = [
+    ("http", "public-url"),
+    ("http", "listen-address"),
+    ("http", "trusted-proxies"),
+    ("database", "url"),
+    ("database", "password"),
+    ("database", "password-file"),
+    ("smtp", "host"),
+    ("smtp", "port"),
+    ("smtp", "encryption"),
+    ("smtp", "username"),
+    ("smtp", "password"),
+    ("smtp", "password-file"),
+    ("mail", "sender"),
+    ("mail", "max-attempts"),
+    ("localization", "default-language"),
+    ("localization", "time-zone"),
+    ("retention", "comment-days"),
+    ("retention", "response-days"),
+    ("legal", "privacy-url"),
+    ("legal", "imprint-url"),
+    ("bootstrap", "organizer-mail"),
+    ("bootstrap", "organizer-first-name"),
+    ("bootstrap", "organizer-last-name"),
+];
+
+/// The only setting that takes an array, whose strings Adunata joins with commas.
+const LIST_SETTING: (&str, &str) = ("http", "trusted-proxies");
+
+/// Settings that the file accepts only as strings, so that a credential reaches the server exactly as written.
+const CREDENTIAL_SETTINGS: [(&str, &str); 3] = [
+    ("database", "password"),
+    ("smtp", "username"),
+    ("smtp", "password"),
+];
+
+/// The environment variable of a setting, such as `ADNT_HTTP_PUBLIC_URL` for `public-url` in the table `http`.
+fn variable_name(table: &str, key: &str) -> String {
+    format!("ADNT_{table}_{key}")
+        .to_ascii_uppercase()
+        .replace('-', "_")
+}
+
+/// Answers the name of a setting with its value, if the source sets it.
+pub type Source<'a> = &'a dyn Fn(&str) -> Option<String>;
+
 impl Configuration {
-    pub fn from_environment() -> Result<Self, Vec<Problem>> {
-        Self::load(&|name| std::env::var(name).ok().filter(|value| !value.is_empty()))
+    /// Reads the environment of the process and, if one is named, the configuration file.
+    pub fn from_environment_and_file(file: Option<&str>) -> Result<Self, Vec<Problem>> {
+        Self::from_sources(
+            &|name| std::env::var(name).ok().filter(|value| !value.is_empty()),
+            file,
+        )
     }
 
-    pub fn load(variable: &dyn Fn(&str) -> Option<String>) -> Result<Self, Vec<Problem>> {
+    /// Reads the given environment and, if one is named, the configuration file. The environment wins.
+    fn from_sources(environment: Source, file: Option<&str>) -> Result<Self, Vec<Problem>> {
+        let Some(file) = file else {
+            return Self::load(&[environment]);
+        };
+        let (settings, mut problems) = read_file(file).map_err(|problem| vec![problem])?;
+        let from_file = |name: &str| settings.get(name).cloned();
+        match Self::load(&[environment, &from_file]) {
+            Ok(configuration) if problems.is_empty() => Ok(configuration),
+            Ok(_) => Err(problems),
+            Err(mut others) => {
+                problems.append(&mut others);
+                Err(problems)
+            }
+        }
+    }
+
+    /// Takes each setting from the first source that sets it.
+    pub fn load(sources: &[Source]) -> Result<Self, Vec<Problem>> {
+        let first = |name: &str| sources.iter().find_map(|source| source(name));
+        let variable: Source = &first;
         let mut problems = Vec::new();
         let listen_address = parse(
             &mut problems,
-            "ADUNATA_LISTEN_ADDRESS",
+            "ADNT_HTTP_LISTEN_ADDRESS",
             "a socket address such as 127.0.0.1:8080",
-            Some(with_default(variable, "ADUNATA_LISTEN_ADDRESS", DEFAULT_LISTEN_ADDRESS).as_str()),
+            Some(
+                with_default(variable, "ADNT_HTTP_LISTEN_ADDRESS", DEFAULT_LISTEN_ADDRESS).as_str(),
+            ),
             |value| value.parse().ok(),
         );
         let public_url = parse(
             &mut problems,
-            "ADUNATA_PUBLIC_URL",
+            "ADNT_HTTP_PUBLIC_URL",
             "an absolute HTTPS URL such as https://adunata.example.org",
-            variable("ADUNATA_PUBLIC_URL").as_deref(),
+            variable("ADNT_HTTP_PUBLIC_URL").as_deref(),
             parse_public_url,
         );
-        let database = load_database(&mut problems, variable);
-        let smtp = load_smtp(&mut problems, variable);
+        let database = load_database(&mut problems, sources, variable);
+        let smtp = load_smtp(&mut problems, sources, variable);
         let mail_sender = parse(
             &mut problems,
-            "ADUNATA_MAIL_SENDER",
+            "ADNT_MAIL_SENDER",
             "a mailbox such as Adunata <adunata@example.org>",
-            variable("ADUNATA_MAIL_SENDER").as_deref(),
+            variable("ADNT_MAIL_SENDER").as_deref(),
             |value| value.parse::<Mailbox>().ok(),
         );
-        let mail_max_attempts = parse(
+        let mail_max_attempts = load_mail_max_attempts(&mut problems, variable);
+        let default_language = parse(
             &mut problems,
-            "ADUNATA_MAIL_MAX_ATTEMPTS",
-            "a whole number from 1 to 100",
+            "ADNT_LOCALIZATION_DEFAULT_LANGUAGE",
+            "a supported language: de or en",
             Some(
                 with_default(
                     variable,
-                    "ADUNATA_MAIL_MAX_ATTEMPTS",
-                    DEFAULT_MAIL_MAX_ATTEMPTS,
+                    "ADNT_LOCALIZATION_DEFAULT_LANGUAGE",
+                    DEFAULT_LANGUAGE,
                 )
                 .as_str(),
             ),
-            |value| {
-                value
-                    .parse::<i32>()
-                    .ok()
-                    .filter(|attempts| (1..=100).contains(attempts))
-            },
-        );
-
-        let default_language = parse(
-            &mut problems,
-            "ADUNATA_DEFAULT_LANGUAGE",
-            "a supported language: de or en",
-            Some(with_default(variable, "ADUNATA_DEFAULT_LANGUAGE", DEFAULT_LANGUAGE).as_str()),
             |value| crate::localization::is_supported(value).then(|| value.to_owned()),
         );
 
@@ -324,8 +426,8 @@ impl Configuration {
         let trusted_proxies = load_trusted_proxies(&mut problems, variable);
         let retention = load_retention(&mut problems, variable);
         let legal_links = LegalLinks {
-            privacy: optional_link(&mut problems, "ADUNATA_PRIVACY_URL", variable),
-            imprint: optional_link(&mut problems, "ADUNATA_IMPRINT_URL", variable),
+            privacy: optional_link(&mut problems, "ADNT_LEGAL_PRIVACY_URL", variable),
+            imprint: optional_link(&mut problems, "ADNT_LEGAL_IMPRINT_URL", variable),
         };
         let first_organizer = load_first_organizer(&mut problems, variable);
 
@@ -373,87 +475,116 @@ impl Configuration {
 
 fn load_database(
     problems: &mut Vec<Problem>,
-    variable: &dyn Fn(&str) -> Option<String>,
+    sources: &[Source],
+    variable: Source,
 ) -> Option<PgConnectOptions> {
     let database = parse(
         problems,
-        "ADUNATA_DATABASE_URL",
+        "ADNT_DATABASE_URL",
         "a PostgreSQL URL such as postgres://adunata@localhost/adunata",
-        variable("ADUNATA_DATABASE_URL").as_deref(),
+        variable("ADNT_DATABASE_URL").as_deref(),
         |value| value.parse::<PgConnectOptions>().ok(),
     );
-    let password = secret(problems, "ADUNATA_DATABASE_PASSWORD_FILE", variable);
+    let password = secret(
+        problems,
+        "ADNT_DATABASE_PASSWORD",
+        "ADNT_DATABASE_PASSWORD_FILE",
+        sources,
+    );
     match password {
         Some(password) => database.map(|database| database.password(&password)),
         None => database,
     }
 }
 
-fn load_smtp(
-    problems: &mut Vec<Problem>,
-    variable: &dyn Fn(&str) -> Option<String>,
-) -> Option<Smtp> {
+fn load_smtp(problems: &mut Vec<Problem>, sources: &[Source], variable: Source) -> Option<Smtp> {
     let host = parse(
         problems,
-        "ADUNATA_SMTP_HOST",
+        "ADNT_SMTP_HOST",
         "a host name",
-        variable("ADUNATA_SMTP_HOST").as_deref(),
+        variable("ADNT_SMTP_HOST").as_deref(),
         |value| Some(value.to_owned()),
     );
     let port = parse(
         problems,
-        "ADUNATA_SMTP_PORT",
+        "ADNT_SMTP_PORT",
         "a port number",
-        Some(with_default(variable, "ADUNATA_SMTP_PORT", DEFAULT_SMTP_PORT).as_str()),
+        Some(with_default(variable, "ADNT_SMTP_PORT", DEFAULT_SMTP_PORT).as_str()),
         |value| value.parse().ok(),
     );
     let encryption = parse(
         problems,
-        "ADUNATA_SMTP_ENCRYPTION",
+        "ADNT_SMTP_ENCRYPTION",
         "one of starttls, tls or none",
-        Some(with_default(variable, "ADUNATA_SMTP_ENCRYPTION", DEFAULT_SMTP_ENCRYPTION).as_str()),
+        Some(with_default(variable, "ADNT_SMTP_ENCRYPTION", DEFAULT_SMTP_ENCRYPTION).as_str()),
         Encryption::parse,
     );
-    let password = secret(problems, "ADUNATA_SMTP_PASSWORD_FILE", variable);
+    let username = variable("ADNT_SMTP_USERNAME");
+    let password = secret(
+        problems,
+        "ADNT_SMTP_PASSWORD",
+        "ADNT_SMTP_PASSWORD_FILE",
+        sources,
+    );
     Some(Smtp {
         host: host?,
         port: port?,
         encryption: encryption?,
-        username: variable("ADUNATA_SMTP_USERNAME"),
+        username,
         password,
     })
 }
 
-fn load_time_zone(
-    problems: &mut Vec<Problem>,
-    variable: &dyn Fn(&str) -> Option<String>,
-) -> Option<InstanceTimeZone> {
+fn load_mail_max_attempts(problems: &mut Vec<Problem>, variable: Source) -> Option<i32> {
     parse(
         problems,
-        "ADUNATA_TIME_ZONE",
+        "ADNT_MAIL_MAX_ATTEMPTS",
+        "a whole number from 1 to 100",
+        Some(
+            with_default(
+                variable,
+                "ADNT_MAIL_MAX_ATTEMPTS",
+                DEFAULT_MAIL_MAX_ATTEMPTS,
+            )
+            .as_str(),
+        ),
+        |value| {
+            value
+                .parse::<i32>()
+                .ok()
+                .filter(|attempts| (1..=100).contains(attempts))
+        },
+    )
+}
+
+fn load_time_zone(problems: &mut Vec<Problem>, variable: Source) -> Option<InstanceTimeZone> {
+    parse(
+        problems,
+        "ADNT_LOCALIZATION_TIME_ZONE",
         "an IANA time zone such as Europe/Berlin",
-        variable("ADUNATA_TIME_ZONE").as_deref(),
+        variable("ADNT_LOCALIZATION_TIME_ZONE").as_deref(),
         InstanceTimeZone::parse,
     )
 }
 
-fn load_trusted_proxies(
-    problems: &mut Vec<Problem>,
-    variable: &dyn Fn(&str) -> Option<String>,
-) -> Option<Vec<Network>> {
+fn load_trusted_proxies(problems: &mut Vec<Problem>, variable: Source) -> Option<Vec<Network>> {
     parse(
         problems,
-        "ADUNATA_TRUSTED_PROXIES",
+        "ADNT_HTTP_TRUSTED_PROXIES",
         "a comma-separated list of networks such as 172.18.0.0/16,::1/128",
-        Some(with_default(variable, "ADUNATA_TRUSTED_PROXIES", DEFAULT_TRUSTED_PROXIES).as_str()),
+        Some(
+            with_default(
+                variable,
+                "ADNT_HTTP_TRUSTED_PROXIES",
+                DEFAULT_TRUSTED_PROXIES,
+            )
+            .as_str(),
+        ),
         |value| value.split(',').map(Network::parse).collect(),
     )
 }
 
-fn load_retention(
-    problems: &mut Vec<Problem>,
-    variable: &dyn Fn(&str) -> Option<String>,
-) -> Option<Retention> {
+fn load_retention(problems: &mut Vec<Problem>, variable: Source) -> Option<Retention> {
     let mut period = |setting, default| {
         parse(
             problems,
@@ -464,11 +595,11 @@ fn load_retention(
         )
     };
     let comments = period(
-        "ADUNATA_RETENTION_COMMENT_DAYS",
+        "ADNT_RETENTION_COMMENT_DAYS",
         DEFAULT_RETENTION_COMMENT_DAYS,
     );
     let responses = period(
-        "ADUNATA_RETENTION_RESPONSE_DAYS",
+        "ADNT_RETENTION_RESPONSE_DAYS",
         DEFAULT_RETENTION_RESPONSE_DAYS,
     );
     Some(Retention {
@@ -480,7 +611,7 @@ fn load_retention(
 fn optional_link(
     problems: &mut Vec<Problem>,
     setting: &'static str,
-    variable: &dyn Fn(&str) -> Option<String>,
+    variable: Source,
 ) -> Option<String> {
     let value = variable(setting)?;
     parse(
@@ -498,10 +629,7 @@ fn is_web_address(value: &str) -> bool {
         .is_ok_and(|uri| matches!(uri.scheme_str(), Some("http" | "https")) && uri.host().is_some())
 }
 
-fn load_first_organizer(
-    problems: &mut Vec<Problem>,
-    variable: &dyn Fn(&str) -> Option<String>,
-) -> Option<FirstOrganizer> {
+fn load_first_organizer(problems: &mut Vec<Problem>, variable: Source) -> Option<FirstOrganizer> {
     let mail = variable(FIRST_ORGANIZER_MAIL)?;
     let mail = parse(
         problems,
@@ -525,8 +653,8 @@ fn load_first_organizer(
         }
         name.map(|name| name.trim().to_owned())
     };
-    let first_name = name("ADUNATA_FIRST_ORGANIZER_FIRST_NAME");
-    let last_name = name("ADUNATA_FIRST_ORGANIZER_LAST_NAME");
+    let first_name = name("ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME");
+    let last_name = name("ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME");
     Some(FirstOrganizer {
         mail: mail?,
         first_name: first_name?,
@@ -534,7 +662,7 @@ fn load_first_organizer(
     })
 }
 
-fn with_default(variable: &dyn Fn(&str) -> Option<String>, setting: &str, default: &str) -> String {
+fn with_default(variable: Source, setting: &str, default: &str) -> String {
     variable(setting).unwrap_or_else(|| default.to_owned())
 }
 
@@ -556,18 +684,157 @@ fn parse<T>(
     parsed
 }
 
+/// Takes a secret from the first source that sets its plain value or its file. An empty file means no secret.
 fn secret(
     problems: &mut Vec<Problem>,
-    setting: &'static str,
-    variable: &dyn Fn(&str) -> Option<String>,
+    plain: &'static str,
+    file: &'static str,
+    sources: &[Source],
 ) -> Option<String> {
-    let path = variable(setting)?;
+    let (value, path) = sources
+        .iter()
+        .map(|source| (source(plain), source(file)))
+        .find(|(value, path)| value.is_some() || path.is_some())?;
+    let Some(path) = path else {
+        return value;
+    };
+    if value.is_some() {
+        problems.push(Problem::BothForms { plain, file });
+        return None;
+    }
     let Ok(content) = std::fs::read_to_string(&path) else {
-        problems.push(Problem::Unreadable { setting, path });
+        problems.push(Problem::Unreadable {
+            setting: file,
+            path,
+        });
         return None;
     };
     let secret = content.trim_end_matches(['\r', '\n']);
     (!secret.is_empty()).then(|| secret.to_owned())
+}
+
+/// The settings of a configuration file by the names of their variables, together with the problems of its tables and keys.
+type FileSettings = (HashMap<String, String>, Vec<Problem>);
+
+fn read_file(file: &str) -> Result<FileSettings, Problem> {
+    let text = std::fs::read_to_string(file).map_err(|error| Problem::UnusableFile {
+        file: file.to_owned(),
+        reason: format!("cannot be read: {error}"),
+    })?;
+    parse_file(file, &text)
+}
+
+/// Never uses the `Display` of a parser error, because it quotes the line and with it any secret on that line.
+fn parse_file(file: &str, text: &str) -> Result<FileSettings, Problem> {
+    let tables = text
+        .parse::<toml::Table>()
+        .map_err(|error| Problem::UnusableFile {
+            file: file.to_owned(),
+            reason: parse_failure(text, error.span(), error.message()),
+        })?;
+    let mut settings = HashMap::new();
+    let mut problems = Vec::new();
+    for (table, keys) in &tables {
+        let Some(keys) = keys.as_table() else {
+            problems.push(Problem::UnknownKey {
+                file: file.to_owned(),
+                key: table.clone(),
+            });
+            continue;
+        };
+        for (key, value) in keys {
+            let name = format!("{table}.{key}");
+            if !SETTINGS.contains(&(table.as_str(), key.as_str())) {
+                problems.push(Problem::UnknownKey {
+                    file: file.to_owned(),
+                    key: name,
+                });
+                continue;
+            }
+            match setting_value(Shape::of((table, key)), value) {
+                Ok(Some(value)) => {
+                    settings.insert(variable_name(table, key), value);
+                }
+                Ok(None) => {}
+                Err(expected) => problems.push(Problem::UnsupportedValue {
+                    file: file.to_owned(),
+                    key: name,
+                    expected,
+                }),
+            }
+        }
+    }
+    Ok((settings, problems))
+}
+
+/// The values a key of the file takes.
+#[derive(Clone, Copy)]
+enum Shape {
+    /// A string only, because TOML would turn a bare `0x1F` or `1_000` into another text.
+    Text,
+    TextOrNumber,
+    TextOrList,
+}
+
+impl Shape {
+    fn of(setting: (&str, &str)) -> Self {
+        if setting == LIST_SETTING {
+            Self::TextOrList
+        } else if CREDENTIAL_SETTINGS.contains(&setting) {
+            Self::Text
+        } else {
+            Self::TextOrNumber
+        }
+    }
+
+    fn expected(self) -> &'static str {
+        match self {
+            Self::Text => "a string",
+            Self::TextOrNumber => "a string or a whole number",
+            Self::TextOrList => "a string or a non-empty array of strings",
+        }
+    }
+}
+
+/// Turns a value of the file into the text a variable would hold. An empty string counts as not set.
+fn setting_value(shape: Shape, value: &toml::Value) -> Result<Option<String>, &'static str> {
+    match (shape, value) {
+        (_, toml::Value::String(text)) => Ok((!text.is_empty()).then(|| text.clone())),
+        (Shape::TextOrNumber, toml::Value::Integer(number)) => Ok(Some(number.to_string())),
+        (Shape::TextOrList, toml::Value::Array(items)) => items
+            .iter()
+            .map(toml::Value::as_str)
+            .collect::<Option<Vec<&str>>>()
+            .filter(|items| !items.is_empty())
+            .map(|items| Some(items.join(",")))
+            .ok_or(shape.expected()),
+        _ => Err(shape.expected()),
+    }
+}
+
+/// Names the position of a parse error only when the parser knows it.
+fn parse_failure(text: &str, span: Option<std::ops::Range<usize>>, message: &str) -> String {
+    match span {
+        Some(span) => {
+            let (line, column) = position(text, span.start);
+            format!("cannot be parsed at line {line}, column {column}: {message}")
+        }
+        None => format!("cannot be parsed: {message}"),
+    }
+}
+
+/// Line and column, both counted from one, of a byte offset into a text.
+fn position(text: &str, offset: usize) -> (usize, usize) {
+    let before = text.get(..offset).unwrap_or(text);
+    let line = before.matches('\n').count() + 1;
+    let column = before
+        .rsplit('\n')
+        .next()
+        .unwrap_or_default()
+        .chars()
+        .count()
+        + 1;
+    (line, column)
 }
 
 fn parse_public_url(value: &str) -> Option<PublicUrl> {
@@ -596,24 +863,55 @@ mod tests {
     fn required() -> HashMap<&'static str, String> {
         HashMap::from([
             (
-                "ADUNATA_PUBLIC_URL",
+                "ADNT_HTTP_PUBLIC_URL",
                 "https://adunata.example.org".to_owned(),
             ),
             (
-                "ADUNATA_DATABASE_URL",
+                "ADNT_DATABASE_URL",
                 "postgres://adunata@localhost/adunata".to_owned(),
             ),
-            ("ADUNATA_SMTP_HOST", "mail.example.org".to_owned()),
+            ("ADNT_SMTP_HOST", "mail.example.org".to_owned()),
             (
-                "ADUNATA_MAIL_SENDER",
+                "ADNT_MAIL_SENDER",
                 "Adunata <adunata@example.org>".to_owned(),
             ),
-            ("ADUNATA_TIME_ZONE", "Europe/Berlin".to_owned()),
+            ("ADNT_LOCALIZATION_TIME_ZONE", "Europe/Berlin".to_owned()),
         ])
     }
 
     fn load(variables: &HashMap<&'static str, String>) -> Result<Configuration, Vec<Problem>> {
-        Configuration::load(&|name| variables.get(name).cloned())
+        Configuration::load(&[&|name| variables.get(name).cloned()])
+    }
+
+    fn load_two(
+        first: &HashMap<&'static str, String>,
+        second: &HashMap<&'static str, String>,
+    ) -> Result<Configuration, Vec<Problem>> {
+        Configuration::load(&[&|name| first.get(name).cloned(), &|name| {
+            second.get(name).cloned()
+        }])
+    }
+
+    fn database_debug(configuration: &Configuration) -> String {
+        format!("{:?}", configuration.database)
+    }
+
+    /// Loads once more without the public URL, so that `load` fails, and asserts that no problem shows the secret.
+    fn assert_no_problem_shows(
+        secret: &str,
+        first: &HashMap<&'static str, String>,
+        second: &HashMap<&'static str, String>,
+    ) {
+        let mut first = first.clone();
+        let mut second = second.clone();
+        first.remove("ADNT_HTTP_PUBLIC_URL");
+        second.remove("ADNT_HTTP_PUBLIC_URL");
+        let problems = load_two(&first, &second)
+            .err()
+            .expect("configuration without public URL must be rejected");
+        for problem in problems {
+            assert!(!problem.to_string().contains(secret), "{problem}");
+        }
     }
 
     fn secret_file(content: &str) -> String {
@@ -630,6 +928,203 @@ mod tests {
         load(variables)
             .err()
             .expect("configuration must be rejected")
+    }
+
+    fn derived_names() -> Vec<String> {
+        SETTINGS
+            .iter()
+            .map(|(table, key)| variable_name(table, key))
+            .collect()
+    }
+
+    #[test]
+    fn variable_name_of_a_key_with_dashes() {
+        assert_eq!(
+            variable_name("bootstrap", "organizer-mail"),
+            "ADNT_BOOTSTRAP_ORGANIZER_MAIL"
+        );
+    }
+
+    #[test]
+    fn derived_names_are_unique() {
+        let names = derived_names();
+        let unique: std::collections::BTreeSet<&String> = names.iter().collect();
+        assert_eq!(unique.len(), names.len());
+    }
+
+    #[test]
+    fn load_reads_exactly_the_derived_names() {
+        let asked = std::cell::RefCell::new(std::collections::BTreeSet::new());
+        let _ = Configuration::load(&[&|name| {
+            asked.borrow_mut().insert(name.to_owned());
+            Some("x".to_owned())
+        }]);
+        let derived: std::collections::BTreeSet<String> = derived_names().into_iter().collect();
+        assert_eq!(asked.into_inner(), derived);
+    }
+
+    fn file_settings(text: &str) -> HashMap<String, String> {
+        let (settings, problems) = parse_file("adunata.toml", text).expect("file must parse");
+        assert_eq!(problems, vec![]);
+        settings
+    }
+
+    fn file_problems(text: &str) -> Vec<String> {
+        let (_, problems) = parse_file("adunata.toml", text).expect("file must parse");
+        problems.iter().map(ToString::to_string).collect()
+    }
+
+    #[test]
+    fn file_values_of_each_type() {
+        let settings = file_settings(
+            "[http]\npublic-url = \"https://adunata.example.org\"\ntrusted-proxies = [\"10.0.0.0/8\", \"::1/128\"]\n[smtp]\nport = 465\n",
+        );
+        assert_eq!(
+            settings,
+            HashMap::from([
+                (
+                    "ADNT_HTTP_PUBLIC_URL".to_owned(),
+                    "https://adunata.example.org".to_owned()
+                ),
+                (
+                    "ADNT_HTTP_TRUSTED_PROXIES".to_owned(),
+                    "10.0.0.0/8,::1/128".to_owned()
+                ),
+                ("ADNT_SMTP_PORT".to_owned(), "465".to_owned()),
+            ])
+        );
+    }
+
+    #[test]
+    fn empty_string_in_file_counts_as_unset() {
+        assert_eq!(
+            file_settings("[legal]\nprivacy-url = \"\"\n"),
+            HashMap::new()
+        );
+    }
+
+    #[test]
+    fn unknown_table_and_key_in_file() {
+        assert_eq!(
+            file_problems(
+                "[smpt]\nhost = \"mail.example.org\"\n[http]\npublic_url = \"https://adunata.example.org\"\n"
+            ),
+            vec![
+                "the configuration file adunata.toml sets http.public_url, which is no setting",
+                "the configuration file adunata.toml sets smpt.host, which is no setting",
+            ]
+        );
+    }
+
+    #[test]
+    fn key_at_the_top_of_the_file() {
+        assert_eq!(
+            file_problems("smtp-host = \"mail.example.org\"\n"),
+            vec!["the configuration file adunata.toml sets smtp-host, which is no setting"]
+        );
+    }
+
+    #[test]
+    fn unsupported_values_in_file() {
+        let problems = file_problems(
+            "[smtp]\nport = true\nhost = [\"mail.example.org\"]\n[http]\ntrusted-proxies = []\n",
+        );
+        assert_eq!(
+            problems,
+            vec![
+                "http.trusted-proxies in the configuration file adunata.toml must be a string or a non-empty array of strings",
+                "smtp.host in the configuration file adunata.toml must be a string or a whole number",
+                "smtp.port in the configuration file adunata.toml must be a string or a whole number",
+            ]
+        );
+        assert!(!problems.iter().any(|problem| problem.contains("true")));
+    }
+
+    #[test]
+    fn parse_error_names_line_and_column_but_not_the_line() {
+        let problem = parse_file("adunata.toml", "[database]\npassword = pa$$word\n")
+            .expect_err("file must not parse")
+            .to_string();
+        assert!(
+            problem.starts_with(
+                "the configuration file adunata.toml cannot be parsed at line 2, column 12: "
+            ),
+            "{problem}"
+        );
+        assert!(!problem.contains("pa$$word"), "{problem}");
+    }
+
+    const REQUIRED_FILE: &str = "[http]\npublic-url = \"https://adunata.example.org\"\nlisten-address = \"no address\"\n[database]\nurl = \"postgres://adunata@localhost/adunata\"\n[smtp]\nhost = \"mail.example.org\"\n[mail]\nsender = \"Adunata <adunata@example.org>\"\n[localization]\ntime-zone = \"Europe/Berlin\"\n";
+
+    #[test]
+    fn start_from_a_configuration_file() {
+        let file = secret_file(&REQUIRED_FILE.replace("listen-address = \"no address\"\n", ""));
+        let configuration = Configuration::from_sources(&|_| None, Some(&file))
+            .expect("configuration must be accepted");
+        assert_eq!(configuration.smtp.host, "mail.example.org");
+    }
+
+    #[test]
+    fn environment_overrides_the_file() {
+        let file = secret_file(REQUIRED_FILE);
+        let configuration = Configuration::from_sources(
+            &|name| (name == "ADNT_HTTP_LISTEN_ADDRESS").then(|| "127.0.0.1:9000".to_owned()),
+            Some(&file),
+        )
+        .expect("configuration must be accepted");
+        assert_eq!(configuration.listen_address.to_string(), "127.0.0.1:9000");
+
+        let problems = Configuration::from_sources(&|_| None, Some(&file))
+            .err()
+            .expect("listen address of the file must be rejected");
+        assert_eq!(
+            problems,
+            vec![Problem::Malformed {
+                setting: "ADNT_HTTP_LISTEN_ADDRESS",
+                expected: "a socket address such as 127.0.0.1:8080"
+            }]
+        );
+    }
+
+    #[test]
+    fn problems_of_the_file_join_the_others() {
+        let file = secret_file("[smpt]\nhost = \"mail.example.org\"\n");
+        let problems = Configuration::from_sources(&|_| None, Some(&file))
+            .err()
+            .expect("configuration must be rejected");
+        assert!(
+            matches!(problems[0], Problem::UnknownKey { .. }),
+            "{problems:?}"
+        );
+        assert!(problems.contains(&Problem::Missing {
+            setting: "ADNT_HTTP_PUBLIC_URL"
+        }));
+    }
+
+    #[test]
+    fn credentials_in_the_file_take_only_strings() {
+        let problems =
+            file_problems("[database]\npassword = 0x1F\n[smtp]\nusername = 1_000\npassword = 5\n");
+        assert_eq!(
+            problems,
+            vec![
+                "database.password in the configuration file adunata.toml must be a string",
+                "smtp.password in the configuration file adunata.toml must be a string",
+                "smtp.username in the configuration file adunata.toml must be a string",
+            ]
+        );
+        assert_eq!(
+            file_settings("[database]\npassword = \"0x1F\"\n"),
+            HashMap::from([("ADNT_DATABASE_PASSWORD".to_owned(), "0x1F".to_owned())])
+        );
+    }
+
+    #[test]
+    fn parse_error_without_position() {
+        assert_eq!(
+            parse_failure("a = 1\n", None, "invalid table"),
+            "cannot be parsed: invalid table"
+        );
     }
 
     #[test]
@@ -668,8 +1163,8 @@ mod tests {
     #[test]
     fn read_a_secret_from_a_file() {
         let mut variables = required();
-        variables.insert("ADUNATA_DATABASE_PASSWORD_FILE", secret_file("s3cret\n"));
-        variables.insert("ADUNATA_SMTP_PASSWORD_FILE", secret_file("mail-s3cret"));
+        variables.insert("ADNT_DATABASE_PASSWORD_FILE", secret_file("s3cret\n"));
+        variables.insert("ADNT_SMTP_PASSWORD_FILE", secret_file("mail-s3cret"));
         let configuration = load(&variables).expect("configuration must be accepted");
         assert_eq!(configuration.smtp.password.as_deref(), Some("mail-s3cret"));
         let debug = format!("{:?}", configuration.database);
@@ -680,10 +1175,85 @@ mod tests {
     }
 
     #[test]
+    fn secret_as_a_plain_value() {
+        let mut variables = required();
+        variables.insert("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned());
+        variables.insert("ADNT_SMTP_PASSWORD", "mail-pl41n".to_owned());
+        let configuration = load(&variables).expect("configuration must be accepted");
+        assert_eq!(configuration.smtp.password.as_deref(), Some("mail-pl41n"));
+        assert!(database_debug(&configuration).contains("db-pl41n"));
+        assert_no_problem_shows("pl41n", &variables, &HashMap::new());
+    }
+
+    #[test]
+    fn both_forms_in_one_source() {
+        let mut variables = required();
+        variables.insert("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned());
+        variables.insert("ADNT_DATABASE_PASSWORD_FILE", secret_file("db-f1le"));
+        let problems = problems(&variables);
+        assert_eq!(
+            problems,
+            vec![Problem::BothForms {
+                plain: "ADNT_DATABASE_PASSWORD",
+                file: "ADNT_DATABASE_PASSWORD_FILE"
+            }]
+        );
+        let message = problems[0].to_string();
+        assert!(message.contains("ADNT_DATABASE_PASSWORD "), "{message}");
+        assert!(message.contains("ADNT_DATABASE_PASSWORD_FILE"), "{message}");
+        assert_no_problem_shows("pl41n", &variables, &HashMap::new());
+        assert_no_problem_shows("f1le", &variables, &HashMap::new());
+    }
+
+    #[test]
+    fn plain_value_in_first_source_wins_over_file_in_second() {
+        let mut environment = required();
+        environment.insert("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned());
+        let file = HashMap::from([("ADNT_DATABASE_PASSWORD_FILE", secret_file("db-f1le"))]);
+        let configuration = load_two(&environment, &file).expect("configuration must be accepted");
+        let debug = database_debug(&configuration);
+        assert!(debug.contains("db-pl41n"), "{debug}");
+        assert!(!debug.contains("db-f1le"), "{debug}");
+        assert_no_problem_shows("pl41n", &environment, &file);
+        assert_no_problem_shows("f1le", &environment, &file);
+    }
+
+    #[test]
+    fn empty_secret_file_does_not_fall_back() {
+        let mut environment = required();
+        environment.insert("ADNT_DATABASE_PASSWORD_FILE", secret_file("\n"));
+        let file = HashMap::from([("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned())]);
+        let configuration = load_two(&environment, &file).expect("configuration must be accepted");
+        assert!(!database_debug(&configuration).contains("db-pl41n"));
+        assert_no_problem_shows("pl41n", &environment, &file);
+    }
+
+    #[test]
+    fn unreadable_secret_file_does_not_fall_back() {
+        let mut environment = required();
+        environment.insert(
+            "ADNT_SMTP_PASSWORD_FILE",
+            "/nonexistent/adunata-secret".to_owned(),
+        );
+        let file = HashMap::from([("ADNT_SMTP_PASSWORD", "mail-pl41n".to_owned())]);
+        let problems = load_two(&environment, &file)
+            .err()
+            .expect("configuration must be rejected");
+        assert_eq!(
+            problems,
+            vec![Problem::Unreadable {
+                setting: "ADNT_SMTP_PASSWORD_FILE",
+                path: "/nonexistent/adunata-secret".to_owned()
+            }]
+        );
+        assert_no_problem_shows("pl41n", &environment, &file);
+    }
+
+    #[test]
     fn empty_secret_file_counts_as_unset() {
         let mut variables = required();
-        variables.insert("ADUNATA_SMTP_USERNAME", "adunata@example.org".to_owned());
-        variables.insert("ADUNATA_SMTP_PASSWORD_FILE", secret_file("\n"));
+        variables.insert("ADNT_SMTP_USERNAME", "adunata@example.org".to_owned());
+        variables.insert("ADNT_SMTP_PASSWORD_FILE", secret_file("\n"));
         let configuration = load(&variables).expect("configuration must be accepted");
         assert_eq!(configuration.smtp.password, None);
     }
@@ -692,41 +1262,37 @@ mod tests {
     fn secret_file_unreadable() {
         let mut variables = required();
         variables.insert(
-            "ADUNATA_SMTP_PASSWORD_FILE",
+            "ADNT_SMTP_PASSWORD_FILE",
             "/nonexistent/adunata-secret".to_owned(),
         );
         let problems = problems(&variables);
         assert_eq!(
             problems,
             vec![Problem::Unreadable {
-                setting: "ADUNATA_SMTP_PASSWORD_FILE",
+                setting: "ADNT_SMTP_PASSWORD_FILE",
                 path: "/nonexistent/adunata-secret".to_owned()
             }]
         );
-        assert!(
-            problems[0]
-                .to_string()
-                .contains("ADUNATA_SMTP_PASSWORD_FILE")
-        );
+        assert!(problems[0].to_string().contains("ADNT_SMTP_PASSWORD_FILE"));
     }
 
     #[test]
     fn several_settings_missing() {
         let mut variables = required();
-        variables.remove("ADUNATA_PUBLIC_URL");
-        variables.remove("ADUNATA_SMTP_HOST");
-        variables.remove("ADUNATA_TIME_ZONE");
+        variables.remove("ADNT_HTTP_PUBLIC_URL");
+        variables.remove("ADNT_SMTP_HOST");
+        variables.remove("ADNT_LOCALIZATION_TIME_ZONE");
         assert_eq!(
             problems(&variables),
             vec![
                 Problem::Missing {
-                    setting: "ADUNATA_PUBLIC_URL"
+                    setting: "ADNT_HTTP_PUBLIC_URL"
                 },
                 Problem::Missing {
-                    setting: "ADUNATA_SMTP_HOST"
+                    setting: "ADNT_SMTP_HOST"
                 },
                 Problem::Missing {
-                    setting: "ADUNATA_TIME_ZONE"
+                    setting: "ADNT_LOCALIZATION_TIME_ZONE"
                 },
             ]
         );
@@ -735,17 +1301,20 @@ mod tests {
     #[test]
     fn unknown_time_zone() {
         let mut variables = required();
-        variables.insert("ADUNATA_TIME_ZONE", "Europe/Wernigerode".to_owned());
-        variables.remove("ADUNATA_SMTP_HOST");
+        variables.insert(
+            "ADNT_LOCALIZATION_TIME_ZONE",
+            "Europe/Wernigerode".to_owned(),
+        );
+        variables.remove("ADNT_SMTP_HOST");
         let problems = problems(&variables);
         assert_eq!(
             problems,
             vec![
                 Problem::Missing {
-                    setting: "ADUNATA_SMTP_HOST"
+                    setting: "ADNT_SMTP_HOST"
                 },
                 Problem::Malformed {
-                    setting: "ADUNATA_TIME_ZONE",
+                    setting: "ADNT_LOCALIZATION_TIME_ZONE",
                     expected: "an IANA time zone such as Europe/Berlin"
                 },
             ]
@@ -755,20 +1324,23 @@ mod tests {
     #[test]
     fn optional_settings() {
         let mut variables = required();
-        variables.insert("ADUNATA_RETENTION_COMMENT_DAYS", "never".to_owned());
-        variables.insert("ADUNATA_RETENTION_RESPONSE_DAYS", "90".to_owned());
+        variables.insert("ADNT_RETENTION_COMMENT_DAYS", "never".to_owned());
+        variables.insert("ADNT_RETENTION_RESPONSE_DAYS", "90".to_owned());
         variables.insert(
-            "ADUNATA_PRIVACY_URL",
+            "ADNT_LEGAL_PRIVACY_URL",
             "https://choir.example.org/privacy".to_owned(),
         );
         variables.insert(
-            "ADUNATA_IMPRINT_URL",
+            "ADNT_LEGAL_IMPRINT_URL",
             "https://choir.example.org/imprint".to_owned(),
         );
-        variables.insert("ADUNATA_FIRST_ORGANIZER_MAIL", "ada@example.org".to_owned());
-        variables.insert("ADUNATA_FIRST_ORGANIZER_FIRST_NAME", "Ada".to_owned());
-        variables.insert("ADUNATA_FIRST_ORGANIZER_LAST_NAME", "Lovelace".to_owned());
-        variables.insert("ADUNATA_TRUSTED_PROXIES", "172.18.0.0/16".to_owned());
+        variables.insert(
+            "ADNT_BOOTSTRAP_ORGANIZER_MAIL",
+            "ada@example.org".to_owned(),
+        );
+        variables.insert("ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME", "Ada".to_owned());
+        variables.insert("ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME", "Lovelace".to_owned());
+        variables.insert("ADNT_HTTP_TRUSTED_PROXIES", "172.18.0.0/16".to_owned());
         let configuration = load(&variables).expect("configuration must be accepted");
         assert_eq!(
             configuration.retention,
@@ -795,19 +1367,22 @@ mod tests {
     #[test]
     fn first_organizer_without_both_names() {
         let mut variables = required();
-        variables.insert("ADUNATA_FIRST_ORGANIZER_MAIL", "ada@example.org".to_owned());
-        variables.insert("ADUNATA_FIRST_ORGANIZER_FIRST_NAME", "Ada".to_owned());
+        variables.insert(
+            "ADNT_BOOTSTRAP_ORGANIZER_MAIL",
+            "ada@example.org".to_owned(),
+        );
+        variables.insert("ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME", "Ada".to_owned());
         let problems = problems(&variables);
         assert_eq!(
             problems,
             vec![Problem::RequiredWith {
-                setting: "ADUNATA_FIRST_ORGANIZER_LAST_NAME",
-                with: "ADUNATA_FIRST_ORGANIZER_MAIL"
+                setting: "ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME",
+                with: "ADNT_BOOTSTRAP_ORGANIZER_MAIL"
             }]
         );
         assert_eq!(
             problems[0].to_string(),
-            "ADUNATA_FIRST_ORGANIZER_LAST_NAME is required when ADUNATA_FIRST_ORGANIZER_MAIL is set"
+            "ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME is required when ADNT_BOOTSTRAP_ORGANIZER_MAIL is set"
         );
     }
 
@@ -815,11 +1390,11 @@ mod tests {
     fn retention_other_than_days_or_never() {
         for value in ["-1", "30d", "forever", "1.5"] {
             let mut variables = required();
-            variables.insert("ADUNATA_RETENTION_COMMENT_DAYS", value.to_owned());
+            variables.insert("ADNT_RETENTION_COMMENT_DAYS", value.to_owned());
             assert_eq!(
                 problems(&variables),
                 vec![Problem::Malformed {
-                    setting: "ADUNATA_RETENTION_COMMENT_DAYS",
+                    setting: "ADNT_RETENTION_COMMENT_DAYS",
                     expected: "a whole number of days or never"
                 }],
                 "{value} must be rejected"
@@ -831,13 +1406,13 @@ mod tests {
     fn malformed_optional_settings() {
         let mut variables = required();
         variables.insert(
-            "ADUNATA_PRIVACY_URL",
+            "ADNT_LEGAL_PRIVACY_URL",
             "choir.example.org/privacy".to_owned(),
         );
-        variables.insert("ADUNATA_TRUSTED_PROXIES", "10.0.0.0/33".to_owned());
-        variables.insert("ADUNATA_FIRST_ORGANIZER_MAIL", "ada".to_owned());
-        variables.insert("ADUNATA_FIRST_ORGANIZER_FIRST_NAME", "Ada".to_owned());
-        variables.insert("ADUNATA_FIRST_ORGANIZER_LAST_NAME", "Lovelace".to_owned());
+        variables.insert("ADNT_HTTP_TRUSTED_PROXIES", "10.0.0.0/33".to_owned());
+        variables.insert("ADNT_BOOTSTRAP_ORGANIZER_MAIL", "ada".to_owned());
+        variables.insert("ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME", "Ada".to_owned());
+        variables.insert("ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME", "Lovelace".to_owned());
         let settings: Vec<&str> = problems(&variables)
             .iter()
             .map(|problem| match problem {
@@ -848,9 +1423,9 @@ mod tests {
         assert_eq!(
             settings,
             vec![
-                "ADUNATA_TRUSTED_PROXIES",
-                "ADUNATA_PRIVACY_URL",
-                "ADUNATA_FIRST_ORGANIZER_MAIL"
+                "ADNT_HTTP_TRUSTED_PROXIES",
+                "ADNT_LEGAL_PRIVACY_URL",
+                "ADNT_BOOTSTRAP_ORGANIZER_MAIL"
             ]
         );
     }
@@ -925,12 +1500,12 @@ mod tests {
             "https://adunata.example.org/?a=b",
         ] {
             let mut variables = required();
-            variables.insert("ADUNATA_PUBLIC_URL", url.to_owned());
+            variables.insert("ADNT_HTTP_PUBLIC_URL", url.to_owned());
             let problems = problems(&variables);
             assert_eq!(problems.len(), 1, "{url} must be rejected");
             let message = problems[0].to_string();
             assert!(
-                message.contains("ADUNATA_PUBLIC_URL") && message.contains("HTTPS"),
+                message.contains("ADNT_HTTP_PUBLIC_URL") && message.contains("HTTPS"),
                 "{message}"
             );
         }
@@ -939,7 +1514,7 @@ mod tests {
     #[test]
     fn localhost_may_use_http() {
         let mut variables = required();
-        variables.insert("ADUNATA_PUBLIC_URL", "http://localhost:8080/".to_owned());
+        variables.insert("ADNT_HTTP_PUBLIC_URL", "http://localhost:8080/".to_owned());
         let configuration = load(&variables).expect("configuration must be accepted");
         assert_eq!(
             configuration.public_url.link("/gatherings"),
