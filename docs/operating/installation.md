@@ -134,7 +134,7 @@ An operator who lost access to every organizer mailbox makes another member an o
 adunata grant-organizer organizer@example.org Ada Lovelace
 ```
 
-The command reads the same settings as the server, connects to the database and makes the member with that address an active organizer. It creates the member with both names if no member has the address. In a container run it with `docker compose exec adunata adunata grant-organizer …` or the equivalent of your platform. On NixOS and with the release binary run it as the service user with the settings of the service.
+The command reads the same settings as the server, so pass it the same `--config` or `ADNT_CONFIG_FILE` if the service uses a [configuration file](configuration.md#configuration-file). It connects to the database and makes the member with that address an active organizer. It creates the member with both names if no member has the address. In a container run it with `docker compose exec adunata adunata grant-organizer …` or the equivalent of your platform. On NixOS and with the release binary run it as the service user with the settings of the service.
 
 ## Updates
 

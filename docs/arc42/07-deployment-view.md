@@ -25,7 +25,7 @@ flowchart LR
 |Way|Artifact|How it runs|
 |-|-|-|
 |NixOS|The module `nixosModules.default` of the flake|A systemd service with a dynamic user and a hardened sandbox. It can create a local database and connects to it through the Unix socket. Passwords arrive as systemd credentials. The proxy runs on the same host, so the default trusted proxies fit.|
-|Container|The OCI image `ghcr.io/kammerchor-wernigerode/adunata`|An unprivileged process listening on port 8080, configured through environment variables and secret files. A proxy on the host reaches it through the gateway of the container network, which `ADNT_HTTP_TRUSTED_PROXIES` names.|
+|Container|The OCI image `ghcr.io/kammerchor-wernigerode/adunata`|An unprivileged process listening on port 8080, configured through environment variables and secret files or optionally through a configuration file. A proxy on the host reaches it through the gateway of the container network, which `ADNT_HTTP_TRUSTED_PROXIES` names.|
 |Other Linux distributions|The release archive with a statically linked binary|The example systemd unit with the same sandbox as on NixOS. Settings come from `/etc/adunata/adunata.env` and passwords from credential files. The proxy runs on the same host, so the default trusted proxies fit.|
 
 The flake builds all three from the same source, see [ADR 0005](../decisions/0005-nix-flake-as-build-definition.md). The image and the release archive carry the same statically linked binary. The NixOS module runs a build against the libraries of nixpkgs.

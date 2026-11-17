@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::net::{IpAddr, SocketAddr};
 
@@ -244,6 +245,19 @@ pub enum Problem {
         plain: &'static str,
         file: &'static str,
     },
+    UnusableFile {
+        file: String,
+        reason: String,
+    },
+    UnknownKey {
+        file: String,
+        key: String,
+    },
+    UnsupportedValue {
+        file: String,
+        key: String,
+        expected: &'static str,
+    },
 }
 
 impl fmt::Display for Problem {
@@ -268,12 +282,28 @@ impl fmt::Display for Problem {
                     "{setting} names the file {path}, which cannot be read"
                 )
             }
+            Self::UnusableFile { file, reason } => {
+                write!(formatter, "the configuration file {file} {reason}")
+            }
+            Self::UnknownKey { file, key } => {
+                write!(
+                    formatter,
+                    "the configuration file {file} sets {key}, which is no setting"
+                )
+            }
+            Self::UnsupportedValue {
+                file,
+                key,
+                expected,
+            } => write!(
+                formatter,
+                "{key} in the configuration file {file} must be {expected}"
+            ),
         }
     }
 }
 
 /// Every setting as its table and key. The name of each variable derives from them.
-#[cfg(test)]
 const SETTINGS: [(&str, &str); 23] = [
     ("http", "public-url"),
     ("http", "listen-address"),
@@ -300,8 +330,10 @@ const SETTINGS: [(&str, &str); 23] = [
     ("bootstrap", "organizer-last-name"),
 ];
 
+/// The only setting that takes an array, whose strings Adunata joins with commas.
+const LIST_SETTING: (&str, &str) = ("http", "trusted-proxies");
+
 /// The environment variable of a setting, such as `ADNT_HTTP_PUBLIC_URL` for `public-url` in the table `http`.
-#[cfg(test)]
 fn variable_name(table: &str, key: &str) -> String {
     format!("ADNT_{table}_{key}")
         .to_ascii_uppercase()
@@ -312,8 +344,22 @@ fn variable_name(table: &str, key: &str) -> String {
 pub type Source<'a> = &'a dyn Fn(&str) -> Option<String>;
 
 impl Configuration {
-    pub fn from_environment() -> Result<Self, Vec<Problem>> {
-        Self::load(&[&|name| std::env::var(name).ok().filter(|value| !value.is_empty())])
+    /// Reads the environment and, if one is named, the configuration file. The environment wins.
+    pub fn from_environment(file: Option<&str>) -> Result<Self, Vec<Problem>> {
+        let environment = |name: &str| std::env::var(name).ok().filter(|value| !value.is_empty());
+        let Some(file) = file else {
+            return Self::load(&[&environment]);
+        };
+        let (settings, mut problems) = read_file(file).map_err(|problem| vec![problem])?;
+        let from_file = |name: &str| settings.get(name).cloned();
+        match Self::load(&[&environment, &from_file]) {
+            Ok(configuration) if problems.is_empty() => Ok(configuration),
+            Ok(_) => Err(problems),
+            Err(mut others) => {
+                problems.append(&mut others);
+                Err(problems)
+            }
+        }
     }
 
     /// Takes each setting from the first source that sets it.
@@ -668,6 +714,95 @@ fn secret(
     (!secret.is_empty()).then(|| secret.to_owned())
 }
 
+/// The settings of a configuration file by the names of their variables, together with the problems of its tables and keys.
+type FileSettings = (HashMap<String, String>, Vec<Problem>);
+
+fn read_file(file: &str) -> Result<FileSettings, Problem> {
+    let text = std::fs::read_to_string(file).map_err(|error| Problem::UnusableFile {
+        file: file.to_owned(),
+        reason: format!("cannot be read: {error}"),
+    })?;
+    parse_file(file, &text)
+}
+
+/// Never uses the `Display` of a parser error, because it quotes the line and with it any secret on that line.
+fn parse_file(file: &str, text: &str) -> Result<FileSettings, Problem> {
+    let tables = text.parse::<toml::Table>().map_err(|error| {
+        let (line, column) = position(text, error.span().map_or(0, |span| span.start));
+        Problem::UnusableFile {
+            file: file.to_owned(),
+            reason: format!(
+                "cannot be parsed at line {line}, column {column}: {}",
+                error.message()
+            ),
+        }
+    })?;
+    let mut settings = HashMap::new();
+    let mut problems = Vec::new();
+    for (table, keys) in &tables {
+        let Some(keys) = keys.as_table() else {
+            problems.push(Problem::UnknownKey {
+                file: file.to_owned(),
+                key: table.clone(),
+            });
+            continue;
+        };
+        for (key, value) in keys {
+            let name = format!("{table}.{key}");
+            if !SETTINGS.contains(&(table.as_str(), key.as_str())) {
+                problems.push(Problem::UnknownKey {
+                    file: file.to_owned(),
+                    key: name,
+                });
+                continue;
+            }
+            match setting_value((table.as_str(), key.as_str()) == LIST_SETTING, value) {
+                Ok(Some(value)) => {
+                    settings.insert(variable_name(table, key), value);
+                }
+                Ok(None) => {}
+                Err(expected) => problems.push(Problem::UnsupportedValue {
+                    file: file.to_owned(),
+                    key: name,
+                    expected,
+                }),
+            }
+        }
+    }
+    Ok((settings, problems))
+}
+
+/// Turns a value of the file into the text a variable would hold. An empty string counts as not set.
+fn setting_value(list: bool, value: &toml::Value) -> Result<Option<String>, &'static str> {
+    match value {
+        toml::Value::String(text) => Ok((!text.is_empty()).then(|| text.clone())),
+        toml::Value::Integer(number) => Ok(Some(number.to_string())),
+        toml::Value::Array(items) if list => items
+            .iter()
+            .map(toml::Value::as_str)
+            .collect::<Option<Vec<&str>>>()
+            .filter(|items| !items.is_empty())
+            .map(|items| Some(items.join(",")))
+            .ok_or("a string or a non-empty array of strings"),
+        _ if list => Err("a string or a non-empty array of strings"),
+        _ => Err("a string or a whole number"),
+    }
+}
+
+/// Line and column, both counted from one, of a byte offset into a text.
+fn position(text: &str, offset: usize) -> (usize, usize) {
+    let before = text.get(..offset).unwrap_or(text);
+    let line = before.matches('\n').count() + 1;
+    let column = before
+        .rsplit('\n')
+        .next()
+        .unwrap_or_default()
+        .chars()
+        .count()
+        + 1;
+    (line, column)
+}
+
 fn parse_public_url(value: &str) -> Option<PublicUrl> {
     let uri: Uri = value.parse().ok()?;
     let host = uri.host()?;
@@ -792,6 +927,97 @@ mod tests {
         }]);
         let derived: std::collections::BTreeSet<String> = derived_names().into_iter().collect();
         assert_eq!(asked.into_inner(), derived);
+    }
+
+    fn file_settings(text: &str) -> HashMap<String, String> {
+        let (settings, problems) = parse_file("adunata.toml", text).expect("file must parse");
+        assert_eq!(problems, vec![]);
+        settings
+    }
+
+    fn file_problems(text: &str) -> Vec<String> {
+        let (_, problems) = parse_file("adunata.toml", text).expect("file must parse");
+        problems.iter().map(ToString::to_string).collect()
+    }
+
+    #[test]
+    fn file_values_of_each_type() {
+        let settings = file_settings(
+            "[http]\npublic-url = \"https://adunata.example.org\"\ntrusted-proxies = [\"10.0.0.0/8\", \"::1/128\"]\n[smtp]\nport = 465\n",
+        );
+        assert_eq!(
+            settings,
+            HashMap::from([
+                (
+                    "ADNT_HTTP_PUBLIC_URL".to_owned(),
+                    "https://adunata.example.org".to_owned()
+                ),
+                (
+                    "ADNT_HTTP_TRUSTED_PROXIES".to_owned(),
+                    "10.0.0.0/8,::1/128".to_owned()
+                ),
+                ("ADNT_SMTP_PORT".to_owned(), "465".to_owned()),
+            ])
+        );
+    }
+
+    #[test]
+    fn empty_string_in_file_counts_as_unset() {
+        assert_eq!(
+            file_settings("[legal]\nprivacy-url = \"\"\n"),
+            HashMap::new()
+        );
+    }
+
+    #[test]
+    fn unknown_table_and_key_in_file() {
+        assert_eq!(
+            file_problems(
+                "[smpt]\nhost = \"mail.example.org\"\n[http]\npublic_url = \"https://adunata.example.org\"\n"
+            ),
+            vec![
+                "the configuration file adunata.toml sets http.public_url, which is no setting",
+                "the configuration file adunata.toml sets smpt.host, which is no setting",
+            ]
+        );
+    }
+
+    #[test]
+    fn key_at_the_top_of_the_file() {
+        assert_eq!(
+            file_problems("smtp-host = \"mail.example.org\"\n"),
+            vec!["the configuration file adunata.toml sets smtp-host, which is no setting"]
+        );
+    }
+
+    #[test]
+    fn unsupported_values_in_file() {
+        let problems = file_problems(
+            "[smtp]\nport = true\nhost = [\"mail.example.org\"]\n[http]\ntrusted-proxies = []\n",
+        );
+        assert_eq!(
+            problems,
+            vec![
+                "http.trusted-proxies in the configuration file adunata.toml must be a string or a non-empty array of strings",
+                "smtp.host in the configuration file adunata.toml must be a string or a whole number",
+                "smtp.port in the configuration file adunata.toml must be a string or a whole number",
+            ]
+        );
+        assert!(!problems.iter().any(|problem| problem.contains("true")));
+    }
+
+    #[test]
+    fn parse_error_names_line_and_column_but_not_the_line() {
+        let problem = parse_file("adunata.toml", "[database]\npassword = pa$$word\n")
+            .expect_err("file must not parse")
+            .to_string();
+        assert!(
+            problem.starts_with(
+                "the configuration file adunata.toml cannot be parsed at line 2, column 12: "
+            ),
+            "{problem}"
+        );
+        assert!(!problem.contains("pa$$word"), "{problem}");
     }
 
     #[test]
