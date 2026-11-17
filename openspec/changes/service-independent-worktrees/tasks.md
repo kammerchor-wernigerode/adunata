@@ -22,8 +22,8 @@ Each group is one commit that passes `nix build .#checks.<system>.fast`.
 
 ## 4. Services from Compose for every maintainer
 
-- [ ] 4.1 Let `compose.yaml` take its host ports from `POSTGRES_PORT`, `MAILPIT_SMTP_PORT` and `MAILPIT_UI_PORT` with defaults 5432, 1025 and 8025. Keep `name: adunata`. Verify that `docker compose config` without a root `.env` reports the project `adunata` and the default ports, and with a root `.env` reports its project name and ports.
-- [ ] 4.2 Rewrite the README section "Development". Docker or Podman with Compose is a requirement with and without Nix. `docker compose up --detach --wait` starts the services. `docker compose exec postgres psql -U adunata` opens the database. The `pg_ctl` block, the export block and the note on `direnv exec .` go away. A paragraph explains the settings files of each component, that the environment wins over them and that no shell exports them. Verify that each documented command runs as written.
+- [x] 4.1 Let `compose.yaml` take its host ports from `POSTGRES_PORT`, `MAILPIT_SMTP_PORT` and `MAILPIT_UI_PORT` with defaults 5432, 1025 and 8025. Keep `name: adunata`. Verify that `docker compose config` without a root `.env` reports the project `adunata` and the default ports, and with a root `.env` reports its project name and ports.
+- [x] 4.2 Rewrite the README section "Development". Docker or Podman with Compose is a requirement with and without Nix. `docker compose up --detach --wait` starts the services. `docker compose exec postgres psql -U adunata` opens the database. The `pg_ctl` block, the export block and the note on `direnv exec .` go away. A paragraph explains the settings files of each component, that the environment wins over them and that no shell exports them. Verify that each documented command runs as written.
 
 ## 5. Plugin without service dependencies
 

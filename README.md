@@ -29,11 +29,11 @@ Adunata runs on NixOS, in a container or as a systemd service on any Linux distr
 
 The server in [`server/`](server/) is written in Rust. The client in [`client/`](client/) is written in React with TypeScript. The server embeds the built client, so the client has to be built before the server compiles.
 
-Development needs PostgreSQL to store data and Mailpit to catch outgoing mail. Mailpit shows every mail at <http://localhost:8025>.
+Development needs PostgreSQL to store data and Mailpit to catch outgoing mail. Both run from [`compose.yaml`](compose.yaml), with and without Nix. Mailpit shows every mail at <http://localhost:8025>.
 
 ### With Nix
 
-Install [Nix](https://nixos.org/download/) and enable flakes. The development shell provides Rust, Node.js 24, PostgreSQL 17 and Mailpit. It also sets every variable that the server and the tests read. It compiles Rust through sccache, which shares compiled dependencies between checkouts.
+Install [Nix](https://nixos.org/download/) and enable flakes. Install Docker or Podman with Compose as well. The development shell provides Rust and Node.js 24. It compiles Rust through sccache, which shares compiled dependencies between checkouts.
 
 ```sh
 nix develop
@@ -45,20 +45,6 @@ With [direnv](https://direnv.net) the shell loads by itself whenever you enter t
 direnv allow
 ```
 
-The `.envrc` also loads an untracked `.envrc.local`, whose variables override those of the shell. A shell without the direnv hook, such as the one of a coding agent, runs a command in the environment with `direnv exec . <command>`.
-
-The shell does not start the services. Start them in their own terminal, also inside `nix develop`:
-
-```sh
-export PGDATA="$HOME/.local/share/adunata/pgdata"
-initdb --username=adunata --pwfile=<(echo adunata) --auth=scram-sha-256
-pg_ctl start --log "$PGDATA/log" --options="-k /tmp"
-createdb adunata
-mailpit
-```
-
-`initdb` and `createdb` are needed only the first time. Stop PostgreSQL with `pg_ctl stop`.
-
 ### Without Nix
 
 Install these tools:
@@ -67,21 +53,33 @@ Install these tools:
 - Node.js 24
 - Docker or Podman with Compose
 
-Start PostgreSQL and Mailpit from [`compose.yaml`](compose.yaml):
+### Services
+
+Start PostgreSQL and Mailpit in the root of the checkout:
 
 ```sh
 docker compose up --detach --wait
 ```
 
-Set the variables that the development shell would set. The [configuration reference](docs/operating/configuration.md) explains each `ADNT_` variable. The `PG` variables tell the tests where to create their databases.
+Open the database with `psql` inside its container:
 
 ```sh
-export PGHOST=localhost PGPORT=5432 PGUSER=adunata PGPASSWORD=adunata PGDATABASE=adunata
-export ADNT_HTTP_PUBLIC_URL=http://localhost:8080
-export ADNT_DATABASE_URL=postgres://adunata:adunata@localhost/adunata
-export ADNT_SMTP_HOST=localhost ADNT_SMTP_PORT=1025 ADNT_SMTP_ENCRYPTION=none
-export ADNT_MAIL_SENDER="Adunata <adunata@localhost>" ADNT_LOCALIZATION_TIME_ZONE=Europe/Berlin
+docker compose exec postgres psql -U adunata
 ```
+
+Stop the services with `docker compose down`. Add `--volumes` to delete the database as well.
+
+### Settings
+
+Compose, the server and the client each read their settings from files in their own directory. A `.env.local` overrides `.env`. A variable set in the environment wins over both files. No shell exports a setting, so a setting in the environment comes only from you.
+
+|Directory|Read by|Tracked|Untracked|
+|-|-|-|-|
+|root|Compose|none, defaults in `compose.yaml`|`.env` with `COMPOSE_PROJECT_NAME`, `POSTGRES_PORT`, `MAILPIT_SMTP_PORT` and `MAILPIT_UI_PORT`|
+|`server/`|server and its tests|`.env` with the settings for development|`.env.local`|
+|`client/`|Vite and Playwright|none, defaults in the configs|`.env.local`|
+
+The server reads its files only in a debug build and only in its working directory, so run it and its tests in `server/`. The [configuration reference](docs/operating/configuration.md) explains each `ADNT_` variable. Without an untracked file, PostgreSQL listens on port 5432, Mailpit on 1025 and 8025, the server on 8080 and Vite on 5173.
 
 ### Run Adunata
 
@@ -103,7 +101,7 @@ To work on the client, keep the server running and start the Vite development se
 npm run dev
 ```
 
-It serves the client on <http://localhost:5173> and reloads on every change. It forwards requests to `/api` to the server on port 8080. `ADUNATA_VITE_PORT` changes the port of Vite. The forwarding follows `ADNT_HTTP_LISTEN_ADDRESS`.
+It serves the client on <http://localhost:5173> and reloads on every change. It forwards requests to `/api` to the server on port 8080. `ADUNATA_VITE_PORT` in `client/.env.local` changes the port of Vite. The forwarding follows `ADNT_HTTP_LISTEN_ADDRESS` there.
 
 ### Tests and lints
 
@@ -117,10 +115,10 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 
 `cargo test` finds PostgreSQL through `ADNT_DATABASE_URL` and Mailpit through `ADNT_SMTP_PORT` and `MAILPIT_UI_PORT`. It creates a separate database for each test and drops it when the test ends, so the user in `ADNT_DATABASE_URL` needs the right to create databases.
 
-A test run that is killed leaves its databases behind. Drop them while no tests run in any worktree:
+A test run that is killed leaves its databases behind. Drop them in the root of the checkout while no tests run there:
 
 ```sh
-psql -tAc "select datname from pg_database where datname like 'adunata\_test\_%'" | xargs -rn1 dropdb --force
+docker compose exec -T postgres psql -U adunata -tAc "select datname from pg_database where datname like 'adunata\_test\_%'" | xargs -rn1 docker compose exec -T postgres dropdb -U adunata --force
 ```
 
 The end-to-end tests run against a release build in Nix:
