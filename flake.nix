@@ -4,10 +4,6 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     crane.url = "github:ipetkov/crane/v0.24.0";
-    fenix = {
-      url = "github:nix-community/fenix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
@@ -15,7 +11,6 @@
       self,
       nixpkgs,
       crane,
-      fenix,
     }:
     let
       systems = [
@@ -140,44 +135,46 @@
             );
           openapi = pkgs.runCommand "adunata-openapi" { } "${server}/bin/adunata openapi > $out";
 
-          muslTargets = {
-            x86_64-linux = "x86_64-unknown-linux-musl";
-            aarch64-linux = "aarch64-unknown-linux-musl";
-          };
           system = pkgs.stdenv.hostPlatform.system;
 
-          # A statically linked binary that runs on any Linux distribution. The release archive and the image both carry it.
-          staticServer =
-            let
-              target = muslTargets.${system};
-              targetVariable = pkgs.lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] target);
-              staticCc = pkgs.pkgsStatic.stdenv.cc;
-              toolchain = fenix.packages.${system}.combine [
-                fenix.packages.${system}.stable.cargo
-                fenix.packages.${system}.stable.rustc
-                fenix.packages.${system}.targets.${target}.stable.rust-std
-              ];
-              muslCrane = (crane.mkLib pkgs).overrideToolchain toolchain;
-              args = serverArgs // {
-                CARGO_BUILD_TARGET = target;
-                "CARGO_TARGET_${targetVariable}_LINKER" = "${staticCc}/bin/${staticCc.targetPrefix}cc";
-                "CC_${builtins.replaceStrings [ "-" ] [ "_" ] target}" =
-                  "${staticCc}/bin/${staticCc.targetPrefix}cc";
-                HOST_CC = "${pkgs.stdenv.cc}/bin/cc";
-                doCheck = false;
-              };
-            in
-            muslCrane.buildPackage (
-              args // { cargoArtifacts = muslCrane.buildDepsOnly (forDependencies args); }
-            );
-
-          release = pkgs.runCommand "adunata-release-${muslTargets.${system}}" { } ''
+          release = pkgs.runCommand "adunata-release-${system}" { nativeBuildInputs = [ pkgs.patchelf ]; } ''
             mkdir $out
-            cp ${staticServer}/bin/adunata $out/adunata
+            cp ${server}/bin/adunata $out/adunata
+            chmod u+w $out/adunata
+            patchelf --set-interpreter /${pkgs.stdenv.hostPlatform.libDir}/${builtins.baseNameOf pkgs.stdenv.cc.bintools.dynamicLinker} --remove-rpath $out/adunata
             cp ${./deploy/systemd/adunata.service} $out/adunata.service
             cp ${./deploy/systemd/adunata.env.example} $out/adunata.env.example
             cp ${./LICENSE} $out/LICENSE
           '';
+
+          releaseLinkage =
+            pkgs.runCommand "check-release-linkage" { nativeBuildInputs = [ pkgs.binutils ]; }
+              ''
+                binary=${release}/adunata
+                readelf --dynamic $binary > dynamic
+                if grep --extended-regexp 'RPATH|RUNPATH' dynamic; then
+                  echo "The release binary must find its libraries on the distribution, not in the Nix store."
+                  exit 1
+                fi
+                libraries=$(grep --only-matching 'Shared library: \[[^]]*\]' dynamic | grep --invert-match ld-linux | sed 's/.*\[\(.*\)\]/\1/' | sort | xargs)
+                echo "Libraries: $libraries"
+                if [ "$libraries" != "libc.so.6 libgcc_s.so.1 libm.so.6" ]; then
+                  echo "The release binary may only need glibc and libgcc_s, which every supported distribution ships."
+                  exit 1
+                fi
+                for need in $(readelf --version-info $binary | sed --quiet '/Version needs/,$p' | grep --only-matching 'Name: [^ ]*' | cut --delimiter=' ' --fields=2 | sort --unique); do
+                  case $need in
+                    GLIBC_[0-9]*) newest=GLIBC_2.34 ;;
+                    GCC_[0-9]*) newest=GCC_4.2.0 ;;
+                    *) echo "The release binary needs $need, which the supported distributions may lack."; exit 1 ;;
+                  esac
+                  if [ "$(printf '%s\n' "$need" "$newest" | sort --version-sort | tail -1)" != "$newest" ]; then
+                    echo "The release binary needs $need, newer than the supported $newest."
+                    exit 1
+                  fi
+                done
+                touch $out
+              '';
 
           image = pkgs.dockerTools.buildLayeredImage {
             name = "adunata";
@@ -189,14 +186,14 @@
               ];
               Env = [
                 "ADNT_HTTP_LISTEN_ADDRESS=0.0.0.0:8080"
-                "PATH=${staticServer}/bin"
+                "PATH=${server}/bin"
               ];
               ExposedPorts."8080/tcp" = { };
               User = "65534:65534";
             };
           };
 
-          # Starts PostgreSQL, Mailpit and the release binary on port 18080 with the organizer organizer@example.org and leaves the binary's PID in $adunataPid.
+          # Starts PostgreSQL, Mailpit and the server on port 18080 with the organizer organizer@example.org and leaves the binary's PID in $adunataPid.
           startInstance = ''
             export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata
             mkdir -p "$PGHOST"
@@ -209,7 +206,7 @@
               ADNT_MAIL_SENDER="Adunata <adunata@example.org>" ADNT_LOCALIZATION_TIME_ZONE=Europe/Berlin \
               ADNT_BOOTSTRAP_ORGANIZER_MAIL=organizer@example.org ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME=Ada \
               ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME=Lovelace \
-              ${staticServer}/bin/adunata serve &
+              ${server}/bin/adunata serve &
             adunataPid=$!
             for _ in $(seq 100); do (echo > /dev/tcp/127.0.0.1/18080) 2>/dev/null && break; sleep 0.1; done
           '';
@@ -219,6 +216,7 @@
             client
             server
             release
+            releaseLinkage
             image
             ;
 
@@ -405,7 +403,10 @@
                   touch $out
                 '';
           };
-          buildChecks = { inherit (built) server; };
+          buildChecks = {
+            inherit (built) server;
+          }
+          // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux { inherit (built) releaseLinkage; };
           testChecks = { inherit (built) serverUnitTests clientUnitTests; };
           integrationChecks = { inherit (built) serverIntegrationTests clientIntegrationTests contract; };
 

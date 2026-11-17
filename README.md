@@ -14,7 +14,7 @@ Adunata is an open-source web application for choirs and instrumental ensembles 
 
 ## Installation
 
-Adunata runs on NixOS, in a container or as a systemd service on any Linux distribution. The [installation guide](docs/operating/installation.md) describes each way.
+Adunata runs on NixOS, in a container or as a systemd service on a Linux distribution with glibc 2.34 or newer. The [installation guide](docs/operating/installation.md) describes each way.
 
 ## Documentation
 
