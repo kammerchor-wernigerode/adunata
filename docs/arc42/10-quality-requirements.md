@@ -16,9 +16,9 @@ The quality goals in [Introduction and goals](01-introduction-and-goals.md) name
 |Unknown address at sign-in|Someone tries to learn who organizes the ensemble.|A sign-in link is requested for an address that belongs to no active organizer.|Adunata answers exactly as for an organizer and sends no mail.|`unknown_address` in [`server/src/access.rs`](../../server/src/access.rs)|
 |Request from another origin|An organizer is signed in and visits a page on another origin.|That page makes the browser send a request that changes data.|Adunata rejects it with status 403 and changes nothing.|`request_from_another_origin` in [`server/src/access.rs`](../../server/src/access.rs)|
 |Guessed link|Someone tries secrets to reach invitations.|A request carries a secret that matches no invitation.|Adunata answers with status 404 and an empty body, the same as for a revoked link.|`guessed_link` in [`server/src/responses.rs`](../../server/src/responses.rs)|
-|Personal link absent from logs|A member opens the response page and answers through it.|Adunata handles the requests.|No line that Adunata logs contains the secret, and no request line carries it, because it sits in the fragment.|`request_with_a_personal_link` in [`server/src/responses.rs`](../../server/src/responses.rs) and [`client/src/responses/ResponsePage.test.tsx`](../../client/src/responses/ResponsePage.test.tsx)|
+|Personal link absent from logs|A member opens the response page and answers through it.|Adunata handles the requests.|No line that Adunata logs contains the secret, and no request line carries it, because it sits in the fragment.|`request_with_a_personal_link` in [`server/src/responses.rs`](../../server/src/responses.rs) and [`client/src/responses/ResponsePage.integration.test.tsx`](../../client/src/responses/ResponsePage.integration.test.tsx)|
 |Expiring comments|The operator kept the default retention.|A gathering ended 31 days ago.|Its responses exist without their comments. After 365 days its invitations and responses are gone while the gathering stays.|`default_retention` and `responses_expire` in [`server/src/responses.rs`](../../server/src/responses.rs)|
-|Organizer route without a session|A developer adds an organizer route and forgets the extractor.|The slice tests run.|The test that calls every operation without a session names the route and fails.|`every_organizer_operation_requires_a_session` in [`server/src/api.rs`](../../server/src/api.rs)|
+|Organizer route without a session|A developer adds an organizer route and forgets the extractor.|The integration tests run.|The test that calls every operation without a session names the route and fails.|`every_organizer_operation_requires_a_session` in [`server/src/api.rs`](../../server/src/api.rs)|
 
 ## Efficiency
 
@@ -31,7 +31,7 @@ The quality goals in [Introduction and goals](01-introduction-and-goals.md) name
 |Scenario|Context|Stimulus|Response|Verified by|
 |-|-|-|-|-|
 |Member form at 200 % on a phone|A member with low vision opens the personal link on a phone 390 px wide with the text enlarged to 200 %.|The member answers.|The response form and the overview scroll only vertically, axe finds no violation in light or dark mode and no control breaks the Content Security Policy.|[`client/e2e/invitation.e2e.ts`](../../client/e2e/invitation.e2e.ts)|
-|Calendar by keyboard|A member uses a keyboard and a screen reader.|The member picks the day of arrival.|The calendar offers only the days of the gathering, moves with the arrow keys and names its grid and each day.|`operates the calendar by keyboard and offers only the days of the gathering` in [`client/src/responses/ResponsePage.test.tsx`](../../client/src/responses/ResponsePage.test.tsx)|
+|Calendar by keyboard|A member uses a keyboard and a screen reader.|The member picks the day of arrival.|The calendar offers only the days of the gathering, moves with the arrow keys and names its grid and each day.|`operates the calendar by keyboard and offers only the days of the gathering` in [`client/src/responses/ResponsePage.integration.test.tsx`](../../client/src/responses/ResponsePage.integration.test.tsx)|
 
 ## Localization
 

@@ -63,7 +63,7 @@ async fn health(State(state): State<AppState>) -> (StatusCode, Json<Health>) {
 }
 
 #[cfg(test)]
-mod tests {
+mod integration {
     use std::time::Duration;
 
     use axum::body::{Body, to_bytes};

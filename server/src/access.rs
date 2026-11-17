@@ -449,69 +449,7 @@ pub mod testing {
 
 #[cfg(test)]
 mod tests {
-    use axum::body::Body;
-    use axum::http::Request;
-    use axum::routing::post;
-    use tower::ServiceExt;
-
     use super::*;
-
-    fn app() -> Router {
-        let public_url = PublicUrl::parse("https://adunata.example.org/").unwrap();
-        with_origin_check(
-            Router::new().route(
-                "/api/things",
-                post(|| async { "changed" }).get(|| async { "read" }),
-            ),
-            &public_url,
-        )
-    }
-
-    async fn status(method: &str, origin: Option<&str>) -> StatusCode {
-        let mut request = Request::builder().method(method).uri("/api/things");
-        if let Some(origin) = origin {
-            request = request.header(header::ORIGIN, origin);
-        }
-        app()
-            .oneshot(request.body(Body::empty()).unwrap())
-            .await
-            .unwrap()
-            .status()
-    }
-
-    #[tokio::test]
-    async fn request_from_another_origin() {
-        assert_eq!(
-            status("POST", Some("https://evil.example.org")).await,
-            StatusCode::FORBIDDEN
-        );
-        assert_eq!(
-            status("POST", Some("https://sub.adunata.example.org")).await,
-            StatusCode::FORBIDDEN
-        );
-        assert_eq!(status("POST", Some("null")).await, StatusCode::FORBIDDEN);
-    }
-
-    #[tokio::test]
-    async fn request_from_the_public_origin() {
-        assert_eq!(
-            status("POST", Some("https://adunata.example.org")).await,
-            StatusCode::OK
-        );
-    }
-
-    #[tokio::test]
-    async fn request_without_an_origin() {
-        assert_eq!(status("POST", None).await, StatusCode::OK);
-    }
-
-    #[tokio::test]
-    async fn reading_from_another_origin() {
-        assert_eq!(
-            status("GET", Some("https://evil.example.org")).await,
-            StatusCode::OK
-        );
-    }
 
     #[test]
     fn origin_of_the_public_url() {
@@ -529,433 +467,7 @@ mod tests {
     }
 
     mod sign_in {
-        use crate::configuration::FirstOrganizer;
-        use axum::body::to_bytes;
-        use axum::http::Response as HttpResponse;
-        use serde_json::{Value, json};
-        use sqlx::PgPool;
-
         use super::*;
-        use crate::api;
-        use crate::database::testing::fresh_database;
-
-        async fn call(state: AppState, request: Request<Body>) -> HttpResponse<Body> {
-            api::router(state).oneshot(request).await.unwrap()
-        }
-
-        async fn organizer(pool: &PgPool) -> i64 {
-            sqlx::query_scalar(
-                "INSERT INTO members (first_name, last_name, mail, language, organizer) VALUES ('Ada', 'Lovelace', 'ada@example.org', 'de', true) RETURNING id",
-            )
-            .fetch_one(pool)
-            .await
-            .unwrap()
-        }
-
-        async fn request_link(pool: &PgPool, mail: &str) -> StatusCode {
-            let request = Request::post("/api/sign-in-requests")
-                .header(header::CONTENT_TYPE, "application/json")
-                .body(Body::from(json!({ "mail": mail }).to_string()))
-                .unwrap();
-            call(api::testing::state(pool.clone()), request)
-                .await
-                .status()
-        }
-
-        /// The secret of the newest sign-in link, read from the mail in the outbox.
-        async fn link_secret(pool: &PgPool) -> String {
-            let text: String =
-                sqlx::query_scalar("SELECT text_body FROM mail_outbox ORDER BY id DESC LIMIT 1")
-                    .fetch_one(pool)
-                    .await
-                    .unwrap();
-            let start =
-                text.find("/sign-in#").expect("mail must contain the link") + "/sign-in#".len();
-            text[start..start + 64].to_owned()
-        }
-
-        async fn redeem(state: AppState, secret: &str) -> HttpResponse<Body> {
-            let request = Request::post("/api/sessions")
-                .header(header::AUTHORIZATION, format!("Bearer {secret}"))
-                .body(Body::empty())
-                .unwrap();
-            call(state, request).await
-        }
-
-        fn cookie_of(response: &HttpResponse<Body>) -> String {
-            let set_cookie = response.headers()[header::SET_COOKIE].to_str().unwrap();
-            set_cookie.split(';').next().unwrap().to_owned()
-        }
-
-        async fn session_status(state: AppState, cookie: &str) -> StatusCode {
-            let request = Request::get("/api/session")
-                .header(header::COOKIE, cookie)
-                .body(Body::empty())
-                .unwrap();
-            call(state, request).await.status()
-        }
-
-        async fn count(pool: &PgPool, query: &str) -> i64 {
-            sqlx::query_scalar(sqlx::AssertSqlSafe(query.to_owned()))
-                .fetch_one(pool)
-                .await
-                .unwrap()
-        }
-
-        #[tokio::test]
-        async fn successful_sign_in() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            organizer(&pool).await;
-            assert_eq!(
-                request_link(&pool, "ADA@example.org").await,
-                StatusCode::ACCEPTED
-            );
-            let secret = link_secret(&pool).await;
-            let text: String = sqlx::query_scalar("SELECT text_body FROM mail_outbox")
-                .fetch_one(&pool)
-                .await
-                .unwrap();
-            assert!(text.starts_with("Hallo Ada"), "{text}");
-
-            let state = api::testing::state(pool.clone());
-            let response = redeem(state.clone(), &secret).await;
-            assert_eq!(response.status(), StatusCode::CREATED);
-            let set_cookie = response.headers()[header::SET_COOKIE]
-                .to_str()
-                .unwrap()
-                .to_owned();
-            assert!(
-                set_cookie.starts_with("__Host-adunata_session="),
-                "{set_cookie}"
-            );
-            for attribute in ["Secure", "HttpOnly", "SameSite=Strict", "Path=/"] {
-                assert!(set_cookie.contains(attribute), "{set_cookie}");
-            }
-            let cookie = cookie_of(&response);
-            let body: Value =
-                serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
-                    .unwrap();
-            assert_eq!(body["firstName"], "Ada");
-            assert_eq!(session_status(state, &cookie).await, StatusCode::OK);
-        }
-
-        #[tokio::test]
-        async fn link_used_twice() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            organizer(&pool).await;
-            request_link(&pool, "ada@example.org").await;
-            let secret = link_secret(&pool).await;
-            let state = api::testing::state(pool.clone());
-
-            assert_eq!(
-                redeem(state.clone(), &secret).await.status(),
-                StatusCode::CREATED
-            );
-            assert_eq!(
-                redeem(state, &secret).await.status(),
-                StatusCode::UNAUTHORIZED
-            );
-            assert_eq!(count(&pool, "SELECT count(*) FROM sessions").await, 1);
-        }
-
-        #[tokio::test]
-        async fn link_opened_by_a_mail_scanner() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            organizer(&pool).await;
-            request_link(&pool, "ada@example.org").await;
-            let secret = link_secret(&pool).await;
-
-            let page = crate::client::router()
-                .oneshot(Request::get("/sign-in").body(Body::empty()).unwrap())
-                .await
-                .unwrap();
-            assert_eq!(page.status(), StatusCode::OK);
-            assert!(!page.headers().contains_key(header::SET_COOKIE));
-            assert_eq!(count(&pool, "SELECT count(*) FROM sessions").await, 0);
-            assert_eq!(
-                count(
-                    &pool,
-                    "SELECT count(*) FROM sign_in_links WHERE used_at IS NULL"
-                )
-                .await,
-                1
-            );
-            assert_eq!(
-                redeem(api::testing::state(pool.clone()), &secret)
-                    .await
-                    .status(),
-                StatusCode::CREATED
-            );
-        }
-
-        #[tokio::test]
-        async fn expired_link() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            organizer(&pool).await;
-            request_link(&pool, "ada@example.org").await;
-            let secret = link_secret(&pool).await;
-            sqlx::query("UPDATE sign_in_links SET expires_at = now() - interval '1 second'")
-                .execute(&pool)
-                .await
-                .unwrap();
-            assert_eq!(
-                redeem(api::testing::state(pool.clone()), &secret)
-                    .await
-                    .status(),
-                StatusCode::UNAUTHORIZED
-            );
-            assert_eq!(count(&pool, "SELECT count(*) FROM sessions").await, 0);
-        }
-
-        #[tokio::test]
-        async fn link_expires_one_hour_after_sending() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            organizer(&pool).await;
-            request_link(&pool, "ada@example.org").await;
-            let seconds: f64 = sqlx::query_scalar(
-                "SELECT EXTRACT(EPOCH FROM expires_at - created_at)::float8 FROM sign_in_links",
-            )
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-            assert!((seconds - 3600.0).abs() < 1.0, "{seconds}");
-        }
-
-        #[tokio::test]
-        async fn unknown_address() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            organizer(&pool).await;
-            sqlx::query("INSERT INTO members (first_name, last_name, mail, language) VALUES ('Clara', 'Schumann', 'clara@example.org', 'de')")
-                .execute(&pool)
-                .await
-                .unwrap();
-            for mail in ["nobody@example.org", "clara@example.org"] {
-                assert_eq!(request_link(&pool, mail).await, StatusCode::ACCEPTED);
-            }
-            assert_eq!(count(&pool, "SELECT count(*) FROM mail_outbox").await, 0);
-            assert_eq!(count(&pool, "SELECT count(*) FROM sign_in_links").await, 0);
-        }
-
-        async fn signed_in(pool: &PgPool) -> (AppState, String) {
-            let id = organizer(pool).await;
-            (
-                api::testing::state(pool.clone()),
-                crate::access::testing::session_cookie(pool, id).await,
-            )
-        }
-
-        #[tokio::test]
-        async fn sign_out() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            let (state, cookie) = signed_in(&pool).await;
-            let request = Request::delete("/api/session")
-                .header(header::COOKIE, &cookie)
-                .body(Body::empty())
-                .unwrap();
-            let response = call(state.clone(), request).await;
-            assert_eq!(response.status(), StatusCode::NO_CONTENT);
-            assert!(
-                response.headers()[header::SET_COOKIE]
-                    .to_str()
-                    .unwrap()
-                    .contains("Max-Age=0")
-            );
-            assert_eq!(
-                session_status(state, &cookie).await,
-                StatusCode::UNAUTHORIZED
-            );
-            assert_eq!(count(&pool, "SELECT count(*) FROM sessions").await, 0);
-        }
-
-        #[tokio::test]
-        async fn session_expires() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            let (state, cookie) = signed_in(&pool).await;
-            sqlx::query("UPDATE sessions SET created_at = now() - interval '14 days 1 minute', expires_at = now() - interval '1 minute'")
-                .execute(&pool)
-                .await
-                .unwrap();
-            assert_eq!(
-                session_status(state, &cookie).await,
-                StatusCode::UNAUTHORIZED
-            );
-        }
-
-        #[tokio::test]
-        async fn session_lasts_14_days() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            organizer(&pool).await;
-            request_link(&pool, "ada@example.org").await;
-            let response =
-                redeem(api::testing::state(pool.clone()), &link_secret(&pool).await).await;
-            assert!(
-                response.headers()[header::SET_COOKIE]
-                    .to_str()
-                    .unwrap()
-                    .contains("Max-Age=1209600")
-            );
-            let days: f64 = sqlx::query_scalar(
-                "SELECT EXTRACT(EPOCH FROM expires_at - created_at)::float8 / 86400 FROM sessions",
-            )
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-            assert!((days - 14.0).abs() < 0.001, "{days}");
-        }
-
-        #[tokio::test]
-        async fn role_revoked() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            let (state, cookie) = signed_in(&pool).await;
-            assert_eq!(session_status(state.clone(), &cookie).await, StatusCode::OK);
-            sqlx::query("UPDATE members SET organizer = false")
-                .execute(&pool)
-                .await
-                .unwrap();
-            assert_eq!(
-                session_status(state, &cookie).await,
-                StatusCode::UNAUTHORIZED
-            );
-        }
-
-        #[tokio::test]
-        async fn deactivated_organizer_loses_the_session() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            let (state, cookie) = signed_in(&pool).await;
-            sqlx::query("UPDATE members SET active = false")
-                .execute(&pool)
-                .await
-                .unwrap();
-            assert_eq!(
-                session_status(state, &cookie).await,
-                StatusCode::UNAUTHORIZED
-            );
-        }
-
-        async fn request_from(
-            state: &AppState,
-            peer: &str,
-            forwarded: Option<&str>,
-            mail: &str,
-        ) -> StatusCode {
-            let mut request = Request::post("/api/sign-in-requests")
-                .header(header::CONTENT_TYPE, "application/json");
-            if let Some(forwarded) = forwarded {
-                request = request.header("x-forwarded-for", forwarded);
-            }
-            let mut request = request
-                .body(Body::from(json!({ "mail": mail }).to_string()))
-                .unwrap();
-            request
-                .extensions_mut()
-                .insert(ConnectInfo(SocketAddr::new(peer.parse().unwrap(), 40000)));
-            call(state.clone(), request).await.status()
-        }
-
-        async fn links(pool: &PgPool) -> i64 {
-            count(pool, "SELECT count(*) FROM sign_in_links").await
-        }
-
-        #[tokio::test]
-        async fn repeated_requests() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            organizer(&pool).await;
-            for _ in 0..4 {
-                assert_eq!(
-                    request_link(&pool, "ada@example.org").await,
-                    StatusCode::ACCEPTED
-                );
-            }
-            assert_eq!(links(&pool).await, 3);
-            assert_eq!(count(&pool, "SELECT count(*) FROM mail_outbox").await, 3);
-        }
-
-        #[tokio::test]
-        async fn many_requests_from_one_network_address() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            organizer(&pool).await;
-            let state = api::testing::state(pool.clone());
-            for number in 0..20 {
-                let mail = format!("guess{number}@example.org");
-                assert_eq!(
-                    request_from(&state, "203.0.113.7", None, &mail).await,
-                    StatusCode::ACCEPTED
-                );
-            }
-            assert_eq!(
-                request_from(&state, "203.0.113.7", None, "ada@example.org").await,
-                StatusCode::ACCEPTED
-            );
-            assert_eq!(links(&pool).await, 0);
-            request_from(&state, "203.0.113.8", None, "ada@example.org").await;
-            assert_eq!(links(&pool).await, 1);
-        }
-
-        #[tokio::test]
-        async fn request_through_a_trusted_proxy() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            organizer(&pool).await;
-            let state = api::testing::state(pool.clone());
-            for _ in 0..20 {
-                request_from(
-                    &state,
-                    "127.0.0.1",
-                    Some("198.51.100.1"),
-                    "nobody@example.org",
-                )
-                .await;
-            }
-            request_from(&state, "127.0.0.1", Some("198.51.100.1"), "ada@example.org").await;
-            assert_eq!(links(&pool).await, 0);
-            request_from(
-                &state,
-                "127.0.0.1",
-                Some("6.6.6.6, 198.51.100.2"),
-                "ada@example.org",
-            )
-            .await;
-            assert_eq!(links(&pool).await, 1);
-        }
-
-        #[tokio::test]
-        async fn header_from_an_untrusted_client() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            organizer(&pool).await;
-            let state = api::testing::state(pool.clone());
-            for number in 0..20 {
-                let forwarded = format!("198.51.100.{number}");
-                request_from(
-                    &state,
-                    "203.0.113.9",
-                    Some(&forwarded),
-                    "nobody@example.org",
-                )
-                .await;
-            }
-            request_from(
-                &state,
-                "203.0.113.9",
-                Some("198.51.100.200"),
-                "ada@example.org",
-            )
-            .await;
-            assert_eq!(links(&pool).await, 0);
-        }
 
         #[test]
         fn client_address_behind_proxies() {
@@ -986,121 +498,624 @@ mod tests {
             assert!(limiter.allow(address, start + HOUR));
         }
 
-        fn ada() -> FirstOrganizer {
-            FirstOrganizer {
-                mail: "ada@example.org".to_owned(),
-                first_name: "Ada".to_owned(),
-                last_name: "Lovelace".to_owned(),
+        mod integration {
+            use super::*;
+            use crate::api;
+            use crate::configuration::FirstOrganizer;
+            use crate::database::testing::fresh_database;
+            use axum::body::{Body, to_bytes};
+            use axum::http::Response as HttpResponse;
+            use serde_json::{Value, json};
+            use sqlx::PgPool;
+            use tower::ServiceExt;
+
+            async fn call(state: AppState, request: Request<Body>) -> HttpResponse<Body> {
+                api::router(state).oneshot(request).await.unwrap()
+            }
+
+            async fn organizer(pool: &PgPool) -> i64 {
+                sqlx::query_scalar(
+                            "INSERT INTO members (first_name, last_name, mail, language, organizer) VALUES ('Ada', 'Lovelace', 'ada@example.org', 'de', true) RETURNING id",
+                        )
+                        .fetch_one(pool)
+                        .await
+                        .unwrap()
+            }
+
+            async fn request_link(pool: &PgPool, mail: &str) -> StatusCode {
+                let request = Request::post("/api/sign-in-requests")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(json!({ "mail": mail }).to_string()))
+                    .unwrap();
+                call(api::testing::state(pool.clone()), request)
+                    .await
+                    .status()
+            }
+
+            /// The secret of the newest sign-in link, read from the mail in the outbox.
+            async fn link_secret(pool: &PgPool) -> String {
+                let text: String = sqlx::query_scalar(
+                    "SELECT text_body FROM mail_outbox ORDER BY id DESC LIMIT 1",
+                )
+                .fetch_one(pool)
+                .await
+                .unwrap();
+                let start =
+                    text.find("/sign-in#").expect("mail must contain the link") + "/sign-in#".len();
+                text[start..start + 64].to_owned()
+            }
+
+            async fn redeem(state: AppState, secret: &str) -> HttpResponse<Body> {
+                let request = Request::post("/api/sessions")
+                    .header(header::AUTHORIZATION, format!("Bearer {secret}"))
+                    .body(Body::empty())
+                    .unwrap();
+                call(state, request).await
+            }
+
+            fn cookie_of(response: &HttpResponse<Body>) -> String {
+                let set_cookie = response.headers()[header::SET_COOKIE].to_str().unwrap();
+                set_cookie.split(';').next().unwrap().to_owned()
+            }
+
+            async fn session_status(state: AppState, cookie: &str) -> StatusCode {
+                let request = Request::get("/api/session")
+                    .header(header::COOKIE, cookie)
+                    .body(Body::empty())
+                    .unwrap();
+                call(state, request).await.status()
+            }
+
+            async fn count(pool: &PgPool, query: &str) -> i64 {
+                sqlx::query_scalar(sqlx::AssertSqlSafe(query.to_owned()))
+                    .fetch_one(pool)
+                    .await
+                    .unwrap()
+            }
+
+            #[tokio::test]
+            async fn successful_sign_in() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+                assert_eq!(
+                    request_link(&pool, "ADA@example.org").await,
+                    StatusCode::ACCEPTED
+                );
+                let secret = link_secret(&pool).await;
+                let text: String = sqlx::query_scalar("SELECT text_body FROM mail_outbox")
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+                assert!(text.starts_with("Hallo Ada"), "{text}");
+
+                let state = api::testing::state(pool.clone());
+                let response = redeem(state.clone(), &secret).await;
+                assert_eq!(response.status(), StatusCode::CREATED);
+                let set_cookie = response.headers()[header::SET_COOKIE]
+                    .to_str()
+                    .unwrap()
+                    .to_owned();
+                assert!(
+                    set_cookie.starts_with("__Host-adunata_session="),
+                    "{set_cookie}"
+                );
+                for attribute in ["Secure", "HttpOnly", "SameSite=Strict", "Path=/"] {
+                    assert!(set_cookie.contains(attribute), "{set_cookie}");
+                }
+                let cookie = cookie_of(&response);
+                let body: Value = serde_json::from_slice(
+                    &to_bytes(response.into_body(), usize::MAX).await.unwrap(),
+                )
+                .unwrap();
+                assert_eq!(body["firstName"], "Ada");
+                assert_eq!(session_status(state, &cookie).await, StatusCode::OK);
+            }
+
+            #[tokio::test]
+            async fn link_used_twice() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+                request_link(&pool, "ada@example.org").await;
+                let secret = link_secret(&pool).await;
+                let state = api::testing::state(pool.clone());
+
+                assert_eq!(
+                    redeem(state.clone(), &secret).await.status(),
+                    StatusCode::CREATED
+                );
+                assert_eq!(
+                    redeem(state, &secret).await.status(),
+                    StatusCode::UNAUTHORIZED
+                );
+                assert_eq!(count(&pool, "SELECT count(*) FROM sessions").await, 1);
+            }
+
+            #[tokio::test]
+            async fn link_opened_by_a_mail_scanner() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+                request_link(&pool, "ada@example.org").await;
+                let secret = link_secret(&pool).await;
+
+                let page = crate::client::router()
+                    .oneshot(Request::get("/sign-in").body(Body::empty()).unwrap())
+                    .await
+                    .unwrap();
+                assert_eq!(page.status(), StatusCode::OK);
+                assert!(!page.headers().contains_key(header::SET_COOKIE));
+                assert_eq!(count(&pool, "SELECT count(*) FROM sessions").await, 0);
+                assert_eq!(
+                    count(
+                        &pool,
+                        "SELECT count(*) FROM sign_in_links WHERE used_at IS NULL"
+                    )
+                    .await,
+                    1
+                );
+                assert_eq!(
+                    redeem(api::testing::state(pool.clone()), &secret)
+                        .await
+                        .status(),
+                    StatusCode::CREATED
+                );
+            }
+
+            #[tokio::test]
+            async fn expired_link() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+                request_link(&pool, "ada@example.org").await;
+                let secret = link_secret(&pool).await;
+                sqlx::query("UPDATE sign_in_links SET expires_at = now() - interval '1 second'")
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    redeem(api::testing::state(pool.clone()), &secret)
+                        .await
+                        .status(),
+                    StatusCode::UNAUTHORIZED
+                );
+                assert_eq!(count(&pool, "SELECT count(*) FROM sessions").await, 0);
+            }
+
+            #[tokio::test]
+            async fn link_expires_one_hour_after_sending() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+                request_link(&pool, "ada@example.org").await;
+                let seconds: f64 = sqlx::query_scalar(
+                    "SELECT EXTRACT(EPOCH FROM expires_at - created_at)::float8 FROM sign_in_links",
+                )
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+                assert!((seconds - 3600.0).abs() < 1.0, "{seconds}");
+            }
+
+            #[tokio::test]
+            async fn unknown_address() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+                sqlx::query("INSERT INTO members (first_name, last_name, mail, language) VALUES ('Clara', 'Schumann', 'clara@example.org', 'de')")
+                            .execute(&pool)
+                            .await
+                            .unwrap();
+                for mail in ["nobody@example.org", "clara@example.org"] {
+                    assert_eq!(request_link(&pool, mail).await, StatusCode::ACCEPTED);
+                }
+                assert_eq!(count(&pool, "SELECT count(*) FROM mail_outbox").await, 0);
+                assert_eq!(count(&pool, "SELECT count(*) FROM sign_in_links").await, 0);
+            }
+
+            async fn signed_in(pool: &PgPool) -> (AppState, String) {
+                let id = organizer(pool).await;
+                (
+                    api::testing::state(pool.clone()),
+                    crate::access::testing::session_cookie(pool, id).await,
+                )
+            }
+
+            #[tokio::test]
+            async fn sign_out() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                let (state, cookie) = signed_in(&pool).await;
+                let request = Request::delete("/api/session")
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap();
+                let response = call(state.clone(), request).await;
+                assert_eq!(response.status(), StatusCode::NO_CONTENT);
+                assert!(
+                    response.headers()[header::SET_COOKIE]
+                        .to_str()
+                        .unwrap()
+                        .contains("Max-Age=0")
+                );
+                assert_eq!(
+                    session_status(state, &cookie).await,
+                    StatusCode::UNAUTHORIZED
+                );
+                assert_eq!(count(&pool, "SELECT count(*) FROM sessions").await, 0);
+            }
+
+            #[tokio::test]
+            async fn session_expires() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                let (state, cookie) = signed_in(&pool).await;
+                sqlx::query("UPDATE sessions SET created_at = now() - interval '14 days 1 minute', expires_at = now() - interval '1 minute'")
+                            .execute(&pool)
+                            .await
+                            .unwrap();
+                assert_eq!(
+                    session_status(state, &cookie).await,
+                    StatusCode::UNAUTHORIZED
+                );
+            }
+
+            #[tokio::test]
+            async fn session_lasts_14_days() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+                request_link(&pool, "ada@example.org").await;
+                let response =
+                    redeem(api::testing::state(pool.clone()), &link_secret(&pool).await).await;
+                assert!(
+                    response.headers()[header::SET_COOKIE]
+                        .to_str()
+                        .unwrap()
+                        .contains("Max-Age=1209600")
+                );
+                let days: f64 = sqlx::query_scalar(
+                            "SELECT EXTRACT(EPOCH FROM expires_at - created_at)::float8 / 86400 FROM sessions",
+                        )
+                        .fetch_one(&pool)
+                        .await
+                        .unwrap();
+                assert!((days - 14.0).abs() < 0.001, "{days}");
+            }
+
+            #[tokio::test]
+            async fn role_revoked() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                let (state, cookie) = signed_in(&pool).await;
+                assert_eq!(session_status(state.clone(), &cookie).await, StatusCode::OK);
+                sqlx::query("UPDATE members SET organizer = false")
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    session_status(state, &cookie).await,
+                    StatusCode::UNAUTHORIZED
+                );
+            }
+
+            #[tokio::test]
+            async fn deactivated_organizer_loses_the_session() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                let (state, cookie) = signed_in(&pool).await;
+                sqlx::query("UPDATE members SET active = false")
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    session_status(state, &cookie).await,
+                    StatusCode::UNAUTHORIZED
+                );
+            }
+
+            async fn request_from(
+                state: &AppState,
+                peer: &str,
+                forwarded: Option<&str>,
+                mail: &str,
+            ) -> StatusCode {
+                let mut request = Request::post("/api/sign-in-requests")
+                    .header(header::CONTENT_TYPE, "application/json");
+                if let Some(forwarded) = forwarded {
+                    request = request.header("x-forwarded-for", forwarded);
+                }
+                let mut request = request
+                    .body(Body::from(json!({ "mail": mail }).to_string()))
+                    .unwrap();
+                request
+                    .extensions_mut()
+                    .insert(ConnectInfo(SocketAddr::new(peer.parse().unwrap(), 40000)));
+                call(state.clone(), request).await.status()
+            }
+
+            async fn links(pool: &PgPool) -> i64 {
+                count(pool, "SELECT count(*) FROM sign_in_links").await
+            }
+
+            #[tokio::test]
+            async fn repeated_requests() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+                for _ in 0..4 {
+                    assert_eq!(
+                        request_link(&pool, "ada@example.org").await,
+                        StatusCode::ACCEPTED
+                    );
+                }
+                assert_eq!(links(&pool).await, 3);
+                assert_eq!(count(&pool, "SELECT count(*) FROM mail_outbox").await, 3);
+            }
+
+            #[tokio::test]
+            async fn many_requests_from_one_network_address() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+                let state = api::testing::state(pool.clone());
+                for number in 0..20 {
+                    let mail = format!("guess{number}@example.org");
+                    assert_eq!(
+                        request_from(&state, "203.0.113.7", None, &mail).await,
+                        StatusCode::ACCEPTED
+                    );
+                }
+                assert_eq!(
+                    request_from(&state, "203.0.113.7", None, "ada@example.org").await,
+                    StatusCode::ACCEPTED
+                );
+                assert_eq!(links(&pool).await, 0);
+                request_from(&state, "203.0.113.8", None, "ada@example.org").await;
+                assert_eq!(links(&pool).await, 1);
+            }
+
+            #[tokio::test]
+            async fn request_through_a_trusted_proxy() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+                let state = api::testing::state(pool.clone());
+                for _ in 0..20 {
+                    request_from(
+                        &state,
+                        "127.0.0.1",
+                        Some("198.51.100.1"),
+                        "nobody@example.org",
+                    )
+                    .await;
+                }
+                request_from(&state, "127.0.0.1", Some("198.51.100.1"), "ada@example.org").await;
+                assert_eq!(links(&pool).await, 0);
+                request_from(
+                    &state,
+                    "127.0.0.1",
+                    Some("6.6.6.6, 198.51.100.2"),
+                    "ada@example.org",
+                )
+                .await;
+                assert_eq!(links(&pool).await, 1);
+            }
+
+            #[tokio::test]
+            async fn header_from_an_untrusted_client() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+                let state = api::testing::state(pool.clone());
+                for number in 0..20 {
+                    let forwarded = format!("198.51.100.{number}");
+                    request_from(
+                        &state,
+                        "203.0.113.9",
+                        Some(&forwarded),
+                        "nobody@example.org",
+                    )
+                    .await;
+                }
+                request_from(
+                    &state,
+                    "203.0.113.9",
+                    Some("198.51.100.200"),
+                    "ada@example.org",
+                )
+                .await;
+                assert_eq!(links(&pool).await, 0);
+            }
+
+            fn ada() -> FirstOrganizer {
+                FirstOrganizer {
+                    mail: "ada@example.org".to_owned(),
+                    first_name: "Ada".to_owned(),
+                    last_name: "Lovelace".to_owned(),
+                }
+            }
+
+            async fn organizers(pool: &PgPool) -> Vec<(String, String)> {
+                sqlx::query_as(
+                    "SELECT mail, language FROM members WHERE active AND organizer ORDER BY id",
+                )
+                .fetch_all(pool)
+                .await
+                .unwrap()
+            }
+
+            #[tokio::test]
+            async fn set_up_a_new_instance() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                let outcome = ensure_first_organizer(&pool, Some(&ada()), "de")
+                    .await
+                    .unwrap();
+                assert_eq!(outcome, FirstOrganizerOutcome::Created);
+                assert_eq!(
+                    organizers(&pool).await,
+                    vec![("ada@example.org".to_owned(), "de".to_owned())]
+                );
+            }
+
+            #[tokio::test]
+            async fn instance_without_any_organizer() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                let outcome = ensure_first_organizer(&pool, None, "de").await.unwrap();
+                assert_eq!(outcome, FirstOrganizerOutcome::NobodyCanSignIn);
+                assert!(organizers(&pool).await.is_empty());
+            }
+
+            #[tokio::test]
+            async fn instance_already_has_an_organizer() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                sqlx::query("INSERT INTO members (first_name, last_name, mail, language, organizer) VALUES ('Clara', 'Schumann', 'clara@example.org', 'en', true)")
+                            .execute(&pool)
+                            .await
+                            .unwrap();
+                let outcome = ensure_first_organizer(&pool, Some(&ada()), "de")
+                    .await
+                    .unwrap();
+                assert_eq!(outcome, FirstOrganizerOutcome::AlreadyPresent);
+                assert_eq!(
+                    organizers(&pool).await,
+                    vec![("clara@example.org".to_owned(), "en".to_owned())]
+                );
+                assert_eq!(count(&pool, "SELECT count(*) FROM members").await, 1);
+            }
+
+            #[tokio::test]
+            async fn every_organizer_mailbox_lost() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                sqlx::query("INSERT INTO members (first_name, last_name, mail, language, active, organizer) VALUES ('Clara', 'Schumann', 'clara@example.org', 'en', false, true)")
+                            .execute(&pool)
+                            .await
+                            .unwrap();
+                let mut connection = pool.acquire().await.unwrap();
+                members::grant_organizer(&mut connection, "CLARA@example.org", "C", "S", "de")
+                    .await
+                    .unwrap();
+                members::grant_organizer(
+                    &mut connection,
+                    "new@example.org",
+                    "New",
+                    "Organizer",
+                    "de",
+                )
+                .await
+                .unwrap();
+                drop(connection);
+                assert_eq!(
+                    organizers(&pool).await,
+                    vec![
+                        ("clara@example.org".to_owned(), "en".to_owned()),
+                        ("new@example.org".to_owned(), "de".to_owned())
+                    ]
+                );
+                request_link(&pool, "new@example.org").await;
+                assert_eq!(links(&pool).await, 1);
+            }
+
+            #[tokio::test]
+            async fn instances_on_localhost_keep_separate_sessions() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+                request_link(&pool, "ada@example.org").await;
+                let first = AppState {
+                    public_url: PublicUrl::parse("http://localhost:8081").unwrap(),
+                    ..api::testing::state(pool.clone())
+                };
+                let second = AppState {
+                    public_url: PublicUrl::parse("http://localhost:8082").unwrap(),
+                    ..api::testing::state(pool.clone())
+                };
+                let response = redeem(first.clone(), &link_secret(&pool).await).await;
+                let set_cookie = response.headers()[header::SET_COOKIE]
+                    .to_str()
+                    .unwrap()
+                    .to_owned();
+                assert!(
+                    set_cookie.starts_with("adunata_session_8081="),
+                    "{set_cookie}"
+                );
+                assert!(!set_cookie.contains("Secure"), "{set_cookie}");
+                let cookie = cookie_of(&response);
+                assert_eq!(session_status(first, &cookie).await, StatusCode::OK);
+                assert_eq!(
+                    session_status(second, &cookie).await,
+                    StatusCode::UNAUTHORIZED
+                );
             }
         }
+    }
 
-        async fn organizers(pool: &PgPool) -> Vec<(String, String)> {
-            sqlx::query_as(
-                "SELECT mail, language FROM members WHERE active AND organizer ORDER BY id",
+    mod integration {
+        use super::*;
+        use axum::body::Body;
+        use axum::http::Request;
+        use axum::routing::post;
+        use tower::ServiceExt;
+
+        fn app() -> Router {
+            let public_url = PublicUrl::parse("https://adunata.example.org/").unwrap();
+            with_origin_check(
+                Router::new().route(
+                    "/api/things",
+                    post(|| async { "changed" }).get(|| async { "read" }),
+                ),
+                &public_url,
             )
-            .fetch_all(pool)
-            .await
-            .unwrap()
         }
 
-        #[tokio::test]
-        async fn set_up_a_new_instance() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            let outcome = ensure_first_organizer(&pool, Some(&ada()), "de")
+        async fn status(method: &str, origin: Option<&str>) -> StatusCode {
+            let mut request = Request::builder().method(method).uri("/api/things");
+            if let Some(origin) = origin {
+                request = request.header(header::ORIGIN, origin);
+            }
+            app()
+                .oneshot(request.body(Body::empty()).unwrap())
                 .await
-                .unwrap();
-            assert_eq!(outcome, FirstOrganizerOutcome::Created);
-            assert_eq!(
-                organizers(&pool).await,
-                vec![("ada@example.org".to_owned(), "de".to_owned())]
-            );
-        }
-
-        #[tokio::test]
-        async fn instance_without_any_organizer() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            let outcome = ensure_first_organizer(&pool, None, "de").await.unwrap();
-            assert_eq!(outcome, FirstOrganizerOutcome::NobodyCanSignIn);
-            assert!(organizers(&pool).await.is_empty());
-        }
-
-        #[tokio::test]
-        async fn instance_already_has_an_organizer() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            sqlx::query("INSERT INTO members (first_name, last_name, mail, language, organizer) VALUES ('Clara', 'Schumann', 'clara@example.org', 'en', true)")
-                .execute(&pool)
-                .await
-                .unwrap();
-            let outcome = ensure_first_organizer(&pool, Some(&ada()), "de")
-                .await
-                .unwrap();
-            assert_eq!(outcome, FirstOrganizerOutcome::AlreadyPresent);
-            assert_eq!(
-                organizers(&pool).await,
-                vec![("clara@example.org".to_owned(), "en".to_owned())]
-            );
-            assert_eq!(count(&pool, "SELECT count(*) FROM members").await, 1);
-        }
-
-        #[tokio::test]
-        async fn every_organizer_mailbox_lost() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            sqlx::query("INSERT INTO members (first_name, last_name, mail, language, active, organizer) VALUES ('Clara', 'Schumann', 'clara@example.org', 'en', false, true)")
-                .execute(&pool)
-                .await
-                .unwrap();
-            let mut connection = pool.acquire().await.unwrap();
-            members::grant_organizer(&mut connection, "CLARA@example.org", "C", "S", "de")
-                .await
-                .unwrap();
-            members::grant_organizer(&mut connection, "new@example.org", "New", "Organizer", "de")
-                .await
-                .unwrap();
-            drop(connection);
-            assert_eq!(
-                organizers(&pool).await,
-                vec![
-                    ("clara@example.org".to_owned(), "en".to_owned()),
-                    ("new@example.org".to_owned(), "de".to_owned())
-                ]
-            );
-            request_link(&pool, "new@example.org").await;
-            assert_eq!(links(&pool).await, 1);
-        }
-
-        #[tokio::test]
-        async fn instances_on_localhost_keep_separate_sessions() {
-            let database = fresh_database().await;
-            let pool = database.pool();
-            organizer(&pool).await;
-            request_link(&pool, "ada@example.org").await;
-            let first = AppState {
-                public_url: PublicUrl::parse("http://localhost:8081").unwrap(),
-                ..api::testing::state(pool.clone())
-            };
-            let second = AppState {
-                public_url: PublicUrl::parse("http://localhost:8082").unwrap(),
-                ..api::testing::state(pool.clone())
-            };
-            let response = redeem(first.clone(), &link_secret(&pool).await).await;
-            let set_cookie = response.headers()[header::SET_COOKIE]
-                .to_str()
                 .unwrap()
-                .to_owned();
-            assert!(
-                set_cookie.starts_with("adunata_session_8081="),
-                "{set_cookie}"
-            );
-            assert!(!set_cookie.contains("Secure"), "{set_cookie}");
-            let cookie = cookie_of(&response);
-            assert_eq!(session_status(first, &cookie).await, StatusCode::OK);
+                .status()
+        }
+
+        #[tokio::test]
+        async fn request_from_another_origin() {
             assert_eq!(
-                session_status(second, &cookie).await,
-                StatusCode::UNAUTHORIZED
+                status("POST", Some("https://evil.example.org")).await,
+                StatusCode::FORBIDDEN
+            );
+            assert_eq!(
+                status("POST", Some("https://sub.adunata.example.org")).await,
+                StatusCode::FORBIDDEN
+            );
+            assert_eq!(status("POST", Some("null")).await, StatusCode::FORBIDDEN);
+        }
+
+        #[tokio::test]
+        async fn request_from_the_public_origin() {
+            assert_eq!(
+                status("POST", Some("https://adunata.example.org")).await,
+                StatusCode::OK
+            );
+        }
+
+        #[tokio::test]
+        async fn request_without_an_origin() {
+            assert_eq!(status("POST", None).await, StatusCode::OK);
+        }
+
+        #[tokio::test]
+        async fn reading_from_another_origin() {
+            assert_eq!(
+                status("GET", Some("https://evil.example.org")).await,
+                StatusCode::OK
             );
         }
     }

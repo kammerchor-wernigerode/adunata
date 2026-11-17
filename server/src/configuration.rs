@@ -1006,12 +1006,8 @@ fn parse_public_url(value: &str) -> Option<PublicUrl> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::sync::atomic::{AtomicU32, Ordering};
-
     use super::*;
-
-    static NEXT: AtomicU32 = AtomicU32::new(0);
+    use std::collections::HashMap;
 
     fn required() -> HashMap<&'static str, String> {
         HashMap::from([
@@ -1065,16 +1061,6 @@ mod tests {
         for problem in problems {
             assert!(!problem.to_string().contains(secret), "{problem}");
         }
-    }
-
-    fn secret_file(content: &str) -> String {
-        let path = std::env::temp_dir().join(format!(
-            "adunata-secret-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        std::fs::write(&path, content).unwrap();
-        path.to_string_lossy().into_owned()
     }
 
     fn problems(variables: &HashMap<&'static str, String>) -> Vec<Problem> {
@@ -1207,32 +1193,6 @@ mod tests {
         assert!(!problem.contains("pa$$word"), "{problem}");
     }
 
-    const REQUIRED_FILE: &str = "[http]\npublic-url = \"https://adunata.example.org\"\nlisten-address = \"no address\"\n[database]\nurl = \"postgres://adunata@localhost/adunata\"\n[smtp]\nhost = \"mail.example.org\"\n[mail]\nsender = \"Adunata <adunata@example.org>\"\n[localization]\ntime-zone = \"Europe/Berlin\"\n";
-
-    /// A temporary directory with settings files that is removed when the test ends.
-    struct SettingsDirectory {
-        path: std::path::PathBuf,
-    }
-
-    impl Drop for SettingsDirectory {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.path);
-        }
-    }
-
-    fn settings_directory(files: &[(&str, &str)]) -> SettingsDirectory {
-        let path = std::env::temp_dir().join(format!(
-            "adunata-settings-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        std::fs::create_dir(&path).unwrap();
-        for (name, content) in files {
-            std::fs::write(path.join(name), content).unwrap();
-        }
-        SettingsDirectory { path }
-    }
-
     #[test]
     fn settings_parser_takes_plain_lines() {
         let content = "# comment\n\n  # indented comment\nA=1\nB=x=y\nEMPTY=\n  INDENTED=x\nHASH=a#b\nURL=postgres://a:b@c/d?e=f\r\n";
@@ -1270,127 +1230,10 @@ mod tests {
     }
 
     #[test]
-    fn environment_wins_over_local_file_over_shared_file() {
-        let directory = settings_directory(&[
-            (
-                ".env",
-                "ALL=shared\nFILES=shared\nSHARED=shared\nBLANKED=shared\n",
-            ),
-            (
-                ".env.local",
-                "ALL=local\nFILES=first\nBLANKED=\nFILES=local\n",
-            ),
-        ]);
-        let files = SettingsFiles::read(Some(&directory.path));
-        let environment = |name: &str| (name == "ALL").then(|| "environment".to_owned());
-        let lookup = |name| files.layered(name, &environment);
-        assert_eq!(lookup("ALL").as_deref(), Some("environment"));
-        assert_eq!(lookup("FILES").as_deref(), Some("local"));
-        assert_eq!(lookup("SHARED").as_deref(), Some("shared"));
-        assert_eq!(lookup("BLANKED").as_deref(), Some("shared"));
-        assert_eq!(lookup("UNSET"), None);
-        assert!(files.problems.is_empty());
-    }
-
-    #[test]
-    fn configuration_file_wins_over_settings_files() {
-        let file = secret_file(&REQUIRED_FILE.replace("listen-address = \"no address\"\n", ""));
-        let directory = settings_directory(&[
-            (".env", "ADNT_SMTP_HOST=localhost\nADNT_SMTP_PORT=1025\n"),
-            (".env.local", "ADNT_HTTP_LISTEN_ADDRESS=127.0.0.1:18010\n"),
-        ]);
-        let configuration = Configuration::from_sources(
-            &|_| None,
-            Some(&file),
-            SettingsFiles::read(Some(&directory.path)),
-        )
-        .expect("configuration must be accepted");
-        assert_eq!(configuration.smtp.host, "mail.example.org");
-        assert_eq!(configuration.smtp.port, 1025);
-        assert_eq!(configuration.listen_address.to_string(), "127.0.0.1:18010");
-    }
-
-    #[test]
-    fn missing_settings_files_count_as_empty() {
-        let files = SettingsFiles::read(Some(&settings_directory(&[]).path));
-        assert!(files.files.iter().all(HashMap::is_empty));
-        assert!(files.problems.is_empty());
-    }
-
-    #[test]
     fn without_a_directory_no_file_is_read() {
         let files = SettingsFiles::read(None);
         assert!(files.files.iter().all(HashMap::is_empty));
         assert!(files.problems.is_empty());
-    }
-
-    #[test]
-    fn malformed_settings_line_names_file_and_line() {
-        let directory = settings_directory(&[(".env.local", "A=1\nexport ADNT_SMTP_PORT=1025\n")]);
-        let files = SettingsFiles::read(Some(&directory.path));
-        let path = directory.path.join(".env.local").display().to_string();
-        assert_eq!(
-            files.problems,
-            vec![Problem::MalformedSettingsLine {
-                path: path.clone(),
-                line: 2
-            }]
-        );
-        assert_eq!(
-            files.problems[0].to_string(),
-            format!(
-                "line 2 of {path} must have the form KEY=value without quotes or trailing comments"
-            )
-        );
-    }
-
-    #[test]
-    fn start_from_a_configuration_file() {
-        let file = secret_file(&REQUIRED_FILE.replace("listen-address = \"no address\"\n", ""));
-        let configuration =
-            Configuration::from_sources(&|_| None, Some(&file), SettingsFiles::default())
-                .expect("configuration must be accepted");
-        assert_eq!(configuration.smtp.host, "mail.example.org");
-    }
-
-    #[test]
-    fn environment_overrides_the_file() {
-        let file = secret_file(REQUIRED_FILE);
-        let configuration = Configuration::from_sources(
-            &|name| (name == "ADNT_HTTP_LISTEN_ADDRESS").then(|| "127.0.0.1:9000".to_owned()),
-            Some(&file),
-            SettingsFiles::default(),
-        )
-        .expect("configuration must be accepted");
-        assert_eq!(configuration.listen_address.to_string(), "127.0.0.1:9000");
-
-        let problems =
-            Configuration::from_sources(&|_| None, Some(&file), SettingsFiles::default())
-                .err()
-                .expect("listen address of the file must be rejected");
-        assert_eq!(
-            problems,
-            vec![Problem::Malformed {
-                setting: "ADNT_HTTP_LISTEN_ADDRESS",
-                expected: "a socket address such as 127.0.0.1:8080"
-            }]
-        );
-    }
-
-    #[test]
-    fn problems_of_the_file_join_the_others() {
-        let file = secret_file("[smpt]\nhost = \"mail.example.org\"\n");
-        let problems =
-            Configuration::from_sources(&|_| None, Some(&file), SettingsFiles::default())
-                .err()
-                .expect("configuration must be rejected");
-        assert!(
-            matches!(problems[0], Problem::UnknownKey { .. }),
-            "{problems:?}"
-        );
-        assert!(problems.contains(&Problem::Missing {
-            setting: "ADNT_HTTP_PUBLIC_URL"
-        }));
     }
 
     #[test]
@@ -1453,20 +1296,6 @@ mod tests {
     }
 
     #[test]
-    fn read_a_secret_from_a_file() {
-        let mut variables = required();
-        variables.insert("ADNT_DATABASE_PASSWORD_FILE", secret_file("s3cret\n"));
-        variables.insert("ADNT_SMTP_PASSWORD_FILE", secret_file("mail-s3cret"));
-        let configuration = load(&variables).expect("configuration must be accepted");
-        assert_eq!(configuration.smtp.password.as_deref(), Some("mail-s3cret"));
-        let debug = format!("{:?}", configuration.database);
-        assert!(
-            debug.contains("s3cret"),
-            "database password must come from the file"
-        );
-    }
-
-    #[test]
     fn secret_as_a_plain_value() {
         let mut variables = required();
         variables.insert("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned());
@@ -1475,97 +1304,6 @@ mod tests {
         assert_eq!(configuration.smtp.password.as_deref(), Some("mail-pl41n"));
         assert!(database_debug(&configuration).contains("db-pl41n"));
         assert_no_problem_shows("pl41n", &variables, &HashMap::new());
-    }
-
-    #[test]
-    fn both_forms_in_one_source() {
-        let mut variables = required();
-        variables.insert("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned());
-        variables.insert("ADNT_DATABASE_PASSWORD_FILE", secret_file("db-f1le"));
-        let problems = problems(&variables);
-        assert_eq!(
-            problems,
-            vec![Problem::BothForms {
-                plain: "ADNT_DATABASE_PASSWORD",
-                file: "ADNT_DATABASE_PASSWORD_FILE"
-            }]
-        );
-        let message = problems[0].to_string();
-        assert!(message.contains("ADNT_DATABASE_PASSWORD "), "{message}");
-        assert!(message.contains("ADNT_DATABASE_PASSWORD_FILE"), "{message}");
-        assert_no_problem_shows("pl41n", &variables, &HashMap::new());
-        assert_no_problem_shows("f1le", &variables, &HashMap::new());
-    }
-
-    #[test]
-    fn plain_value_in_first_source_wins_over_file_in_second() {
-        let mut environment = required();
-        environment.insert("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned());
-        let file = HashMap::from([("ADNT_DATABASE_PASSWORD_FILE", secret_file("db-f1le"))]);
-        let configuration = load_two(&environment, &file).expect("configuration must be accepted");
-        let debug = database_debug(&configuration);
-        assert!(debug.contains("db-pl41n"), "{debug}");
-        assert!(!debug.contains("db-f1le"), "{debug}");
-        assert_no_problem_shows("pl41n", &environment, &file);
-        assert_no_problem_shows("f1le", &environment, &file);
-    }
-
-    #[test]
-    fn empty_secret_file_does_not_fall_back() {
-        let mut environment = required();
-        environment.insert("ADNT_DATABASE_PASSWORD_FILE", secret_file("\n"));
-        let file = HashMap::from([("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned())]);
-        let configuration = load_two(&environment, &file).expect("configuration must be accepted");
-        assert!(!database_debug(&configuration).contains("db-pl41n"));
-        assert_no_problem_shows("pl41n", &environment, &file);
-    }
-
-    #[test]
-    fn unreadable_secret_file_does_not_fall_back() {
-        let mut environment = required();
-        environment.insert(
-            "ADNT_SMTP_PASSWORD_FILE",
-            "/nonexistent/adunata-secret".to_owned(),
-        );
-        let file = HashMap::from([("ADNT_SMTP_PASSWORD", "mail-pl41n".to_owned())]);
-        let problems = load_two(&environment, &file)
-            .err()
-            .expect("configuration must be rejected");
-        assert_eq!(
-            problems,
-            vec![Problem::Unreadable {
-                setting: "ADNT_SMTP_PASSWORD_FILE",
-                path: "/nonexistent/adunata-secret".to_owned()
-            }]
-        );
-        assert_no_problem_shows("pl41n", &environment, &file);
-    }
-
-    #[test]
-    fn empty_secret_file_counts_as_unset() {
-        let mut variables = required();
-        variables.insert("ADNT_SMTP_USERNAME", "adunata@example.org".to_owned());
-        variables.insert("ADNT_SMTP_PASSWORD_FILE", secret_file("\n"));
-        let configuration = load(&variables).expect("configuration must be accepted");
-        assert_eq!(configuration.smtp.password, None);
-    }
-
-    #[test]
-    fn secret_file_unreadable() {
-        let mut variables = required();
-        variables.insert(
-            "ADNT_SMTP_PASSWORD_FILE",
-            "/nonexistent/adunata-secret".to_owned(),
-        );
-        let problems = problems(&variables);
-        assert_eq!(
-            problems,
-            vec![Problem::Unreadable {
-                setting: "ADNT_SMTP_PASSWORD_FILE",
-                path: "/nonexistent/adunata-secret".to_owned()
-            }]
-        );
-        assert!(problems[0].to_string().contains("ADNT_SMTP_PASSWORD_FILE"));
     }
 
     #[test]
@@ -1812,5 +1550,274 @@ mod tests {
             configuration.public_url.link("/gatherings"),
             "http://localhost:8080/gatherings"
         );
+    }
+
+    mod integration {
+        use super::*;
+        use std::collections::HashMap;
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        static NEXT: AtomicU32 = AtomicU32::new(0);
+
+        fn secret_file(content: &str) -> String {
+            let path = std::env::temp_dir().join(format!(
+                "adunata-secret-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::write(&path, content).unwrap();
+            path.to_string_lossy().into_owned()
+        }
+
+        const REQUIRED_FILE: &str = "[http]\npublic-url = \"https://adunata.example.org\"\nlisten-address = \"no address\"\n[database]\nurl = \"postgres://adunata@localhost/adunata\"\n[smtp]\nhost = \"mail.example.org\"\n[mail]\nsender = \"Adunata <adunata@example.org>\"\n[localization]\ntime-zone = \"Europe/Berlin\"\n";
+
+        /// A temporary directory with settings files that is removed when the test ends.
+        struct SettingsDirectory {
+            path: std::path::PathBuf,
+        }
+
+        impl Drop for SettingsDirectory {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.path);
+            }
+        }
+
+        fn settings_directory(files: &[(&str, &str)]) -> SettingsDirectory {
+            let path = std::env::temp_dir().join(format!(
+                "adunata-settings-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir(&path).unwrap();
+            for (name, content) in files {
+                std::fs::write(path.join(name), content).unwrap();
+            }
+            SettingsDirectory { path }
+        }
+
+        #[test]
+        fn environment_wins_over_local_file_over_shared_file() {
+            let directory = settings_directory(&[
+                (
+                    ".env",
+                    "ALL=shared\nFILES=shared\nSHARED=shared\nBLANKED=shared\n",
+                ),
+                (
+                    ".env.local",
+                    "ALL=local\nFILES=first\nBLANKED=\nFILES=local\n",
+                ),
+            ]);
+            let files = SettingsFiles::read(Some(&directory.path));
+            let environment = |name: &str| (name == "ALL").then(|| "environment".to_owned());
+            let lookup = |name| files.layered(name, &environment);
+            assert_eq!(lookup("ALL").as_deref(), Some("environment"));
+            assert_eq!(lookup("FILES").as_deref(), Some("local"));
+            assert_eq!(lookup("SHARED").as_deref(), Some("shared"));
+            assert_eq!(lookup("BLANKED").as_deref(), Some("shared"));
+            assert_eq!(lookup("UNSET"), None);
+            assert!(files.problems.is_empty());
+        }
+
+        #[test]
+        fn configuration_file_wins_over_settings_files() {
+            let file = secret_file(&REQUIRED_FILE.replace("listen-address = \"no address\"\n", ""));
+            let directory = settings_directory(&[
+                (".env", "ADNT_SMTP_HOST=localhost\nADNT_SMTP_PORT=1025\n"),
+                (".env.local", "ADNT_HTTP_LISTEN_ADDRESS=127.0.0.1:18010\n"),
+            ]);
+            let configuration = Configuration::from_sources(
+                &|_| None,
+                Some(&file),
+                SettingsFiles::read(Some(&directory.path)),
+            )
+            .expect("configuration must be accepted");
+            assert_eq!(configuration.smtp.host, "mail.example.org");
+            assert_eq!(configuration.smtp.port, 1025);
+            assert_eq!(configuration.listen_address.to_string(), "127.0.0.1:18010");
+        }
+
+        #[test]
+        fn missing_settings_files_count_as_empty() {
+            let files = SettingsFiles::read(Some(&settings_directory(&[]).path));
+            assert!(files.files.iter().all(HashMap::is_empty));
+            assert!(files.problems.is_empty());
+        }
+
+        #[test]
+        fn malformed_settings_line_names_file_and_line() {
+            let directory =
+                settings_directory(&[(".env.local", "A=1\nexport ADNT_SMTP_PORT=1025\n")]);
+            let files = SettingsFiles::read(Some(&directory.path));
+            let path = directory.path.join(".env.local").display().to_string();
+            assert_eq!(
+                files.problems,
+                vec![Problem::MalformedSettingsLine {
+                    path: path.clone(),
+                    line: 2
+                }]
+            );
+            assert_eq!(
+                files.problems[0].to_string(),
+                format!(
+                    "line 2 of {path} must have the form KEY=value without quotes or trailing comments"
+                )
+            );
+        }
+
+        #[test]
+        fn start_from_a_configuration_file() {
+            let file = secret_file(&REQUIRED_FILE.replace("listen-address = \"no address\"\n", ""));
+            let configuration =
+                Configuration::from_sources(&|_| None, Some(&file), SettingsFiles::default())
+                    .expect("configuration must be accepted");
+            assert_eq!(configuration.smtp.host, "mail.example.org");
+        }
+
+        #[test]
+        fn environment_overrides_the_file() {
+            let file = secret_file(REQUIRED_FILE);
+            let configuration = Configuration::from_sources(
+                &|name| (name == "ADNT_HTTP_LISTEN_ADDRESS").then(|| "127.0.0.1:9000".to_owned()),
+                Some(&file),
+                SettingsFiles::default(),
+            )
+            .expect("configuration must be accepted");
+            assert_eq!(configuration.listen_address.to_string(), "127.0.0.1:9000");
+
+            let problems =
+                Configuration::from_sources(&|_| None, Some(&file), SettingsFiles::default())
+                    .err()
+                    .expect("listen address of the file must be rejected");
+            assert_eq!(
+                problems,
+                vec![Problem::Malformed {
+                    setting: "ADNT_HTTP_LISTEN_ADDRESS",
+                    expected: "a socket address such as 127.0.0.1:8080"
+                }]
+            );
+        }
+
+        #[test]
+        fn problems_of_the_file_join_the_others() {
+            let file = secret_file("[smpt]\nhost = \"mail.example.org\"\n");
+            let problems =
+                Configuration::from_sources(&|_| None, Some(&file), SettingsFiles::default())
+                    .err()
+                    .expect("configuration must be rejected");
+            assert!(
+                matches!(problems[0], Problem::UnknownKey { .. }),
+                "{problems:?}"
+            );
+            assert!(problems.contains(&Problem::Missing {
+                setting: "ADNT_HTTP_PUBLIC_URL"
+            }));
+        }
+
+        #[test]
+        fn read_a_secret_from_a_file() {
+            let mut variables = required();
+            variables.insert("ADNT_DATABASE_PASSWORD_FILE", secret_file("s3cret\n"));
+            variables.insert("ADNT_SMTP_PASSWORD_FILE", secret_file("mail-s3cret"));
+            let configuration = load(&variables).expect("configuration must be accepted");
+            assert_eq!(configuration.smtp.password.as_deref(), Some("mail-s3cret"));
+            let debug = format!("{:?}", configuration.database);
+            assert!(
+                debug.contains("s3cret"),
+                "database password must come from the file"
+            );
+        }
+
+        #[test]
+        fn both_forms_in_one_source() {
+            let mut variables = required();
+            variables.insert("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned());
+            variables.insert("ADNT_DATABASE_PASSWORD_FILE", secret_file("db-f1le"));
+            let problems = problems(&variables);
+            assert_eq!(
+                problems,
+                vec![Problem::BothForms {
+                    plain: "ADNT_DATABASE_PASSWORD",
+                    file: "ADNT_DATABASE_PASSWORD_FILE"
+                }]
+            );
+            let message = problems[0].to_string();
+            assert!(message.contains("ADNT_DATABASE_PASSWORD "), "{message}");
+            assert!(message.contains("ADNT_DATABASE_PASSWORD_FILE"), "{message}");
+            assert_no_problem_shows("pl41n", &variables, &HashMap::new());
+            assert_no_problem_shows("f1le", &variables, &HashMap::new());
+        }
+
+        #[test]
+        fn plain_value_in_first_source_wins_over_file_in_second() {
+            let mut environment = required();
+            environment.insert("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned());
+            let file = HashMap::from([("ADNT_DATABASE_PASSWORD_FILE", secret_file("db-f1le"))]);
+            let configuration =
+                load_two(&environment, &file).expect("configuration must be accepted");
+            let debug = database_debug(&configuration);
+            assert!(debug.contains("db-pl41n"), "{debug}");
+            assert!(!debug.contains("db-f1le"), "{debug}");
+            assert_no_problem_shows("pl41n", &environment, &file);
+            assert_no_problem_shows("f1le", &environment, &file);
+        }
+
+        #[test]
+        fn empty_secret_file_does_not_fall_back() {
+            let mut environment = required();
+            environment.insert("ADNT_DATABASE_PASSWORD_FILE", secret_file("\n"));
+            let file = HashMap::from([("ADNT_DATABASE_PASSWORD", "db-pl41n".to_owned())]);
+            let configuration =
+                load_two(&environment, &file).expect("configuration must be accepted");
+            assert!(!database_debug(&configuration).contains("db-pl41n"));
+            assert_no_problem_shows("pl41n", &environment, &file);
+        }
+
+        #[test]
+        fn unreadable_secret_file_does_not_fall_back() {
+            let mut environment = required();
+            environment.insert(
+                "ADNT_SMTP_PASSWORD_FILE",
+                "/nonexistent/adunata-secret".to_owned(),
+            );
+            let file = HashMap::from([("ADNT_SMTP_PASSWORD", "mail-pl41n".to_owned())]);
+            let problems = load_two(&environment, &file)
+                .err()
+                .expect("configuration must be rejected");
+            assert_eq!(
+                problems,
+                vec![Problem::Unreadable {
+                    setting: "ADNT_SMTP_PASSWORD_FILE",
+                    path: "/nonexistent/adunata-secret".to_owned()
+                }]
+            );
+            assert_no_problem_shows("pl41n", &environment, &file);
+        }
+
+        #[test]
+        fn empty_secret_file_counts_as_unset() {
+            let mut variables = required();
+            variables.insert("ADNT_SMTP_USERNAME", "adunata@example.org".to_owned());
+            variables.insert("ADNT_SMTP_PASSWORD_FILE", secret_file("\n"));
+            let configuration = load(&variables).expect("configuration must be accepted");
+            assert_eq!(configuration.smtp.password, None);
+        }
+
+        #[test]
+        fn secret_file_unreadable() {
+            let mut variables = required();
+            variables.insert(
+                "ADNT_SMTP_PASSWORD_FILE",
+                "/nonexistent/adunata-secret".to_owned(),
+            );
+            let problems = problems(&variables);
+            assert_eq!(
+                problems,
+                vec![Problem::Unreadable {
+                    setting: "ADNT_SMTP_PASSWORD_FILE",
+                    path: "/nonexistent/adunata-secret".to_owned()
+                }]
+            );
+            assert!(problems[0].to_string().contains("ADNT_SMTP_PASSWORD_FILE"));
+        }
     }
 }

@@ -200,40 +200,6 @@ mod tests {
         assert_eq!(localizer.date_span("en", april, april), "April 30, 2027");
     }
 
-    #[tokio::test]
-    async fn serves_known_catalogs_only() {
-        use axum::body::{Body, to_bytes};
-        use axum::http::Request;
-        use tower::ServiceExt;
-
-        let pool = sqlx::PgPool::connect_lazy("postgres://localhost").unwrap();
-        let app: axum::Router = router()
-            .split_for_parts()
-            .0
-            .with_state(crate::api::testing::state(pool));
-        let german = app
-            .clone()
-            .oneshot(
-                Request::get("/api/catalogs/de")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(german.status(), StatusCode::OK);
-        let body = to_bytes(german.into_body(), usize::MAX).await.unwrap();
-        assert!(String::from_utf8_lossy(&body).contains("Betten angeboten"));
-        let french = app
-            .oneshot(
-                Request::get("/api/catalogs/fr")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(french.status(), StatusCode::NOT_FOUND);
-    }
-
     #[test]
     fn missing_translation() {
         let localizer = Localizer::from_catalogs(&[
@@ -251,5 +217,43 @@ mod tests {
     #[test]
     fn unknown_language_falls_back_to_english() {
         assert_eq!(beds(&Localizer::new(), "fr", 2), "needs 2");
+    }
+
+    mod integration {
+        use super::*;
+
+        #[tokio::test]
+        async fn serves_known_catalogs_only() {
+            use axum::body::{Body, to_bytes};
+            use axum::http::Request;
+            use tower::ServiceExt;
+
+            let pool = sqlx::PgPool::connect_lazy("postgres://localhost").unwrap();
+            let app: axum::Router = router()
+                .split_for_parts()
+                .0
+                .with_state(crate::api::testing::state(pool));
+            let german = app
+                .clone()
+                .oneshot(
+                    Request::get("/api/catalogs/de")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(german.status(), StatusCode::OK);
+            let body = to_bytes(german.into_body(), usize::MAX).await.unwrap();
+            assert!(String::from_utf8_lossy(&body).contains("Betten angeboten"));
+            let french = app
+                .oneshot(
+                    Request::get("/api/catalogs/fr")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(french.status(), StatusCode::NOT_FOUND);
+        }
     }
 }

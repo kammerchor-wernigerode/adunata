@@ -75,7 +75,7 @@ async fn wait_for_termination() {
 }
 
 #[cfg(test)]
-mod tests {
+mod integration {
     use std::time::Duration;
 
     use axum::routing::get;

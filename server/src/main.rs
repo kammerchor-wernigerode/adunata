@@ -210,7 +210,7 @@ fn app(state: api::AppState) -> axum::Router {
 }
 
 #[cfg(test)]
-mod tests {
+mod integration {
     use axum::body::Body;
     use axum::http::{HeaderMap, Request, header};
     use tower::ServiceExt;

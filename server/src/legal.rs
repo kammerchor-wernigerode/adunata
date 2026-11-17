@@ -34,7 +34,7 @@ async fn legal_links(State(state): State<AppState>) -> Json<LegalLinks> {
 }
 
 #[cfg(test)]
-mod tests {
+mod integration {
     use axum::body::{Body, to_bytes};
     use axum::http::Request;
     use serde_json::{Value, json};

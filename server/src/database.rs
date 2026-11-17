@@ -174,7 +174,7 @@ pub mod testing {
 }
 
 #[cfg(test)]
-mod tests {
+mod integration {
     use super::testing::{empty_database, fresh_database};
     use super::*;
 

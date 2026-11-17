@@ -70,7 +70,7 @@ pub mod testing {
 }
 
 #[cfg(test)]
-mod tests {
+mod integration {
     use axum::body::Body;
     use axum::http::{Method, Request, StatusCode, header};
     use tower::ServiceExt;

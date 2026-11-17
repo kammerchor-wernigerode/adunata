@@ -570,328 +570,7 @@ pub mod testing {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::{Value, json};
-    use sqlx::PgPool;
-
-    use super::testing::{gathering, member, send};
     use super::*;
-    use crate::access::testing::signed_in_organizer;
-    use crate::api;
-    use crate::database::testing::fresh_database;
-
-    async fn invitations(pool: &PgPool, gathering_id: i64) -> Vec<String> {
-        sqlx::query_scalar(
-            "SELECT members.first_name FROM invitations JOIN members ON members.id = invitations.member_id WHERE gathering_id = $1 ORDER BY members.first_name",
-        )
-        .bind(gathering_id)
-        .fetch_all(pool)
-        .await
-        .unwrap()
-    }
-
-    async fn mails(pool: &PgPool) -> i64 {
-        sqlx::query_scalar("SELECT count(*) FROM mail_outbox WHERE invitation_id IS NOT NULL")
-            .fetch_one(pool)
-            .await
-            .unwrap()
-    }
-
-    async fn invite(
-        pool: &PgPool,
-        cookie: &str,
-        gathering_id: i64,
-        body: Value,
-    ) -> (StatusCode, Value) {
-        send(
-            api::testing::state(pool.clone()),
-            cookie,
-            "POST",
-            &format!("/api/gatherings/{gathering_id}/invitations"),
-            &body,
-        )
-        .await
-    }
-
-    #[tokio::test]
-    async fn invite_everyone() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        member(&pool, "Clara", "de").await;
-        member(&pool, "Johannes", "en").await;
-        sqlx::query("INSERT INTO members (first_name, last_name, mail, language, active) VALUES ('Robert', 'Tester', 'robert@example.org', 'de', false)")
-            .execute(&pool)
-            .await
-            .unwrap();
-        let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
-        let (status, body) = invite(&pool, &cookie, weekend, json!({})).await;
-        assert_eq!(status, StatusCode::CREATED);
-        assert_eq!(body, json!({ "count": 3 }));
-        assert_eq!(
-            invitations(&pool, weekend).await,
-            vec!["Clara", "Johannes", "Root"]
-        );
-        assert_eq!(mails(&pool).await, 3);
-    }
-
-    #[tokio::test]
-    async fn invitation_succeeds_while_the_mail_server_is_down() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        member(&pool, "Clara", "de").await;
-        let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
-        let (status, _) = invite(&pool, &cookie, weekend, json!({})).await;
-        assert_eq!(status, StatusCode::CREATED);
-        let unreachable = mail::Delivery {
-            transport: mail::transport(&crate::configuration::Smtp {
-                host: "127.0.0.1".to_owned(),
-                port: 1,
-                encryption: crate::configuration::Encryption::None,
-                username: None,
-                password: None,
-            })
-            .unwrap(),
-            sender: "Adunata <adunata@example.org>".parse().unwrap(),
-            max_attempts: 8,
-        };
-        mail::deliver_due(&pool, &unreachable).await.unwrap();
-        let waiting: i64 = sqlx::query_scalar("SELECT count(*) FROM mail_outbox WHERE sent_at IS NULL AND failed_at IS NULL AND recipient IS NOT NULL")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-        assert_eq!(
-            waiting, 2,
-            "the mail waits in the outbox until the server is reachable again"
-        );
-        assert_eq!(invitations(&pool, weekend).await, vec!["Clara", "Root"]);
-    }
-
-    #[tokio::test]
-    async fn invite_a_subset() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        let clara = member(&pool, "Clara", "de").await;
-        let johannes = member(&pool, "Johannes", "en").await;
-        member(&pool, "Robert", "de").await;
-        let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
-        let (status, body) = invite(
-            &pool,
-            &cookie,
-            weekend,
-            json!({ "memberIds": [clara, johannes] }),
-        )
-        .await;
-        assert_eq!(status, StatusCode::CREATED);
-        assert_eq!(body, json!({ "count": 2 }));
-        assert_eq!(invitations(&pool, weekend).await, vec!["Clara", "Johannes"]);
-        assert_eq!(mails(&pool).await, 2);
-    }
-
-    #[tokio::test]
-    async fn member_added_later() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        member(&pool, "Clara", "de").await;
-        let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
-        invite(&pool, &cookie, weekend, json!({})).await;
-        member(&pool, "Johannes", "en").await;
-        let (_, body) = invite(&pool, &cookie, weekend, json!({})).await;
-        assert_eq!(body, json!({ "count": 1 }));
-        assert_eq!(
-            invitations(&pool, weekend).await,
-            vec!["Clara", "Johannes", "Root"]
-        );
-        assert_eq!(mails(&pool).await, 3);
-    }
-
-    async fn invitation_secret(pool: &PgPool) -> String {
-        let text: String = sqlx::query_scalar("SELECT text_body FROM mail_outbox WHERE invitation_id IS NOT NULL ORDER BY id DESC LIMIT 1")
-            .fetch_one(pool)
-            .await
-            .unwrap();
-        let start = text.find("/invitation#").unwrap() + "/invitation#".len();
-        text[start..start + 64].to_owned()
-    }
-
-    async fn opens(pool: &PgPool, secret: &str) -> bool {
-        let mut connection = pool.acquire().await.unwrap();
-        resolve(
-            &mut connection,
-            secret,
-            time::OffsetDateTime::now_utc().date(),
-        )
-        .await
-        .unwrap()
-        .is_some()
-    }
-
-    async fn one_invitation(pool: &PgPool, cookie: &str) -> (i64, Value) {
-        let clara = member(pool, "Clara", "de").await;
-        let weekend = gathering(pool, "Probenwochenende", 10, 12).await;
-        invite(pool, cookie, weekend, json!({ "memberIds": [clara] })).await;
-        let (_, list) = send(
-            api::testing::state(pool.clone()),
-            cookie,
-            "GET",
-            &format!("/api/gatherings/{weekend}/invitations"),
-            &Value::Null,
-        )
-        .await;
-        (weekend, list[0].clone())
-    }
-
-    #[tokio::test]
-    async fn resend() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        let (_, invitation) = one_invitation(&pool, &cookie).await;
-        assert_eq!(invitation["firstName"], "Clara");
-        assert_eq!(invitation["linkActive"], true);
-        assert_eq!(invitation["mail"], "waiting");
-        let old = invitation_secret(&pool).await;
-        let (status, _) = send(
-            api::testing::state(pool.clone()),
-            &cookie,
-            "POST",
-            &format!("/api/invitations/{}/resend", invitation["id"]),
-            &Value::Null,
-        )
-        .await;
-        assert_eq!(status, StatusCode::NO_CONTENT);
-        let new = invitation_secret(&pool).await;
-        assert_ne!(old, new);
-        assert_eq!(mails(&pool).await, 2);
-        assert!(opens(&pool, &new).await);
-    }
-
-    #[tokio::test]
-    async fn old_link_after_resend() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        let (_, invitation) = one_invitation(&pool, &cookie).await;
-        let old = invitation_secret(&pool).await;
-        send(
-            api::testing::state(pool.clone()),
-            &cookie,
-            "POST",
-            &format!("/api/invitations/{}/resend", invitation["id"]),
-            &Value::Null,
-        )
-        .await;
-        assert!(!opens(&pool, &old).await);
-    }
-
-    #[tokio::test]
-    async fn revoke_without_resend() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        let (weekend, invitation) = one_invitation(&pool, &cookie).await;
-        let secret = invitation_secret(&pool).await;
-        let (status, _) = send(
-            api::testing::state(pool.clone()),
-            &cookie,
-            "POST",
-            &format!("/api/invitations/{}/revocation", invitation["id"]),
-            &Value::Null,
-        )
-        .await;
-        assert_eq!(status, StatusCode::NO_CONTENT);
-        assert!(!opens(&pool, &secret).await);
-        assert_eq!(mails(&pool).await, 1);
-        let (_, list) = send(
-            api::testing::state(pool.clone()),
-            &cookie,
-            "GET",
-            &format!("/api/gatherings/{weekend}/invitations"),
-            &Value::Null,
-        )
-        .await;
-        assert_eq!(list[0]["linkActive"], false);
-    }
-
-    #[tokio::test]
-    async fn no_resend_after_the_gathering() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        let (weekend, invitation) = one_invitation(&pool, &cookie).await;
-        sqlx::query("UPDATE gatherings SET first_day = CURRENT_DATE - 3, last_day = CURRENT_DATE - 1 WHERE id = $1")
-            .bind(weekend)
-            .execute(&pool)
-            .await
-            .unwrap();
-        let (status, body) = send(
-            api::testing::state(pool.clone()),
-            &cookie,
-            "POST",
-            &format!("/api/invitations/{}/resend", invitation["id"]),
-            &Value::Null,
-        )
-        .await;
-        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(
-            body,
-            json!({ "errors": [{ "field": "gathering", "code": "ended" }] })
-        );
-        assert_eq!(mails(&pool).await, 1);
-    }
-
-    #[tokio::test]
-    async fn cancel_with_mail_to_every_invited_member() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        member(&pool, "Johannes", "en").await;
-        let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
-        invite(&pool, &cookie, weekend, json!({})).await;
-        let (status, _) = send(
-            api::testing::state(pool.clone()),
-            &cookie,
-            "POST",
-            &format!("/api/gatherings/{weekend}/cancellation"),
-            &Value::Null,
-        )
-        .await;
-        assert_eq!(status, StatusCode::NO_CONTENT);
-        let cancellations: Vec<(String, String)> = sqlx::query_as(
-            "SELECT recipient, subject FROM mail_outbox WHERE subject NOT LIKE 'Invitation%' AND subject NOT LIKE 'Einladung%' ORDER BY recipient",
-        )
-        .fetch_all(&pool)
-        .await
-        .unwrap();
-        assert_eq!(
-            cancellations,
-            vec![
-                (
-                    "Johannes@example.org".to_owned(),
-                    "Cancelled: Probenwochenende".to_owned()
-                ),
-                (
-                    "root@example.org".to_owned(),
-                    "Cancelled: Probenwochenende".to_owned()
-                ),
-            ]
-        );
-        let (status, body) = send(
-            api::testing::state(pool.clone()),
-            &cookie,
-            "POST",
-            &format!("/api/gatherings/{weekend}/cancellation"),
-            &Value::Null,
-        )
-        .await;
-        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(
-            body,
-            json!({ "errors": [{ "field": "gathering", "code": "cancelled" }] })
-        );
-    }
 
     #[test]
     fn cancellation_mail_in_german() {
@@ -906,88 +585,6 @@ mod tests {
             "{}",
             mail.text
         );
-    }
-
-    #[tokio::test]
-    async fn cancellation_waits_for_an_invitation_in_progress() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        signed_in_organizer(&pool).await;
-        let clara = member(&pool, "Clara", "de").await;
-        let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
-        let state = api::testing::state(pool.clone());
-
-        let mut transaction = pool.begin().await.unwrap();
-        assert!(
-            open_gathering(&mut transaction, weekend, &state)
-                .await
-                .unwrap()
-                .is_ok()
-        );
-        let cancellation = tokio::spawn({
-            let state = state.clone();
-            async move { cancel_gathering(&state, weekend).await }
-        });
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        sqlx::query("INSERT INTO invitations (gathering_id, member_id) VALUES ($1, $2)")
-            .bind(weekend)
-            .bind(clara)
-            .execute(&mut *transaction)
-            .await
-            .unwrap();
-        transaction.commit().await.unwrap();
-        assert!(matches!(
-            cancellation.await.unwrap().unwrap(),
-            Outcome::Done(())
-        ));
-
-        let cancellation_mails: i64 =
-            sqlx::query_scalar("SELECT count(*) FROM mail_outbox WHERE subject LIKE 'Abgesagt%'")
-                .fetch_one(&pool)
-                .await
-                .unwrap();
-        assert_eq!(
-            cancellation_mails, 1,
-            "the member invited meanwhile hears of the cancellation"
-        );
-    }
-
-    #[tokio::test]
-    async fn cancelled_gathering_takes_no_invitations() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
-        send(
-            api::testing::state(pool.clone()),
-            &cookie,
-            "POST",
-            &format!("/api/gatherings/{weekend}/cancellation"),
-            &Value::Null,
-        )
-        .await;
-        let (status, body) = invite(&pool, &cookie, weekend, json!({})).await;
-        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(
-            body,
-            json!({ "errors": [{ "field": "gathering", "code": "cancelled" }] })
-        );
-        assert!(invitations(&pool, weekend).await.is_empty());
-    }
-
-    #[tokio::test]
-    async fn ended_gathering() {
-        let database = fresh_database().await;
-        let pool = database.pool();
-        let (_, cookie) = signed_in_organizer(&pool).await;
-        let past = gathering(&pool, "Herbstcamp", -10, -8).await;
-        let (status, body) = invite(&pool, &cookie, past, json!({})).await;
-        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(
-            body,
-            json!({ "errors": [{ "field": "gathering", "code": "ended" }] })
-        );
-        assert!(invitations(&pool, past).await.is_empty());
     }
 
     fn sample() -> (Member, Gathering) {
@@ -1077,5 +674,412 @@ mod tests {
             mail.html
         );
         assert!(!mail.html.contains("<b>"), "{}", mail.html);
+    }
+
+    mod integration {
+        use super::testing::{gathering, member, send};
+        use super::*;
+        use crate::access::testing::signed_in_organizer;
+        use crate::api;
+        use crate::database::testing::fresh_database;
+        use serde_json::{Value, json};
+        use sqlx::PgPool;
+
+        async fn invitations(pool: &PgPool, gathering_id: i64) -> Vec<String> {
+            sqlx::query_scalar(
+                    "SELECT members.first_name FROM invitations JOIN members ON members.id = invitations.member_id WHERE gathering_id = $1 ORDER BY members.first_name",
+                )
+                .bind(gathering_id)
+                .fetch_all(pool)
+                .await
+                .unwrap()
+        }
+
+        async fn mails(pool: &PgPool) -> i64 {
+            sqlx::query_scalar("SELECT count(*) FROM mail_outbox WHERE invitation_id IS NOT NULL")
+                .fetch_one(pool)
+                .await
+                .unwrap()
+        }
+
+        async fn invite(
+            pool: &PgPool,
+            cookie: &str,
+            gathering_id: i64,
+            body: Value,
+        ) -> (StatusCode, Value) {
+            send(
+                api::testing::state(pool.clone()),
+                cookie,
+                "POST",
+                &format!("/api/gatherings/{gathering_id}/invitations"),
+                &body,
+            )
+            .await
+        }
+
+        #[tokio::test]
+        async fn invite_everyone() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            member(&pool, "Clara", "de").await;
+            member(&pool, "Johannes", "en").await;
+            sqlx::query("INSERT INTO members (first_name, last_name, mail, language, active) VALUES ('Robert', 'Tester', 'robert@example.org', 'de', false)")
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            let (status, body) = invite(&pool, &cookie, weekend, json!({})).await;
+            assert_eq!(status, StatusCode::CREATED);
+            assert_eq!(body, json!({ "count": 3 }));
+            assert_eq!(
+                invitations(&pool, weekend).await,
+                vec!["Clara", "Johannes", "Root"]
+            );
+            assert_eq!(mails(&pool).await, 3);
+        }
+
+        #[tokio::test]
+        async fn invitation_succeeds_while_the_mail_server_is_down() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            member(&pool, "Clara", "de").await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            let (status, _) = invite(&pool, &cookie, weekend, json!({})).await;
+            assert_eq!(status, StatusCode::CREATED);
+            let unreachable = mail::Delivery {
+                transport: mail::transport(&crate::configuration::Smtp {
+                    host: "127.0.0.1".to_owned(),
+                    port: 1,
+                    encryption: crate::configuration::Encryption::None,
+                    username: None,
+                    password: None,
+                })
+                .unwrap(),
+                sender: "Adunata <adunata@example.org>".parse().unwrap(),
+                max_attempts: 8,
+            };
+            mail::deliver_due(&pool, &unreachable).await.unwrap();
+            let waiting: i64 = sqlx::query_scalar("SELECT count(*) FROM mail_outbox WHERE sent_at IS NULL AND failed_at IS NULL AND recipient IS NOT NULL")
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+            assert_eq!(
+                waiting, 2,
+                "the mail waits in the outbox until the server is reachable again"
+            );
+            assert_eq!(invitations(&pool, weekend).await, vec!["Clara", "Root"]);
+        }
+
+        #[tokio::test]
+        async fn invite_a_subset() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let clara = member(&pool, "Clara", "de").await;
+            let johannes = member(&pool, "Johannes", "en").await;
+            member(&pool, "Robert", "de").await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            let (status, body) = invite(
+                &pool,
+                &cookie,
+                weekend,
+                json!({ "memberIds": [clara, johannes] }),
+            )
+            .await;
+            assert_eq!(status, StatusCode::CREATED);
+            assert_eq!(body, json!({ "count": 2 }));
+            assert_eq!(invitations(&pool, weekend).await, vec!["Clara", "Johannes"]);
+            assert_eq!(mails(&pool).await, 2);
+        }
+
+        #[tokio::test]
+        async fn member_added_later() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            member(&pool, "Clara", "de").await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            invite(&pool, &cookie, weekend, json!({})).await;
+            member(&pool, "Johannes", "en").await;
+            let (_, body) = invite(&pool, &cookie, weekend, json!({})).await;
+            assert_eq!(body, json!({ "count": 1 }));
+            assert_eq!(
+                invitations(&pool, weekend).await,
+                vec!["Clara", "Johannes", "Root"]
+            );
+            assert_eq!(mails(&pool).await, 3);
+        }
+
+        async fn invitation_secret(pool: &PgPool) -> String {
+            let text: String = sqlx::query_scalar("SELECT text_body FROM mail_outbox WHERE invitation_id IS NOT NULL ORDER BY id DESC LIMIT 1")
+                    .fetch_one(pool)
+                    .await
+                    .unwrap();
+            let start = text.find("/invitation#").unwrap() + "/invitation#".len();
+            text[start..start + 64].to_owned()
+        }
+
+        async fn opens(pool: &PgPool, secret: &str) -> bool {
+            let mut connection = pool.acquire().await.unwrap();
+            resolve(
+                &mut connection,
+                secret,
+                time::OffsetDateTime::now_utc().date(),
+            )
+            .await
+            .unwrap()
+            .is_some()
+        }
+
+        async fn one_invitation(pool: &PgPool, cookie: &str) -> (i64, Value) {
+            let clara = member(pool, "Clara", "de").await;
+            let weekend = gathering(pool, "Probenwochenende", 10, 12).await;
+            invite(pool, cookie, weekend, json!({ "memberIds": [clara] })).await;
+            let (_, list) = send(
+                api::testing::state(pool.clone()),
+                cookie,
+                "GET",
+                &format!("/api/gatherings/{weekend}/invitations"),
+                &Value::Null,
+            )
+            .await;
+            (weekend, list[0].clone())
+        }
+
+        #[tokio::test]
+        async fn resend() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (_, invitation) = one_invitation(&pool, &cookie).await;
+            assert_eq!(invitation["firstName"], "Clara");
+            assert_eq!(invitation["linkActive"], true);
+            assert_eq!(invitation["mail"], "waiting");
+            let old = invitation_secret(&pool).await;
+            let (status, _) = send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "POST",
+                &format!("/api/invitations/{}/resend", invitation["id"]),
+                &Value::Null,
+            )
+            .await;
+            assert_eq!(status, StatusCode::NO_CONTENT);
+            let new = invitation_secret(&pool).await;
+            assert_ne!(old, new);
+            assert_eq!(mails(&pool).await, 2);
+            assert!(opens(&pool, &new).await);
+        }
+
+        #[tokio::test]
+        async fn old_link_after_resend() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (_, invitation) = one_invitation(&pool, &cookie).await;
+            let old = invitation_secret(&pool).await;
+            send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "POST",
+                &format!("/api/invitations/{}/resend", invitation["id"]),
+                &Value::Null,
+            )
+            .await;
+            assert!(!opens(&pool, &old).await);
+        }
+
+        #[tokio::test]
+        async fn revoke_without_resend() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (weekend, invitation) = one_invitation(&pool, &cookie).await;
+            let secret = invitation_secret(&pool).await;
+            let (status, _) = send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "POST",
+                &format!("/api/invitations/{}/revocation", invitation["id"]),
+                &Value::Null,
+            )
+            .await;
+            assert_eq!(status, StatusCode::NO_CONTENT);
+            assert!(!opens(&pool, &secret).await);
+            assert_eq!(mails(&pool).await, 1);
+            let (_, list) = send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "GET",
+                &format!("/api/gatherings/{weekend}/invitations"),
+                &Value::Null,
+            )
+            .await;
+            assert_eq!(list[0]["linkActive"], false);
+        }
+
+        #[tokio::test]
+        async fn no_resend_after_the_gathering() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (weekend, invitation) = one_invitation(&pool, &cookie).await;
+            sqlx::query("UPDATE gatherings SET first_day = CURRENT_DATE - 3, last_day = CURRENT_DATE - 1 WHERE id = $1")
+                    .bind(weekend)
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+            let (status, body) = send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "POST",
+                &format!("/api/invitations/{}/resend", invitation["id"]),
+                &Value::Null,
+            )
+            .await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                body,
+                json!({ "errors": [{ "field": "gathering", "code": "ended" }] })
+            );
+            assert_eq!(mails(&pool).await, 1);
+        }
+
+        #[tokio::test]
+        async fn cancel_with_mail_to_every_invited_member() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            member(&pool, "Johannes", "en").await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            invite(&pool, &cookie, weekend, json!({})).await;
+            let (status, _) = send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "POST",
+                &format!("/api/gatherings/{weekend}/cancellation"),
+                &Value::Null,
+            )
+            .await;
+            assert_eq!(status, StatusCode::NO_CONTENT);
+            let cancellations: Vec<(String, String)> = sqlx::query_as(
+                    "SELECT recipient, subject FROM mail_outbox WHERE subject NOT LIKE 'Invitation%' AND subject NOT LIKE 'Einladung%' ORDER BY recipient",
+                )
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+            assert_eq!(
+                cancellations,
+                vec![
+                    (
+                        "Johannes@example.org".to_owned(),
+                        "Cancelled: Probenwochenende".to_owned()
+                    ),
+                    (
+                        "root@example.org".to_owned(),
+                        "Cancelled: Probenwochenende".to_owned()
+                    ),
+                ]
+            );
+            let (status, body) = send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "POST",
+                &format!("/api/gatherings/{weekend}/cancellation"),
+                &Value::Null,
+            )
+            .await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                body,
+                json!({ "errors": [{ "field": "gathering", "code": "cancelled" }] })
+            );
+        }
+
+        #[tokio::test]
+        async fn cancellation_waits_for_an_invitation_in_progress() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            signed_in_organizer(&pool).await;
+            let clara = member(&pool, "Clara", "de").await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            let state = api::testing::state(pool.clone());
+
+            let mut transaction = pool.begin().await.unwrap();
+            assert!(
+                open_gathering(&mut transaction, weekend, &state)
+                    .await
+                    .unwrap()
+                    .is_ok()
+            );
+            let cancellation = tokio::spawn({
+                let state = state.clone();
+                async move { cancel_gathering(&state, weekend).await }
+            });
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            sqlx::query("INSERT INTO invitations (gathering_id, member_id) VALUES ($1, $2)")
+                .bind(weekend)
+                .bind(clara)
+                .execute(&mut *transaction)
+                .await
+                .unwrap();
+            transaction.commit().await.unwrap();
+            assert!(matches!(
+                cancellation.await.unwrap().unwrap(),
+                Outcome::Done(())
+            ));
+
+            let cancellation_mails: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM mail_outbox WHERE subject LIKE 'Abgesagt%'",
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            assert_eq!(
+                cancellation_mails, 1,
+                "the member invited meanwhile hears of the cancellation"
+            );
+        }
+
+        #[tokio::test]
+        async fn cancelled_gathering_takes_no_invitations() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "POST",
+                &format!("/api/gatherings/{weekend}/cancellation"),
+                &Value::Null,
+            )
+            .await;
+            let (status, body) = invite(&pool, &cookie, weekend, json!({})).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                body,
+                json!({ "errors": [{ "field": "gathering", "code": "cancelled" }] })
+            );
+            assert!(invitations(&pool, weekend).await.is_empty());
+        }
+
+        #[tokio::test]
+        async fn ended_gathering() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let past = gathering(&pool, "Herbstcamp", -10, -8).await;
+            let (status, body) = invite(&pool, &cookie, past, json!({})).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                body,
+                json!({ "errors": [{ "field": "gathering", "code": "ended" }] })
+            );
+            assert!(invitations(&pool, past).await.is_empty());
+        }
     }
 }
