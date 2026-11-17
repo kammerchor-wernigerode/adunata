@@ -17,7 +17,7 @@ Each group is one commit that passes `nix build .#checks.<system>.fast`.
 
 ## 3. Client reads its settings file
 
-- [ ] 3.1 Let `client/vite.config.ts` read `ADUNATA_VITE_PORT`, `ADUNATA_LISTEN_ADDRESS` and `ADUNATA_PUBLIC_URL` through `loadEnv` from `client/` with an empty prefix. Verify that `npm run dev` serves on 5173 without `client/.env.local` and on the port of `client/.env.local` when it sets `ADUNATA_VITE_PORT`. Verify that `npm run lint` passes.
+- [x] 3.1 Let `client/vite.config.ts` read `ADUNATA_VITE_PORT`, `ADUNATA_LISTEN_ADDRESS` and `ADUNATA_PUBLIC_URL` through `loadEnv` from `client/` with an empty prefix. Verify that `npm run dev` serves on 5173 without `client/.env.local` and on the port of `client/.env.local` when it sets `ADUNATA_VITE_PORT`. Verify that `npm run lint` passes.
 - [ ] 3.2 Let `client/playwright.config.ts` load `client/.env.local` with `process.loadEnvFile` if the file exists. Verify that `npx playwright test --list` passes with and without the file. Let the plugin's `client/.env.local` carry `ADUNATA_E2E_MAILPIT_URL` as design.md shows.
 
 ## 4. Services from Compose for every maintainer
