@@ -1,4 +1,4 @@
-"""Gives each linked worktree of Adunata its own ports and database.
+"""Gives each linked worktree of Adunata its own ports and its own Compose project.
 
 A plugin for git-worktree-init. Enable it in the main worktree with
 `git config worktree-init.plugin dev/worktree_plugin.py`.
@@ -6,120 +6,195 @@ A plugin for git-worktree-init. Enable it in the main worktree with
 
 import re
 import shutil
-import subprocess
 from pathlib import Path
 
 from git_worktree_init.options import Option
 
 OPTIONS = [
     Option("port_base", "text", "18000", "port from which the ports of the slots count", ask=False),
-    Option("clone_db", "confirm", False, "copy the database of the main worktree"),
 ]
 
 SANITIZE_ENV = [
+    "COMPOSE_PROJECT_NAME",
+    "POSTGRES_PORT",
+    "MAILPIT_SMTP_PORT",
+    "MAILPIT_UI_PORT",
     "ADNT_HTTP_LISTEN_ADDRESS",
     "ADNT_HTTP_PUBLIC_URL",
-    "ADUNATA_E2E_URL",
-    "ADUNATA_VITE_PORT",
     "ADNT_DATABASE_URL",
-    "PGHOST",
-    "PGPORT",
-    "PGUSER",
-    "PGPASSWORD",
-    "PGDATABASE",
+    "ADNT_SMTP_HOST",
+    "ADNT_SMTP_PORT",
+    "ADNT_SMTP_ENCRYPTION",
+    "ADNT_MAIL_SENDER",
+    "ADNT_LOCALIZATION_TIME_ZONE",
+    "ADNT_CONFIG_FILE",
+    "ADUNATA_VITE_PORT",
+    "ADUNATA_E2E_URL",
+    "ADUNATA_E2E_MAILPIT_URL",
     "DIRENV_DIR",
     "DIRENV_FILE",
     "DIRENV_DIFF",
     "DIRENV_WATCHES",
 ]
 
-ENVIRONMENT_FILE = ".envrc.local"
-DATABASE_IN_ENVIRONMENT = re.compile(r"/adunata_wt(\d+)$", re.MULTILINE)
+COMPOSE_SETTINGS = ".env"
+SERVER_SETTINGS = "server/.env.local"
+CLIENT_SETTINGS = "client/.env.local"
+SLOT_LINE = re.compile(r"^# Slot (\d+) of git-worktree-init$")
+OLD_ENVIRONMENT_FILES = (".envrc.local", ".envrc.local.bak")
+DATABASE_IN_OLD_ENVIRONMENT = re.compile(r"/adunata_wt(\d+)$", re.MULTILINE)
 
 
 def slot_of(worktree: Path) -> int | None:
-    environment = worktree / ENVIRONMENT_FILE
+    settings = worktree / COMPOSE_SETTINGS
+    if settings.is_file():
+        lines = settings.read_text(encoding="utf-8").splitlines()
+        match = SLOT_LINE.match(lines[0]) if lines else None
+        if match:
+            return int(match.group(1))
+    return slot_of_old_environment(worktree)
+
+
+def slot_of_old_environment(worktree: Path) -> int | None:
+    """Reads the slot of a worktree that has not been rebased since the plugin wrote .envrc.local."""
+    environment = worktree / OLD_ENVIRONMENT_FILES[0]
     if not environment.is_file():
         return None
-    match = DATABASE_IN_ENVIRONMENT.search(environment.read_text(encoding="utf-8"))
+    match = DATABASE_IN_OLD_ENVIRONMENT.search(environment.read_text(encoding="utf-8"))
     return int(match.group(1)) if match else None
 
 
 def apply(ctx) -> None:
     if ctx.target.resolve() == ctx.main.resolve():
-        raise RuntimeError("the main worktree keeps the defaults of the development shell")
-    ctx.write(ENVIRONMENT_FILE, environment_of(ctx), backup=True)
-    ctx.ensure_ignored(ENVIRONMENT_FILE)
-    ctx.ensure_ignored(ENVIRONMENT_FILE + ".bak")
+        raise RuntimeError("the main worktree keeps the defaults of compose.yaml and server/.env")
+    for rel, values in settings_of(ctx).items():
+        update_settings(ctx, rel, values)
+    if has_tracked_server_settings(ctx):
+        for rel in OLD_ENVIRONMENT_FILES:
+            if ctx.remove(rel):
+                ctx.info(f"removed {rel}")
     ctx.ensure_ignored(".direnv")
-    prepare_database(ctx)
-    in_development_shell(ctx, "npm ci --prefer-offline && npm run build", cwd=ctx.target / "client")
-    if has_envrc(ctx) and has_direnv():
+    build_client(ctx)
+    if (ctx.target / ".envrc").is_file() and shutil.which("direnv"):
         ctx.run(["direnv", "allow", str(ctx.target)])
 
 
 def next_steps(ctx) -> list[str]:
-    port = server_port(ctx)
-    steps = [f"Server: http://localhost:{port}", f"Vite: http://localhost:{port + 1}"]
-    if not has_envrc(ctx):
-        steps.insert(0, "This branch has no .envrc, so nothing loads these ports. Rebase it onto main.")
-    elif not has_direnv():
-        steps.insert(0, "Install direnv, then run: direnv allow")
+    base = port_base_of(ctx)
+    steps = [
+        "Services: docker compose up --detach --wait",
+        f"Server: http://localhost:{base}",
+        f"Vite: http://localhost:{base + 1}",
+        f"Mailpit: http://localhost:{base + 4}",
+    ]
+    if not has_tracked_server_settings(ctx):
+        steps.insert(0, "This branch has no server/.env, so its server reads no settings file. Rebase it onto main, then run: git wt refresh")
     return steps
 
 
 def teardown(ctx) -> None:
-    in_development_shell(ctx, f"dropdb --if-exists --force {database_of(ctx)}", cwd=ctx.main)
-    ctx.info(f"dropped database {database_of(ctx)}")
-
-
-def environment_of(ctx) -> str:
-    port = server_port(ctx)
-    return (
-        f"export ADNT_HTTP_LISTEN_ADDRESS=127.0.0.1:{port}\n"
-        f"export ADNT_HTTP_PUBLIC_URL=http://localhost:{port}\n"
-        f"export ADUNATA_E2E_URL=http://localhost:{port}\n"
-        f"export ADUNATA_VITE_PORT={port + 1}\n"
-        f"export ADNT_DATABASE_URL=${{ADNT_DATABASE_URL%/*}}/{database_of(ctx)}\n"
-    )
-
-
-def prepare_database(ctx) -> None:
-    name = database_of(ctx)
-    query = f"select 1 from pg_database where datname = '{name}'"
-    found = in_development_shell(ctx, f'psql -tAc "{query}"', capture=True, check=False)
-    if found.returncode != 0:
-        raise RuntimeError(f"cannot query the database server: {found.stderr.strip()}")
-    if found.stdout.strip() == "1":
-        return
-    in_development_shell(ctx, f"createdb {name}")
-    ctx.info(f"created database {name}")
-    if not ctx.option("clone_db"):
-        return
+    project = project_of(ctx)
+    command = ["docker", "compose", "-p", project, "down", "--volumes"]
     try:
-        in_development_shell(ctx, f'pg_dump --no-owner "$PGDATABASE" | psql -q -v ON_ERROR_STOP=1 {name}')
-    except subprocess.CalledProcessError:
-        in_development_shell(ctx, f"dropdb --if-exists --force {name}")
-        raise
-    ctx.info(f"copied the main database into {name}")
+        result = ctx.run(command, cwd=ctx.main, check=False, capture=True)
+        problem = result.stderr.strip() if result.returncode != 0 else None
+    except FileNotFoundError:
+        problem = "docker is not installed"
+    if problem:
+        ctx.info(f"warning: could not remove the Compose project {project}: {problem}")
+        ctx.info(f"remove it later with: {' '.join(command)}")
+    else:
+        ctx.info(f"removed the Compose project {project} and its volume")
 
 
-def in_development_shell(ctx, script: str, cwd: Path | None = None, capture: bool = False, check: bool = True):
-    command = ["nix", "develop", str(ctx.main), "--command", "bash", "-o", "pipefail", "-c", script]
-    return ctx.run(command, cwd=cwd, check=check, capture=capture)
+def settings_of(ctx) -> dict[str, dict[str, str]]:
+    base = port_base_of(ctx)
+    server = f"http://localhost:{base}"
+    return {
+        COMPOSE_SETTINGS: {
+            "COMPOSE_PROJECT_NAME": project_of(ctx),
+            "POSTGRES_PORT": str(base + 2),
+            "MAILPIT_SMTP_PORT": str(base + 3),
+            "MAILPIT_UI_PORT": str(base + 4),
+        },
+        SERVER_SETTINGS: {
+            "ADNT_HTTP_LISTEN_ADDRESS": f"127.0.0.1:{base}",
+            "ADNT_HTTP_PUBLIC_URL": server,
+            "ADNT_DATABASE_URL": f"postgres://adunata:adunata@localhost:{base + 2}/adunata",
+            "ADNT_SMTP_PORT": str(base + 3),
+            "MAILPIT_UI_PORT": str(base + 4),
+        },
+        CLIENT_SETTINGS: {
+            "ADUNATA_VITE_PORT": str(base + 1),
+            "ADNT_HTTP_LISTEN_ADDRESS": f"127.0.0.1:{base}",
+            "ADNT_HTTP_PUBLIC_URL": server,
+            "ADUNATA_E2E_URL": server,
+            "ADUNATA_E2E_MAILPIT_URL": f"http://127.0.0.1:{base + 4}",
+        },
+    }
 
 
-def server_port(ctx) -> int:
+def update_settings(ctx, rel: str, values: dict[str, str]) -> None:
+    path = ctx.target / rel
+    existing = path.read_text(encoding="utf-8") if path.is_file() else ""
+    slot_line = f"# Slot {ctx.slot} of git-worktree-init" if rel == COMPOSE_SETTINGS else None
+    if ctx.write(rel, merged_settings(existing, values, slot_line), backup=True):
+        ctx.info(f"wrote {rel}")
+    ensure_ignored(ctx, rel)
+    ensure_ignored(ctx, rel + ".bak")
+
+
+def ensure_ignored(ctx, rel: str) -> None:
+    """Ignores a file the plugin writes. A file in the root gets a leading slash, so that a file of the same name in a subdirectory stays visible."""
+    if "/" in rel:
+        ctx.ensure_ignored(rel)
+        return
+    checked = ctx.run(["git", "check-ignore", "-q", rel], check=False, capture=True)
+    if checked.returncode == 0:
+        return
+    exclude = ctx.common_dir / "info" / "exclude"
+    entry = "/" + rel
+    existing = exclude.read_text(encoding="utf-8").splitlines() if exclude.exists() else []
+    if entry in existing:
+        return
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    with exclude.open("a", encoding="utf-8") as handle:
+        handle.write(f"\n{entry}\n")
+    ctx.info(f"added {entry} to info/exclude")
+
+
+def merged_settings(existing: str, values: dict[str, str], slot_line: str | None) -> str:
+    """Replaces the lines of the given keys, keeps every other line and appends missing keys."""
+    lines = existing.splitlines()
+    if slot_line and lines and SLOT_LINE.match(lines[0]):
+        lines = lines[1:]
+    merged = []
+    for line in lines:
+        key = line.split("=", 1)[0]
+        merged.append(f"{key}={values[key]}" if key in values else line)
+    present = {line.split("=", 1)[0] for line in lines}
+    merged += [f"{key}={value}" for key, value in values.items() if key not in present]
+    if slot_line:
+        merged.insert(0, slot_line)
+    return "\n".join(merged) + "\n"
+
+
+def build_client(ctx) -> None:
+    script = "npm ci --prefer-offline && npm run build"
+    if shutil.which("nix"):
+        command = ["nix", "develop", str(ctx.main), "--command", "bash", "-o", "pipefail", "-c", script]
+    else:
+        command = ["bash", "-o", "pipefail", "-c", script]
+    ctx.run(command, cwd=ctx.target / "client")
+
+
+def port_base_of(ctx) -> int:
     return int(ctx.option("port_base")) + 10 * ctx.slot
 
 
-def database_of(ctx) -> str:
-    return f"adunata_wt{ctx.slot}"
+def project_of(ctx) -> str:
+    return f"adunata-{port_base_of(ctx)}"
 
 
-def has_envrc(ctx) -> bool:
-    return (ctx.target / ".envrc").is_file()
-
-
-def has_direnv() -> bool:
-    return shutil.which("direnv") is not None
+def has_tracked_server_settings(ctx) -> bool:
+    return (ctx.target / "server" / ".env").is_file()

@@ -1,10 +1,46 @@
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 const UNREACHABLE_DATABASE: &str = "postgres://adunata@127.0.0.1:1/adunata";
 
-/// Runs the binary with only the given arguments and variables. Returns the exit code, standard output and standard error.
+static NEXT: AtomicU32 = AtomicU32::new(0);
+
+/// A fresh empty directory, so that no settings file of the checkout reaches the binary. Dropping it removes the directory.
+struct WorkingDirectory {
+    path: PathBuf,
+}
+
+impl WorkingDirectory {
+    fn new() -> Self {
+        let path = std::env::temp_dir().join(format!(
+            "adunata-startup-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&path).expect("temporary directory must be creatable");
+        Self { path }
+    }
+}
+
+impl Drop for WorkingDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.path);
+    }
+}
+
+/// Runs the binary in a fresh empty directory with only the given arguments and variables. Returns the exit code, standard output and standard error.
 fn run(arguments: &[&str], variables: &[(&str, &str)]) -> (Option<i32>, String, String) {
+    run_in(&WorkingDirectory::new().path, arguments, variables)
+}
+
+fn run_in(
+    directory: &Path,
+    arguments: &[&str],
+    variables: &[(&str, &str)],
+) -> (Option<i32>, String, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_adunata"))
+        .current_dir(directory)
         .env_clear()
         .envs(variables.iter().copied())
         .args(arguments)
@@ -87,6 +123,37 @@ fn unknown_time_zone_stops_before_the_database() {
         "{log}"
     );
     assert!(!log.contains("database is not ready"), "{log}");
+}
+
+/// A development build reports the malformed line. A release build never opens the file and misses the settings in it instead.
+#[test]
+fn settings_file_in_the_working_directory() {
+    let directory = WorkingDirectory::new();
+    std::fs::write(
+        directory.path.join(".env"),
+        "ADNT_DATABASE_URL=postgres://adunata@127.0.0.1:1/adunata\n",
+    )
+    .expect("settings file must be writable");
+    std::fs::write(
+        directory.path.join(".env.local"),
+        "ADNT_SMTP_HOST=localhost\nexport ADNT_SMTP_PORT=1025\n",
+    )
+    .expect("settings file must be writable");
+    let (code, output, error) = run_in(&directory.path, &["serve"], &[]);
+    let log = format!("{output}{error}");
+
+    assert_eq!(code, Some(1));
+    if cfg!(debug_assertions) {
+        assert!(log.contains("line 2 of"), "{log}");
+        assert!(log.contains(".env.local"), "{log}");
+        assert!(!log.contains("ADNT_DATABASE_URL"), "{log}");
+    } else {
+        assert!(!log.contains(".env"), "{log}");
+        assert!(
+            log.contains("ADNT_DATABASE_URL is required but not set"),
+            "{log}"
+        );
+    }
 }
 
 #[test]

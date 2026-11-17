@@ -82,6 +82,8 @@ pub mod testing {
     use sqlx::postgres::PgConnectOptions;
     use sqlx::{AssertSqlSafe, Connection, PgConnection, PgPool};
 
+    use crate::configuration::test_setting;
+
     static NEXT: AtomicU32 = AtomicU32::new(0);
 
     /// A database that exists for one test. Dropping it drops the database on the server.
@@ -137,9 +139,12 @@ pub mod testing {
         Ok(())
     }
 
-    /// Creates an empty database without any schema. The server comes from the libpq environment variables.
+    /// Creates an empty database without any schema on the server of `ADNT_DATABASE_URL`.
     pub async fn empty_database() -> TestDatabase {
-        let server = PgConnectOptions::new();
+        let server: PgConnectOptions = test_setting("ADNT_DATABASE_URL")
+            .expect("ADNT_DATABASE_URL must name the test database server")
+            .parse()
+            .expect("ADNT_DATABASE_URL must be a PostgreSQL URL");
         let name = format!(
             "adunata_test_{}_{}",
             std::process::id(),
@@ -147,7 +152,7 @@ pub mod testing {
         );
         let mut admin = PgConnection::connect_with(&server)
             .await
-            .expect("test database server must be reachable through PGHOST, PGPORT and PGUSER");
+            .expect("test database server must be reachable through ADNT_DATABASE_URL");
         sqlx::raw_sql(AssertSqlSafe(format!(r#"CREATE DATABASE "{name}""#)))
             .execute(&mut admin)
             .await

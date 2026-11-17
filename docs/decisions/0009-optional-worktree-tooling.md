@@ -14,7 +14,7 @@ We will load the development shell through direnv and a tracked `.envrc` that so
 
 ## Status
 
-Accepted
+Deprecated by the setup in [Parallel worktrees](../../README.md#parallel-worktrees), where each worktree runs its own services and no worktree shares a database server.
 
 ## Consequences
 

@@ -4,6 +4,8 @@
 
 An instance takes its configuration from environment variables and from an optional configuration file in TOML, which the operator names with `--config` or `ADNT_CONFIG_FILE`. The file groups the settings in fixed tables by concern, and each variable derives from table and key. A setting in the environment wins over the same setting in the file. Each secret comes either as a plain value or from a file that a setting names. The file form fits secret handling in NixOS, Docker and systemd alike. One source must not set both forms of a secret.
 
+A development build also reads the files `.env.local` and `.env` in its working directory, so `cargo run` and `cargo test` in `server/` need no setting in the shell. Each file is a source below the configuration file, and `.env.local` wins over `.env`. A release build never reads either file. The repository tracks `server/.env` with the settings for local development.
+
 The module `configuration` reads all settings at start-up and checks them together. It collects every problem before Adunata touches the database or opens a port, so an operator fixes all mistakes in one round. Each message names the setting and never a secret value. A message about the configuration file names the file and the key but never a value or the content of a line. Other modules receive typed settings, such as the public base URL, and never read the environment or the file themselves.
 
 The settings and their defaults are listed in the [configuration reference](../operating/configuration.md).

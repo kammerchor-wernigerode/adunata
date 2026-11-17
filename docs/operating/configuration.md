@@ -4,6 +4,8 @@ Adunata reads its configuration from environment variables and, if the operator 
 
 An empty variable counts as not set.
 
+A release build never reads a file such as `.env`. Only a development build reads `.env.local` and `.env` in its working directory, below the configuration file.
+
 ## Settings
 
 Each setting has a key in a table of the [configuration file](#configuration-file). Its variable is `ADNT_`, the table, `_` and the key, in upper case with each `-` replaced by `_`.

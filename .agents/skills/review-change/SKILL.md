@@ -70,6 +70,7 @@ Look for:
 - security, such as authentication, sessions, cross-site requests, secrets in links and logs, rate limits, enumeration and injection
 - compliance, above all the GDPR, meaning data minimisation, retention, deletion and the duty to inform
 - how the change works for operators and for developers, including local development and parallel worktrees
+- decision records or arc42 updates for decisions that are not architecturally significant as the agent instructions define it, and structure, tasks or records copied from an archived change without fitting this one
 
 You may overrule decisions the change has already made. If you do, say which decision, why it is wrong and what should replace it.
 
