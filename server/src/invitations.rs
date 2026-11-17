@@ -557,11 +557,11 @@ pub mod testing {
     /// Stores a gathering whose days lie the given number of days from today and returns the id.
     pub async fn gathering(pool: &PgPool, title: &str, first: i32, last: i32) -> i64 {
         sqlx::query_scalar(
-            "INSERT INTO gatherings (title, location, first_day, last_day) VALUES ($1, 'Kloster Drübeck', CURRENT_DATE + $2, CURRENT_DATE + $3) RETURNING id",
+            "INSERT INTO gatherings (title, location, first_day, last_day) VALUES ($1, 'Kloster Drübeck', $2, $3) RETURNING id",
         )
         .bind(title)
-        .bind(first)
-        .bind(last)
+        .bind(crate::api::testing::day(first))
+        .bind(crate::api::testing::day(last))
         .fetch_one(pool)
         .await
         .unwrap()
@@ -927,11 +927,13 @@ mod tests {
             let pool = database.pool();
             let (_, cookie) = signed_in_organizer(&pool).await;
             let (weekend, invitation) = one_invitation(&pool, &cookie).await;
-            sqlx::query("UPDATE gatherings SET first_day = CURRENT_DATE - 3, last_day = CURRENT_DATE - 1 WHERE id = $1")
-                    .bind(weekend)
-                    .execute(&pool)
-                    .await
-                    .unwrap();
+            sqlx::query("UPDATE gatherings SET first_day = $2, last_day = $3 WHERE id = $1")
+                .bind(weekend)
+                .bind(api::testing::day(-3))
+                .bind(api::testing::day(-1))
+                .execute(&pool)
+                .await
+                .unwrap();
             let (status, body) = send(
                 api::testing::state(pool.clone()),
                 &cookie,

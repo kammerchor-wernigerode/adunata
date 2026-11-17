@@ -49,6 +49,7 @@ pub fn document() -> Document {
 #[cfg(test)]
 pub mod testing {
     use sqlx::PgPool;
+    use time::{Date, Duration};
 
     use super::AppState;
     use crate::access::SignInLimiter;
@@ -63,9 +64,18 @@ pub mod testing {
             legal_links: LegalLinks::default(),
             trusted_proxies: vec![Network::parse("127.0.0.1/32").expect("loopback is a network")],
             sign_in_limiter: SignInLimiter::default(),
-            time_zone: InstanceTimeZone::parse("Europe/Berlin")
-                .expect("Berlin is a known time zone"),
+            time_zone: time_zone(),
         }
+    }
+
+    /// The time zone of every test instance.
+    pub fn time_zone() -> InstanceTimeZone {
+        InstanceTimeZone::parse("Europe/Berlin").expect("Berlin is a known time zone")
+    }
+
+    /// The day that lies the given number of days from today in the time zone of the test instance.
+    pub fn day(offset: i32) -> Date {
+        time_zone().today() + Duration::days(offset.into())
     }
 }
 

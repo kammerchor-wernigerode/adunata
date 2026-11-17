@@ -633,7 +633,7 @@ mod integration {
     use super::expire;
     use crate::access::testing::signed_in_organizer;
     use crate::api;
-    use crate::configuration::{InstanceTimeZone, Retention, RetentionPeriod};
+    use crate::configuration::{Retention, RetentionPeriod};
     use crate::database::testing::fresh_database;
     use crate::invitations::testing::{gathering, member, send};
 
@@ -642,8 +642,10 @@ mod integration {
         let (_, cookie) = signed_in_organizer(pool).await;
         let clara = member(pool, "Clara", "de").await;
         let weekend = gathering(pool, "Probenwochenende", first, last).await;
-        sqlx::query("UPDATE gatherings SET first_day = CURRENT_DATE + 10, last_day = CURRENT_DATE + 12 WHERE id = $1")
+        sqlx::query("UPDATE gatherings SET first_day = $2, last_day = $3 WHERE id = $1")
             .bind(weekend)
+            .bind(api::testing::day(10))
+            .bind(api::testing::day(12))
             .execute(pool)
             .await
             .unwrap();
@@ -656,10 +658,10 @@ mod integration {
         )
         .await;
         assert_eq!(status, StatusCode::CREATED);
-        sqlx::query("UPDATE gatherings SET first_day = CURRENT_DATE + $2, last_day = CURRENT_DATE + $3 WHERE id = $1")
+        sqlx::query("UPDATE gatherings SET first_day = $2, last_day = $3 WHERE id = $1")
             .bind(weekend)
-            .bind(first)
-            .bind(last)
+            .bind(api::testing::day(first))
+            .bind(api::testing::day(last))
             .execute(pool)
             .await
             .unwrap();
@@ -939,14 +941,12 @@ mod integration {
     }
 
     async fn move_start(pool: &PgPool, first: i32, last: i32) {
-        sqlx::query(
-            "UPDATE gatherings SET first_day = CURRENT_DATE + $1, last_day = CURRENT_DATE + $2",
-        )
-        .bind(first)
-        .bind(last)
-        .execute(pool)
-        .await
-        .unwrap();
+        sqlx::query("UPDATE gatherings SET first_day = $1, last_day = $2")
+            .bind(api::testing::day(first))
+            .bind(api::testing::day(last))
+            .execute(pool)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1236,10 +1236,7 @@ mod integration {
             .fetch_one(&pool)
             .await
             .unwrap();
-        let today = crate::configuration::InstanceTimeZone::parse("Europe/Berlin")
-            .unwrap()
-            .today();
-        let shorter = json!({ "title": "Probenwochenende", "location": "Kloster Drübeck", "firstDay": (today + time::Duration::days(11)).to_string(), "lastDay": (today + time::Duration::days(12)).to_string() });
+        let shorter = json!({ "title": "Probenwochenende", "location": "Kloster Drübeck", "firstDay": api::testing::day(11).to_string(), "lastDay": api::testing::day(12).to_string() });
         let (status, _) = send(
             api::testing::state(pool.clone()),
             &cookie,
@@ -1303,7 +1300,7 @@ mod integration {
     }
 
     fn today() -> Date {
-        InstanceTimeZone::parse("Europe/Berlin").unwrap().today()
+        api::testing::day(0)
     }
 
     #[tokio::test]
