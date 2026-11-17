@@ -5,3 +5,8 @@ CLAUDE.local.md
 .envrc.local.bak
 /.direnv
 __pycache__/
+/.env
+/.env.bak
+.env.local
+.env.local.bak
+!/server/.env

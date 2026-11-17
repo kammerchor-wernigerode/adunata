@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::net::{IpAddr, SocketAddr};
+use std::path::Path;
 
 use axum::http::Uri;
 use lettre::message::Mailbox;
@@ -258,6 +259,13 @@ pub enum Problem {
         key: String,
         expected: &'static str,
     },
+    UnreadableSettingsFile {
+        path: String,
+    },
+    MalformedSettingsLine {
+        path: String,
+        line: usize,
+    },
 }
 
 impl fmt::Display for Problem {
@@ -299,6 +307,15 @@ impl fmt::Display for Problem {
                 formatter,
                 "{key} in the configuration file {file} must be {expected}"
             ),
+            Self::UnreadableSettingsFile { path } => {
+                write!(formatter, "the settings file {path} cannot be read")
+            }
+            Self::MalformedSettingsLine { path, line } => {
+                write!(
+                    formatter,
+                    "line {line} of {path} must have the form KEY=value without quotes or trailing comments"
+                )
+            }
         }
     }
 }
@@ -350,23 +367,142 @@ fn variable_name(table: &str, key: &str) -> String {
 /// Answers the name of a setting with its value, if the source sets it.
 pub type Source<'a> = &'a dyn Fn(&str) -> Option<String>;
 
+/// The settings files `.env.local` and `.env` for development. Each file is a source of its own below the configuration file.
+#[derive(Default)]
+pub struct SettingsFiles {
+    /// The values of each file, the one that wins first.
+    files: Vec<HashMap<String, String>>,
+    problems: Vec<Problem>,
+}
+
+impl SettingsFiles {
+    /// Development builds read the settings files in the working directory. Release builds read none.
+    pub fn of_working_directory() -> Self {
+        let directory = std::env::current_dir().ok();
+        Self::read(directory.as_deref().filter(|_| cfg!(debug_assertions)))
+    }
+
+    /// Reads `.env.local` and `.env` of a directory. A missing file counts as empty, and no directory reads no file.
+    pub fn read(directory: Option<&Path>) -> Self {
+        let mut files = Self::default();
+        let Some(directory) = directory else {
+            return files;
+        };
+        for name in [".env.local", ".env"] {
+            let values = files.read_file(&directory.join(name));
+            files.files.push(values);
+        }
+        files
+    }
+
+    fn read_file(&mut self, path: &Path) -> HashMap<String, String> {
+        let content = match std::fs::read_to_string(path) {
+            Ok(content) => content,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return HashMap::new(),
+            Err(_) => {
+                self.problems.push(Problem::UnreadableSettingsFile {
+                    path: path.display().to_string(),
+                });
+                return HashMap::new();
+            }
+        };
+        match parse_settings(&content) {
+            Ok(values) => values.into_iter().collect(),
+            Err(line) => {
+                self.problems.push(Problem::MalformedSettingsLine {
+                    path: path.display().to_string(),
+                    line,
+                });
+                HashMap::new()
+            }
+        }
+    }
+
+    /// The value of a setting from the given environment, else from the settings files in their order.
+    #[cfg(test)]
+    fn layered(&self, name: &str, environment: Source) -> Option<String> {
+        environment(name).or_else(|| {
+            self.files
+                .iter()
+                .find_map(|values| values.get(name).cloned())
+        })
+    }
+}
+
+/// Parses `KEY=value` lines, skipping blank lines and `#` comments and dropping empty values. Fails with the number of the first malformed line.
+///
+/// Quotes and trailing comments count as malformed, because other dotenv readers strip them while this parser would keep them.
+fn parse_settings(content: &str) -> Result<Vec<(String, String)>, usize> {
+    let mut values = Vec::new();
+    for (index, line) in content.lines().enumerate() {
+        let trimmed = line.trim_start();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = trimmed
+            .split_once('=')
+            .filter(|(key, value)| is_variable_name(key) && is_plain_value(value))
+        else {
+            return Err(index + 1);
+        };
+        if !value.is_empty() {
+            values.push((key.to_owned(), value.to_owned()));
+        }
+    }
+    Ok(values)
+}
+
+fn is_plain_value(value: &str) -> bool {
+    !value.starts_with(['"', '\''])
+        && !value.ends_with(char::is_whitespace)
+        && !value.contains(" #")
+        && !value.contains("\t#")
+}
+
+fn is_variable_name(key: &str) -> bool {
+    let mut characters = key.chars();
+    characters
+        .next()
+        .is_some_and(|first| first == '_' || first.is_ascii_alphabetic())
+        && characters.all(|character| character == '_' || character.is_ascii_alphanumeric())
+}
+
 impl Configuration {
     /// Reads the environment of the process and, if one is named, the configuration file.
     pub fn from_environment_and_file(file: Option<&str>) -> Result<Self, Vec<Problem>> {
         Self::from_sources(
             &|name| std::env::var(name).ok().filter(|value| !value.is_empty()),
             file,
+            SettingsFiles::of_working_directory(),
         )
     }
 
-    /// Reads the given environment and, if one is named, the configuration file. The environment wins.
-    fn from_sources(environment: Source, file: Option<&str>) -> Result<Self, Vec<Problem>> {
-        let Some(file) = file else {
-            return Self::load(&[environment]);
+    /// Reads the given environment, the named configuration file and the settings files for development, in this order of precedence.
+    fn from_sources(
+        environment: Source,
+        file: Option<&str>,
+        development: SettingsFiles,
+    ) -> Result<Self, Vec<Problem>> {
+        let SettingsFiles {
+            files,
+            mut problems,
+        } = development;
+        let settings = match file.map(read_file) {
+            Some(Ok((settings, mut file_problems))) => {
+                problems.append(&mut file_problems);
+                settings
+            }
+            Some(Err(problem)) => return Err(vec![problem]),
+            None => HashMap::new(),
         };
-        let (settings, mut problems) = read_file(file).map_err(|problem| vec![problem])?;
         let from_file = |name: &str| settings.get(name).cloned();
-        match Self::load(&[environment, &from_file]) {
+        let from_files: Vec<_> = files
+            .iter()
+            .map(|values| move |name: &str| values.get(name).cloned())
+            .collect();
+        let mut sources: Vec<Source> = vec![environment, &from_file];
+        sources.extend(from_files.iter().map(|source| source as Source));
+        match Self::load(&sources) {
             Ok(configuration) if problems.is_empty() => Ok(configuration),
             Ok(_) => Err(problems),
             Err(mut others) => {
@@ -1056,11 +1192,147 @@ mod tests {
 
     const REQUIRED_FILE: &str = "[http]\npublic-url = \"https://adunata.example.org\"\nlisten-address = \"no address\"\n[database]\nurl = \"postgres://adunata@localhost/adunata\"\n[smtp]\nhost = \"mail.example.org\"\n[mail]\nsender = \"Adunata <adunata@example.org>\"\n[localization]\ntime-zone = \"Europe/Berlin\"\n";
 
+    /// A temporary directory with settings files that is removed when the test ends.
+    struct SettingsDirectory {
+        path: std::path::PathBuf,
+    }
+
+    impl Drop for SettingsDirectory {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn settings_directory(files: &[(&str, &str)]) -> SettingsDirectory {
+        let path = std::env::temp_dir().join(format!(
+            "adunata-settings-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&path).unwrap();
+        for (name, content) in files {
+            std::fs::write(path.join(name), content).unwrap();
+        }
+        SettingsDirectory { path }
+    }
+
+    #[test]
+    fn settings_parser_takes_plain_lines() {
+        let content = "# comment\n\n  # indented comment\nA=1\nB=x=y\nEMPTY=\n  INDENTED=x\nHASH=a#b\nURL=postgres://a:b@c/d?e=f\r\n";
+        assert_eq!(
+            parse_settings(content),
+            Ok(vec![
+                ("A".to_owned(), "1".to_owned()),
+                ("B".to_owned(), "x=y".to_owned()),
+                ("INDENTED".to_owned(), "x".to_owned()),
+                ("HASH".to_owned(), "a#b".to_owned()),
+                ("URL".to_owned(), "postgres://a:b@c/d?e=f".to_owned()),
+            ])
+        );
+    }
+
+    #[test]
+    fn settings_parser_names_the_malformed_line() {
+        for line in [
+            "export ADNT_SMTP_PORT=1025",
+            "NO_EQUALS",
+            "1KEY=x",
+            "=x",
+            "ADNT_MAIL_SENDER=\"Adunata <adunata@localhost>\"",
+            "ADNT_LOCALIZATION_TIME_ZONE='Europe/Berlin'",
+            "ADNT_SMTP_PORT=1025 # mailpit",
+            "ADNT_SMTP_HOST=localhost\t# mailpit",
+            "ADNT_SMTP_HOST=localhost ",
+        ] {
+            assert_eq!(
+                parse_settings(&format!("A=1\n\n{line}\n")),
+                Err(3),
+                "{line}"
+            );
+        }
+    }
+
+    #[test]
+    fn environment_wins_over_local_file_over_shared_file() {
+        let directory = settings_directory(&[
+            (
+                ".env",
+                "ALL=shared\nFILES=shared\nSHARED=shared\nBLANKED=shared\n",
+            ),
+            (
+                ".env.local",
+                "ALL=local\nFILES=first\nBLANKED=\nFILES=local\n",
+            ),
+        ]);
+        let files = SettingsFiles::read(Some(&directory.path));
+        let environment = |name: &str| (name == "ALL").then(|| "environment".to_owned());
+        let lookup = |name| files.layered(name, &environment);
+        assert_eq!(lookup("ALL").as_deref(), Some("environment"));
+        assert_eq!(lookup("FILES").as_deref(), Some("local"));
+        assert_eq!(lookup("SHARED").as_deref(), Some("shared"));
+        assert_eq!(lookup("BLANKED").as_deref(), Some("shared"));
+        assert_eq!(lookup("UNSET"), None);
+        assert!(files.problems.is_empty());
+    }
+
+    #[test]
+    fn configuration_file_wins_over_settings_files() {
+        let file = secret_file(&REQUIRED_FILE.replace("listen-address = \"no address\"\n", ""));
+        let directory = settings_directory(&[
+            (".env", "ADNT_SMTP_HOST=localhost\nADNT_SMTP_PORT=1025\n"),
+            (".env.local", "ADNT_HTTP_LISTEN_ADDRESS=127.0.0.1:18010\n"),
+        ]);
+        let configuration = Configuration::from_sources(
+            &|_| None,
+            Some(&file),
+            SettingsFiles::read(Some(&directory.path)),
+        )
+        .expect("configuration must be accepted");
+        assert_eq!(configuration.smtp.host, "mail.example.org");
+        assert_eq!(configuration.smtp.port, 1025);
+        assert_eq!(configuration.listen_address.to_string(), "127.0.0.1:18010");
+    }
+
+    #[test]
+    fn missing_settings_files_count_as_empty() {
+        let files = SettingsFiles::read(Some(&settings_directory(&[]).path));
+        assert!(files.files.iter().all(HashMap::is_empty));
+        assert!(files.problems.is_empty());
+    }
+
+    #[test]
+    fn without_a_directory_no_file_is_read() {
+        let files = SettingsFiles::read(None);
+        assert!(files.files.iter().all(HashMap::is_empty));
+        assert!(files.problems.is_empty());
+    }
+
+    #[test]
+    fn malformed_settings_line_names_file_and_line() {
+        let directory = settings_directory(&[(".env.local", "A=1\nexport ADNT_SMTP_PORT=1025\n")]);
+        let files = SettingsFiles::read(Some(&directory.path));
+        let path = directory.path.join(".env.local").display().to_string();
+        assert_eq!(
+            files.problems,
+            vec![Problem::MalformedSettingsLine {
+                path: path.clone(),
+                line: 2
+            }]
+        );
+        assert_eq!(
+            files.problems[0].to_string(),
+            format!(
+                "line 2 of {path} must have the form KEY=value without quotes or trailing comments"
+            )
+        );
+    }
+
     #[test]
     fn start_from_a_configuration_file() {
         let file = secret_file(&REQUIRED_FILE.replace("listen-address = \"no address\"\n", ""));
-        let configuration = Configuration::from_sources(&|_| None, Some(&file))
-            .expect("configuration must be accepted");
+        let configuration =
+            Configuration::from_sources(&|_| None, Some(&file), SettingsFiles::default())
+                .expect("configuration must be accepted");
         assert_eq!(configuration.smtp.host, "mail.example.org");
     }
 
@@ -1070,13 +1342,15 @@ mod tests {
         let configuration = Configuration::from_sources(
             &|name| (name == "ADNT_HTTP_LISTEN_ADDRESS").then(|| "127.0.0.1:9000".to_owned()),
             Some(&file),
+            SettingsFiles::default(),
         )
         .expect("configuration must be accepted");
         assert_eq!(configuration.listen_address.to_string(), "127.0.0.1:9000");
 
-        let problems = Configuration::from_sources(&|_| None, Some(&file))
-            .err()
-            .expect("listen address of the file must be rejected");
+        let problems =
+            Configuration::from_sources(&|_| None, Some(&file), SettingsFiles::default())
+                .err()
+                .expect("listen address of the file must be rejected");
         assert_eq!(
             problems,
             vec![Problem::Malformed {
@@ -1089,9 +1363,10 @@ mod tests {
     #[test]
     fn problems_of_the_file_join_the_others() {
         let file = secret_file("[smpt]\nhost = \"mail.example.org\"\n");
-        let problems = Configuration::from_sources(&|_| None, Some(&file))
-            .err()
-            .expect("configuration must be rejected");
+        let problems =
+            Configuration::from_sources(&|_| None, Some(&file), SettingsFiles::default())
+                .err()
+                .expect("configuration must be rejected");
         assert!(
             matches!(problems[0], Problem::UnknownKey { .. }),
             "{problems:?}"
