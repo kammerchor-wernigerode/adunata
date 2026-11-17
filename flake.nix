@@ -86,11 +86,13 @@
               mailpit --smtp "127.0.0.1:$ADNT_SMTP_PORT" --listen "127.0.0.1:$MAILPIT_UI_PORT" --quiet &
               mailpitPid=$!
               for _ in $(seq 50); do (echo > "/dev/tcp/127.0.0.1/$MAILPIT_UI_PORT") 2>/dev/null && break; sleep 0.1; done
+              stopTestServices() {
+                kill "$mailpitPid"
+                pg_ctl stop --wait --silent
+              }
+              failureHooks+=(stopTestServices)
             '';
-            postCheck = ''
-              kill "$mailpitPid"
-              pg_ctl stop --wait --silent
-            '';
+            postCheck = "stopTestServices";
             preBuild = ''
               mkdir -p ../client
               ln -sfn ${client} ../client/dist
