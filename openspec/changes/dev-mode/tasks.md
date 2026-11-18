@@ -28,7 +28,9 @@
 
 - [x] 5.1 Run `openspec validate dev-mode --strict` and the checks up to integration, `nix build .#checks.<system>.integration` or the commands under Checks before a push in the README, and verify that both pass.
 
-## Workflow follow-up
+## 6. Hand-over
 
-- Run `openspec-verify-change` and `/code-review high` on the branch before the first push.
-- Archive the change on `main` after the pull request is merged.
+- [ ] 6.1 Run `openspec-verify-change` for `dev-mode` and resolve every critical issue and warning it reports. Verify that a second run reports none.
+- [ ] 6.2 Review the whole branch against `main` with the review command of the agent and fix every confirmed finding. Verify that the fixes keep `cargo test` and `openspec validate dev-mode --strict` green.
+- [ ] 6.3 Run the checks up to integration on the current base, `nix build .#checks.<system>.integration` or the commands under Checks before a push in the README. Verify that they pass.
+- [ ] 6.4 Push the branch and open the pull request ready for review. Verify that the pull request is not a draft and that its job `verify` starts.
