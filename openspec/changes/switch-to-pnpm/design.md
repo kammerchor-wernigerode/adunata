@@ -103,16 +103,17 @@ Each Dependabot pull request that changes `client/pnpm-lock.yaml` changes the ha
 
 - It runs on `pull_request` for changes to `client/pnpm-lock.yaml` and only when `github.event.pull_request.user.login` is `dependabot[bot]` and the head repository is this one.
 - A first job with `permissions: contents: read` builds the fetch through the attribute `pnpmDeps` of an existing client check, such as `.#checks.x86_64-linux.clientLint.pnpmDeps`. On a mismatch it takes the hash after `got:` from the output. It accepts the value only if it matches `^sha256-[A-Za-z0-9+/]{43}=$`, and hands it on as a job output. Any other failure fails the run. If the hash equals the file, the workflow ends.
-- A second job gets `contents: write` for `GITHUB_TOKEN`. It checks out the head commit that the first job built, runs nothing from the pull request, writes the hash to `client/pnpm-deps.hash`, commits it with `[dependabot skip]` in the message and pushes. If Dependabot moved the branch in between, the push is no fast-forward and fails, and the run for the new head writes the hash instead. A push with `GITHUB_TOKEN` starts no new run, so a third job with only `actions: write` then runs `gh workflow run ci.yaml --ref <branch>`. A failed dispatch can be rerun on its own without repeating the push. A dispatch is the documented exception to that rule. The dispatched run is no `pull_request` event, so `e2e` and `nixos` run as well.
+- A second job keeps `GITHUB_TOKEN` read-only. It checks out the head commit that the first job built and runs nothing from the pull request. Only then `actions/create-github-app-token` creates a token of the GitHub App `adunata-client-dependencies`, limited to this repository and `contents: write`. The job writes the hash to `client/pnpm-deps.hash`, commits it with `[dependabot skip]` in the message and pushes with that token. If Dependabot moved the branch in between, the push is no fast-forward and fails, and the run for the new head writes the hash instead. A push with the token of an App starts `CI` as a `pull_request` event, so its `Verify` satisfies the ruleset of `main`. The new run of this workflow finds the hash current and ends.
 - `[dependabot skip]` lets Dependabot keep rebasing the branch and force-push over the hash commit. The force-push triggers the workflow again, which restores the hash. Without the marker Dependabot stops rebasing once someone else has pushed.
 
-Before the pull request opens, the implementation pushes the branch of this change, dispatches `CI` for it and records whether `Verify` of the dispatched run reports as a check run on the head commit, which is what the ruleset of `main` requires. A push without a pull request starts no run of `CI`, so the first push for review still carries the reviewed state. If it does not, a GitHub App token replaces `GITHUB_TOKEN` in the second job, with its ID and key as Dependabot secrets.
+The client ID and the private key of the App are the Dependabot secrets `CLIENT_DEPENDENCIES_APP_CLIENT_ID` and `CLIENT_DEPENDENCIES_APP_PRIVATE_KEY`. A run that Dependabot triggers sees only Dependabot secrets. Secrets of GitHub Actions, and with them secrets of an environment, stay out of its reach. A maintainer creates the App with the repository permission Contents read and write, installs it on this repository only and stores both secrets.
 
 zizmor in the target `lint` audits the workflow. A contributor who changes dependencies by hand updates the file from the error of the build. Without Nix, CI shows that error in the job `verify`.
 
 Alternatives:
 
-- A GitHub App token. Its push starts `CI` directly, but it adds a long-lived private key with write access, a setup outside the repository and a secret to rotate. It stays the fallback.
+- `GITHUB_TOKEN` with `contents: write` and a dispatch of `CI` afterwards. A push with that token starts no run, and the ruleset counts no `Verify` from a run of `workflow_dispatch`, so the pull request would stay blocked.
+- A commit status `Verify` that the dispatched run writes with `GITHUB_TOKEN`. Any job with `statuses: write` could then satisfy the ruleset.
 - A maintainer pushes the hash by hand, as for pins after an update of `flake.lock`. That adds a manual step to every client pull request from Dependabot.
 - `pull_request_target` would give the run write access while it checks out code of the pull request.
 
@@ -193,9 +194,8 @@ No decision is architecturally significant, so the change drafts no decision rec
 
 ## Risks / Trade-offs
 
-- [A Dependabot pull request runs `CI` once with the stale hash and fails before the workflow pushes] → The dispatched run checks the corrected state. Whether the failed run stays visible on the pull request shows on the first Dependabot pull request.
-- [The dispatched `Verify` may not satisfy the ruleset of `main`] → The probe on the pull request of this change shows it before the merge. The fallback is a GitHub App token in the second job.
-- [The second job holds a token with write access] → It runs nothing from the pull request and writes only a value that matched the pattern of an SRI hash.
+- [A Dependabot pull request runs `CI` once with the stale hash and fails before the workflow pushes] → The push of the App starts a new run on the corrected head, and the ruleset looks only at the head commit.
+- [The private key of the App can write to the contents of the repository] → Only runs that Dependabot triggers see it. The token exists only in the second job, after the checkout, and is limited to this repository and `contents: write`. The job runs nothing from the pull request and writes only a value that matched the pattern of an SRI hash.
 - [Dependabot may lock a release younger than `minimumReleaseAge`] → The fetch in CI fails. A version update waits and gets recreated, a security fix gets an exclude entry.
 - [The switch to pnpm 12 would stop Dependabot alerts, as GitHub documents for its lock file] → The check `pnpmVersion` makes an update of nixpkgs to pnpm 12 a visible step. The move to pnpm 12 needs a change of its own.
 - [A tool resolves the real path of a package in the global store and treats it as outside the project] → Build, tests and the Vite development server passed the probe. A tool that fails gets fixed in its configuration, or the setting goes away and pnpm falls back to its per-checkout layout.

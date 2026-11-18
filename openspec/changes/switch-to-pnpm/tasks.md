@@ -16,7 +16,7 @@ Tasks 2.1 to 2.5 land as one commit, because the flake cannot evaluate between t
 
 ## 3. Hash of the client dependencies on Dependabot pull requests
 
-- [x] 3.1 Add `.github/workflows/client-dependencies.yaml` as design.md describes, with a read-only job that builds and validates the hash, a writing job that pushes with `[dependabot skip]` and dispatches `CI`, and every action pinned to a SHA. Verify with `nix build .#checks.<system>.workflows`
+- [x] 3.1 Add `.github/workflows/client-dependencies.yaml` as design.md describes, with a read-only job that builds and validates the hash, a writing job that pushes with `[dependabot skip]`, and every action pinned to a SHA. Verify with `nix build .#checks.<system>.workflows`
 - [x] 3.2 Verify the step that extracts the hash locally. Change one locked version while the previous fetch is still in the store and keep the old hash, then check that the build fetches again, fails with the new hash and that the step writes that hash, which a later build accepts. Check that a value outside the SRI pattern is rejected
 - [x] 3.3 Push the branch of this change without opening a pull request, run `gh workflow run ci.yaml --ref <branch>` and record with `gh api repos/{owner}/{repo}/commits/<sha>/check-runs` whether `Verify` of the dispatched run reports on the head commit, which the ruleset of `main` requires. If it does not, switch the writing job to a GitHub App token as design.md describes before the hand-over
 
@@ -45,4 +45,5 @@ Tasks 2.1 to 2.5 land as one commit, because the flake cannot evaluate between t
 ## Workflow follow-up
 
 - From 2026-11-20 13:00 UTC on, remove the four entries of `minimumReleaseAgeExclude` in `client/pnpm-workspace.yaml` and update `client/pnpm-deps.hash`.
+- Before the first Dependabot pull request for the client, a maintainer creates the GitHub App `adunata-client-dependencies` with Contents read and write, installs it on this repository and stores `CLIENT_DEPENDENCIES_APP_CLIENT_ID` and `CLIENT_DEPENDENCIES_APP_PRIVATE_KEY` as Dependabot secrets.
 - After the merge, the first Dependabot pull request for the client shows whether the workflow pushes the hash and whether Dependabot respects `minimumReleaseAge` for transitive releases. The README then states the last point.

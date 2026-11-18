@@ -47,34 +47,27 @@ jobs:
     if: needs.hash.outputs.hash != ''
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: token
+        with:
+          client-id: ${{ secrets.CLIENT_DEPENDENCIES_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CLIENT_DEPENDENCIES_APP_PRIVATE_KEY }}
+          permission-contents: write
       - name: Commit and push
         env:
           HASH: ${{ needs.hash.outputs.hash }}
           BRANCH: ${{ github.head_ref }}
-          GH_TOKEN: ${{ github.token }}
+          TOKEN: ${{ steps.token.outputs.token }}
         run: |
           [[ "$HASH" =~ ^sha256-[A-Za-z0-9+/]{43}=$ ]]
           printf '%s\n' "$HASH" > client/pnpm-deps.hash
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "adunata-client-dependencies[bot]"
+          git config user.email "adunata-client-dependencies[bot]@users.noreply.github.com"
           git commit --quiet --message "Update hash of client dependencies" --message "[dependabot skip]" client/pnpm-deps.hash
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
-
-  dispatch:
-    name: Dispatch of CI
-    needs: update
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-    steps:
-      - name: CI for the new hash
-        env:
-          BRANCH: ${{ github.head_ref }}
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run ci.yaml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
+          git push "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"

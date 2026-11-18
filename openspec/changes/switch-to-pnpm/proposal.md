@@ -10,7 +10,7 @@ The client was set up with npm and Node.js 24 during the spike. npm checks its m
 - pnpm checks every locked release against the minimum release age when it fetches or installs dependencies. A release younger than seven days fails instead of passing silently.
 - Node.js 26 replaces Node.js 24 in the flake, the development shell, CI and the README. `@types/node` moves to 26.
 - The flake builds the client with `fetchPnpmDeps` and `pnpmConfigHook` from nixpkgs. The hash of the fetched dependencies lives in a file of its own.
-- A new workflow updates that hash on pull requests from Dependabot, pushes it with `GITHUB_TOKEN` and dispatches `CI` for the branch, so CI checks the corrected state without a stored secret.
+- A new workflow updates that hash on pull requests from Dependabot, and pushes it with the token of a GitHub App, so CI runs as a pull request event on the corrected state.
 - The license check reads `pnpm licenses list --json` instead of the lock file. The advisory workflow reads `pnpm audit --json`. Exceptions keep their reason and expiry date.
 - A lint check compares the pinned pnpm version with nixpkgs, as the existing checks do for Rust and `editorconfig-checker`.
 - The main checkout and every worktree share one global virtual store of pnpm. `node_modules` of a checkout holds only symlinks, so a new worktree installs in seconds and costs almost no disk space.
