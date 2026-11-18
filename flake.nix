@@ -211,9 +211,103 @@
                 touch $out
               '';
 
+          # Every package from nixpkgs in the runtime closure of the image. The check imageClosure keeps the list exact.
+          imagePackages = [
+            {
+              name = "glibc";
+              package = pkgs.glibc;
+            }
+            {
+              name = "gcc";
+              package = pkgs.stdenv.cc.cc;
+              exceptions = [ "GCC-exception-3.1" ];
+            }
+            {
+              name = "xgcc";
+              package = pkgs.stdenv.cc.cc;
+              exceptions = [ "GCC-exception-3.1" ];
+            }
+            {
+              name = "libidn2";
+              package = pkgs.libidn2;
+              # pkgs.libidn2 wraps the package that glibc links and exposes no source of its own.
+              source = {
+                url = "https://ftp.gnu.org/gnu/libidn/libidn2-2.3.8.tar.gz";
+                outputHash = "sha256-9VeRG/YXFiHh9y/zX1sYJbs1tS7UUyXc3ukx5dPAeHo=";
+              };
+            }
+            {
+              name = "libunistring";
+              package = pkgs.libunistring;
+            }
+            {
+              name = "nss-cacert";
+              package = pkgs.cacert;
+            }
+          ];
+
+          versionOf = entry: (builtins.parseDrvName entry.package.name).version;
+          licenseIdsOf = entry: map (license: license.spdxId) (pkgs.lib.toList entry.package.meta.license);
+
+          imagePackageNotice =
+            entry:
+            let
+              source = entry.source or entry.package.src;
+              url = source.url or (builtins.head source.urls);
+              texts = licenseIdsOf entry ++ entry.exceptions or [ ];
+            in
+            ''
+              mkdir -p "$dir/${entry.name}"
+              ${pkgs.lib.concatMapStrings (id: ''
+                cp ${pkgs.spdx-license-list-data.text}/text/${id}.txt "$dir/${entry.name}/"
+              '') texts}
+              cat > "$dir/${entry.name}/SOURCE" <<'EOF'
+              Package: ${entry.name} ${versionOf entry}
+              Licenses: ${pkgs.lib.concatStringsSep ", " texts}
+              Built by nixpkgs revision ${nixpkgs.rev} from the source
+              ${url}
+              with the hash ${source.outputHash}.
+              The revision of nixpkgs names every patch applied to that source.
+              EOF
+            '';
+
+          imageNotices = pkgs.runCommand "adunata-image-notices" { } ''
+            dir=$out/share/licenses
+            mkdir -p "$dir"
+            cp ${clientWithNotices}/licenses.txt ${clientWithNotices}/licenses-rust.html "$dir/"
+            ${pkgs.lib.concatMapStrings imagePackageNotice imagePackages}
+          '';
+
+          imageRoots = [
+            server
+            pkgs.cacert
+          ];
+
+          imageClosure =
+            pkgs.runCommand "check-image-closure"
+              {
+                closure = pkgs.closureInfo { rootPaths = imageRoots; };
+                expected = pkgs.lib.concatMapStrings (entry: "${entry.name}-${versionOf entry}\n") imagePackages;
+              }
+              ''
+                sed --regexp-extended 's|^/nix/store/[a-z0-9]+-||; s/^(.*-[0-9][^-]*)-[a-z]+$/\1/' $closure/store-paths \
+                  | grep --invert-match '^adunata-' | sort --unique > actual
+                printf '%s' "$expected" | sort --unique > expected
+                if ! diff expected actual; then
+                  echo "The packages from nixpkgs in the image differ from imagePackages in flake.nix. Lines with > are in the image without an entry, lines with < are entries that the image no longer contains."
+                  exit 1
+                fi
+                touch $out
+              '';
+
           image = pkgs.dockerTools.buildLayeredImage {
             name = "adunata";
             tag = "latest";
+            extraCommands = ''
+              mkdir share
+              cp --recursive ${imageNotices}/share/licenses share/licenses
+              chmod --recursive u+w share/licenses
+            '';
             config = {
               Cmd = [
                 "adunata"
@@ -236,6 +330,7 @@
             release
             releaseLinkage
             image
+            imageClosure
             ;
 
           clippy = craneLib.cargoClippy (
@@ -450,7 +545,9 @@
           buildChecks = {
             inherit (built) server;
           }
-          // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux { inherit (built) releaseLinkage; };
+          // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+            inherit (built) releaseLinkage imageClosure;
+          };
           testChecks = { inherit (built) serverUnitTests clientUnitTests; };
           integrationChecks = { inherit (built) serverIntegrationTests clientIntegrationTests contract; };
 

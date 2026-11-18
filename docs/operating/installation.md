@@ -98,9 +98,17 @@ volumes:
 
 The reverse proxy on the host reaches Adunata through the published port. Docker forwards these connections from the gateway of the network `adunata`, so `ADNT_HTTP_TRUSTED_PROXIES` names that gateway. A proxy that runs as a container in the same network needs its own address there instead.
 
+The image carries the license notices in `/share/licenses`. Next to the notices of the binary it holds, for each system package in the image such as glibc and the CA bundle, the license texts and the source the package was built from. The image has no shell, so copy the directory out of it:
+
+```sh
+docker create --name adunata-licenses ghcr.io/kammerchor-wernigerode/adunata:latest
+docker cp adunata-licenses:/share/licenses ./licenses
+docker rm adunata-licenses
+```
+
 ## Release binary
 
-Each release publishes `adunata-x86_64-linux.tar.gz`. It holds a binary for Linux distributions with systemd, glibc 2.34 or newer and libgcc_s, an example unit and an example environment file. On a distribution based on musl, such as Alpine, use the container instead.
+Each release publishes `adunata-x86_64-linux.tar.gz`. It holds a binary for Linux distributions with systemd, glibc 2.34 or newer and libgcc_s, an example unit, an example environment file and the license notices `licenses.txt` and `licenses-rust.html`. On a distribution based on musl, such as Alpine, use the container instead.
 
 ```sh
 tar --extract --gzip --file adunata-x86_64-linux.tar.gz
@@ -143,3 +151,7 @@ Install the newer release the same way and restart the service. Adunata applies 
 ## Health
 
 `GET /api/health` answers with status 200 and `{"status":"ready"}` once Adunata can serve requests. It answers with status 503 and the unavailable dependency otherwise.
+
+## License notices
+
+Every installation serves the license texts and copyright notices of the third-party code in Adunata without authentication. `/licenses.txt` covers the crates of the server and the packages and copied code of the client, and `/licenses-rust.html` covers the Rust standard library. The release archive and the image carry the same files. The image also carries the notices of its system packages, see [Container](#container).
