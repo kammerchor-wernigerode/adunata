@@ -17,3 +17,4 @@
 |0013|[Mail loses its content once its delivery ends](../decisions/0013-mail-loses-its-content-once-its-delivery-ends.md)|Accepted|
 |0014|[Optional configuration file in TOML](../decisions/0014-optional-configuration-file-in-toml.md)|Accepted|
 |0015|[Release binary linked against glibc](../decisions/0015-release-binary-linked-against-glibc.md)|Accepted|
+|0016|[Trust store of the host for mail server certificates](../decisions/0016-trust-store-of-the-host-for-mail-server-certificates.md)|Accepted|

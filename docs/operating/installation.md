@@ -1,6 +1,6 @@
 # Installation
 
-Adunata runs as one service next to PostgreSQL and a mail server. Put a reverse proxy with HTTPS in front of it, such as Caddy or nginx, and point `ADNT_HTTP_PUBLIC_URL` at the address the proxy serves. The [configuration reference](configuration.md) lists every setting.
+Adunata runs as one service next to PostgreSQL and a mail server. Put a reverse proxy with HTTPS in front of it, such as Caddy or nginx, and point `ADNT_HTTP_PUBLIC_URL` at the address the proxy serves. The [configuration reference](configuration.md) lists every setting. Adunata checks the certificate of the mail server against the trust store of the host, so the host needs one with the authority of the mail server, see [certificate authorities](configuration.md#certificate-authorities).
 
 There are three supported ways to install Adunata. A NixOS test runs each of them in a virtual machine, see [`nix/test.nix`](../../nix/test.nix).
 

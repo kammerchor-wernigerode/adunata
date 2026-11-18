@@ -36,6 +36,21 @@ Each setting has a key in a table of the [configuration file](#configuration-fil
 |`bootstrap`|`organizer-first-name`|`ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME`|with the mail address||First name of the first organizer.|
 |`bootstrap`|`organizer-last-name`|`ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME`|with the mail address||Last name of the first organizer.|
 
+## Certificate authorities
+
+Adunata checks the certificate of the mail server against the trust store of the host, such as `/etc/ssl/certs` on most distributions or `security.pki` on NixOS. To trust a private certificate authority, add it to that store and restart Adunata. The container image has no host store and brings the CA bundle of nixpkgs instead.
+
+Two variables of OpenSSL change where Adunata looks. They are the only settings without the prefix `ADNT_`, have no key in the configuration file and are not checked at start-up.
+
+|Variable|Meaning|
+|-|-|
+|`SSL_CERT_FILE`|Path to a file with certificate authorities in PEM format. The container image sets it to its own bundle.|
+|`SSL_CERT_DIR`|Directories with certificate authorities in PEM format, separated by `:`.|
+
+If either is set, Adunata trusts only the authorities it names and ignores the store of the host and the bundle of the image. A bundle of your own therefore needs the public authorities too if the mail server uses one of them.
+
+If deliveries fail and the log shows `mail delivery failed` with `failure` set to `encryption`, the mail server offered no encryption or Adunata did not trust its certificate. Check that the host has a trust store, that it contains the authority of the mail server and that `SSL_CERT_FILE` and `SSL_CERT_DIR` point to existing files.
+
 ## Configuration file
 
 Name a file in TOML with the option `--config <path>` or the variable `ADNT_CONFIG_FILE`. The option wins over the variable. Without either, or with an empty value, Adunata reads no file. It never looks for a file on its own.
