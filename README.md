@@ -180,6 +180,10 @@ npx shadcn@4.23.0 add <component>
 
 `npx` fetches the tool outside `package-lock.json` and outside the license check. The tool leaves `package.json` free of `shadcn` and adds only the packages the component needs, which `npm run lint:licenses` then checks. Commit the component together with those packages.
 
+### Third-party notices
+
+`npm run build` writes `client/dist/licenses.txt` with the license texts of every package in the client. Most texts come from the bundle. [`client/notices.json`](client/notices.json) adds what the bundle does not show. Each copy of third-party code needs an entry under `copied` with its path, source, version, license and a text under `client/licenses/`, and copies of components go into `client/src/components/ui/`, which already has one. A package that reaches the browser only through the stylesheet goes under `stylesheetPackages`, and a package that ships no license file gets a text under `licenseTexts`. The build fails when a bundled package has no license text or an entry names a path that does not exist.
+
 ### Checks before a push
 
 Run the checks up to `integration` locally before each push. CI runs them in the job `verify` and runs the end-to-end tests and the NixOS VM test once a pull request is ready for review. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target and job.

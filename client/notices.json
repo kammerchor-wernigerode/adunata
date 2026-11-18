@@ -1,0 +1,25 @@
+{
+  "copied": [
+    {
+      "path": "src/shadcn.css",
+      "name": "shadcn",
+      "version": "4.23.0",
+      "source": "https://github.com/shadcn-ui/ui/tree/main/packages/shadcn",
+      "license": "MIT",
+      "text": "licenses/shadcn.txt"
+    },
+    {
+      "path": "src/components/ui",
+      "name": "shadcn",
+      "version": "4.23.0",
+      "source": "https://github.com/shadcn-ui/ui/tree/main/apps/v4/registry",
+      "license": "MIT",
+      "text": "licenses/shadcn.txt"
+    }
+  ],
+  "stylesheetPackages": ["tailwindcss", "tw-animate-css"],
+  "licenseTexts": {
+    "@fluent/bundle": "licenses/fluent-bundle.txt",
+    "react-remove-scroll-bar": "licenses/react-remove-scroll-bar.txt"
+  }
+}
