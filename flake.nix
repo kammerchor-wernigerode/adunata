@@ -280,8 +280,8 @@
                 "GPL-3.0.txt"
                 "GPL-2.0.txt"
               ];
-              # pkgs.libidn2 wraps the package that glibc links and exposes no source of its own.
               source = {
+                version = "2.3.8";
                 url = "https://ftp.gnu.org/gnu/libidn/libidn2-2.3.8.tar.gz";
                 outputHash = "sha256-9VeRG/YXFiHh9y/zX1sYJbs1tS7UUyXc3ukx5dPAeHo=";
               };
@@ -310,6 +310,8 @@
               source = entry.source or entry.package.src;
               url = source.url or (builtins.head source.urls);
             in
+            assert pkgs.lib.assertMsg ((source.version or (versionOf entry)) == versionOf entry)
+              "The source of ${entry.name} in imagePackages names version ${source.version or ""}, but the image contains ${versionOf entry}. Update url, outputHash and version of the source.";
             ''
               mkdir -p "$dir/${entry.name}"
               ${pkgs.lib.concatMapStrings (file: ''

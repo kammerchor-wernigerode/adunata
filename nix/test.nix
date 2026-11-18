@@ -207,7 +207,7 @@ pkgs.testers.runNixOSTest {
 
     with subtest("Image ships the notices of its system packages"):
         licenses = f"{root}/share/licenses"
-        container.succeed(f"test -s {licenses}/licenses.txt", f"test -s {licenses}/glibc/SOURCE", f"test -s {licenses}/glibc/LGPL-2.0-or-later.txt")
+        container.succeed(f"test -s {licenses}/licenses.txt", f"test -s {licenses}/glibc/SOURCE", f"test -s {licenses}/glibc/LGPL-2.1.txt")
 
     with subtest("Image rejects a mail server outside its bundle"):
         request_sign_in(container)
