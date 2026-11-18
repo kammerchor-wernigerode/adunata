@@ -16,32 +16,33 @@ Tasks 2.1 to 2.5 land as one commit, because the flake cannot evaluate between t
 
 ## 3. Hash of the client dependencies on Dependabot pull requests
 
-- [ ] 3.1 Add `.github/workflows/client-dependencies.yaml` as design.md describes, with a read-only job that builds and validates the hash, a writing job that pushes with `[dependabot skip]` and dispatches `CI`, and every action pinned to a SHA. Verify with `nix build .#checks.<system>.workflows`
-- [ ] 3.2 Verify the step that extracts the hash locally. Change one locked version while the previous fetch is still in the store and keep the old hash, then check that the build fetches again, fails with the new hash and that the step writes that hash, which a later build accepts. Check that a value outside the SRI pattern is rejected
-- [ ] 3.3 Push the branch of this change without opening a pull request, run `gh workflow run ci.yaml --ref <branch>` and record with `gh api repos/{owner}/{repo}/commits/<sha>/check-runs` whether `Verify` of the dispatched run reports on the head commit, which the ruleset of `main` requires. If it does not, switch the writing job to a GitHub App token as design.md describes before the hand-over
+- [x] 3.1 Add `.github/workflows/client-dependencies.yaml` as design.md describes, with a read-only job that builds and validates the hash, a writing job that pushes with `[dependabot skip]` and dispatches `CI`, and every action pinned to a SHA. Verify with `nix build .#checks.<system>.workflows`
+- [x] 3.2 Verify the step that extracts the hash locally. Change one locked version while the previous fetch is still in the store and keep the old hash, then check that the build fetches again, fails with the new hash and that the step writes that hash, which a later build accepts. Check that a value outside the SRI pattern is rejected
+- [x] 3.3 Push the branch of this change without opening a pull request, run `gh workflow run ci.yaml --ref <branch>` and record with `gh api repos/{owner}/{repo}/commits/<sha>/check-runs` whether `Verify` of the dispatched run reports on the head commit, which the ruleset of `main` requires. If it does not, switch the writing job to a GitHub App token as design.md describes before the hand-over
 
 ## 4. CI and advisories
 
-- [ ] 4.1 Change the cache keys in `ci.yaml` and `release.yaml` to `client/pnpm-lock.yaml` and `client/pnpm-deps.hash`, and switch the job `e2e` to `pnpm/action-setup`, `cache: pnpm` and pnpm commands, as the decision on caching in design.md describes. Verify with zizmor through `nix build .#checks.<system>.workflows` and with `pnpm run e2e` locally
-- [ ] 4.2 Verify that `pnpm audit --json` runs on a checkout without `node_modules`. Run `pnpm audit --json` of pnpm 11.27.0 in a scratch project with a known vulnerable release and keep its output as test input. Switch `advisories.yaml` to `client/pnpm-lock.yaml` and `nixpkgs#pnpm`, and rewrite `client/scripts/check-advisories.mjs` for that output. Verify the script with the real output, with that output under an expired exception, with an output that holds `error` and with an entry whose severity is unknown
+- [x] 4.1 Change the cache keys in `ci.yaml` and `release.yaml` to `client/pnpm-lock.yaml` and `client/pnpm-deps.hash`, and switch the job `e2e` to `pnpm/action-setup`, `cache: pnpm` and pnpm commands, as the decision on caching in design.md describes. Verify with zizmor through `nix build .#checks.<system>.workflows` and with `pnpm run e2e` locally
+- [x] 4.2 Verify that `pnpm audit --json` runs on a checkout without `node_modules`. Run `pnpm audit --json` of pnpm 11.27.0 in a scratch project with a known vulnerable release and keep its output as test input. Switch `advisories.yaml` to `client/pnpm-lock.yaml` and `nixpkgs#pnpm`, and rewrite `client/scripts/check-advisories.mjs` for that output. Verify the script with the real output, with that output under an expired exception, with an output that holds `error` and with an entry whose severity is unknown
 
 ## 5. Documentation
 
-- [ ] 5.1 Update the README as design.md lists, and verify that `git grep -nwE 'npm|npx|package-lock' README.md` and `git grep -n 'Node\.js 24' README.md` finds only the Dependabot ecosystem `npm`
-- [ ] 5.2 Update the section Testing in `docs/arc42/08-cross-cutting-concepts.md` and the row on scanned lock files in `docs/arc42/11-risks-and-technical-debt.md` with the skill `arc42`, and verify that every relative link resolves
+- [x] 5.1 Update the README as design.md lists, and verify that `git grep -nwE 'npm|npx|package-lock' README.md` and `git grep -n 'Node\.js 24' README.md` finds only the Dependabot ecosystem `npm`
+- [x] 5.2 Update the section Testing in `docs/arc42/08-cross-cutting-concepts.md` and the row on scanned lock files in `docs/arc42/11-risks-and-technical-debt.md` with the skill `arc42`, and verify that every relative link resolves
 
 ## 6. Integration
 
-- [ ] 6.1 Verify that `git grep -nwE 'npm|npx|nodejs_24|package-lock' -- ':!openspec/changes'` and `git grep -n 'Node\.js 24' -- ':!openspec/changes'` finds only intended mentions such as the Dependabot ecosystem `npm`
-- [ ] 6.2 Run the end-to-end tests with `pnpm run e2e` and verify that they pass
+- [x] 6.1 Verify that `git grep -nwE 'npm|npx|nodejs_24|package-lock' -- ':!openspec/changes'` and `git grep -n 'Node\.js 24' -- ':!openspec/changes'` finds only intended mentions such as the Dependabot ecosystem `npm`
+- [x] 6.2 Run the end-to-end tests with `pnpm run e2e` and verify that they pass
 
 ## 7. Hand-over
 
-- [ ] 7.1 Run `openspec-verify-change` for `switch-to-pnpm`, fix what it finds and verify that a second run reports no critical issue
-- [ ] 7.2 Review the whole branch against `origin/main` with the review command of the agent, fix what it finds and verify that no finding is left open
-- [ ] 7.3 Run `nix build .#checks.<system>.integration` and verify that it passes
-- [ ] 7.4 Push the branch and open the pull request ready for review. Its description names that it supersedes #35. Verify that the pull request is not a draft and that the job `verify` starts
+- [x] 7.1 Run `openspec-verify-change` for `switch-to-pnpm`, fix what it finds and verify that a second run reports no critical issue
+- [x] 7.2 Review the whole branch against `origin/main` with the review command of the agent, fix what it finds and verify that no finding is left open
+- [x] 7.3 Run `nix build .#checks.<system>.integration` and verify that it passes
+- [x] 7.4 Push the branch and open the pull request ready for review. Its description names that it supersedes #35. Verify that the pull request is not a draft and that the job `verify` starts
 
 ## Workflow follow-up
 
+- From 2026-11-20 13:00 UTC on, remove the four entries of `minimumReleaseAgeExclude` in `client/pnpm-workspace.yaml` and update `client/pnpm-deps.hash`.
 - After the merge, the first Dependabot pull request for the client shows whether the workflow pushes the hash and whether Dependabot respects `minimumReleaseAge` for transitive releases. The README then states the last point.
