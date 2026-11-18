@@ -111,7 +111,7 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 |`server/`|`cargo test --bins -- --skip integration::`|Unit tests only, without any service|
 |`server/`|`cargo clippy --all-targets -- --deny warnings`|Lints|
 |`server/`|`cargo fmt --check`|Formatting|
-|`server/`|`cargo deny check licenses`|Licenses of the crates against the list in `server/deny.toml`. Needs `cargo-deny`, which `cargo install --locked cargo-deny@0.19.6` installs in the version of nixpkgs|
+|`server/`|`cargo deny check bans licenses sources`|Licenses of the crates against the list in `server/deny.toml`, version requirements without wildcards and crates.io as the only source. Needs `cargo-deny`, which `cargo install --locked cargo-deny@0.19.6` installs in the version of nixpkgs|
 |`client/`|`npm test`|Unit tests|
 |`client/`|`npm run test:integration`|Integration tests|
 |`client/`|`npm run lint`|Lints, failing on warnings|
@@ -201,7 +201,7 @@ npm run lint:licenses
 cd ../server
 cargo fmt --check
 cargo clippy --all-targets -- --deny warnings
-cargo deny check licenses
+cargo deny check bans licenses sources
 cd ../client
 npm run build
 cd ../server

@@ -11,7 +11,7 @@
 
 ## 3. cargo-deny bans and sources
 
-- [ ] 3.1 Extend `server/deny.toml` with `[bans]`, `[sources]` and `[advisories]` as design.md describes. Rename the check `rustLicenses` to `rustDependencies` in `flake.nix` and wherever `git grep rustLicenses` finds it and drop its attribute `cargoDenyChecks`, so crane's default applies. Update the row `lint` in `docs/arc42/08-cross-cutting-concepts.md` with the skill `arc42` and the command without Nix in the README to `cargo deny check bans licenses sources`. Verify that the check passes, that it fails when a dependency of `server/Cargo.toml` points to a git repository or has the version `*`, that `npm run lint:licenses` still reads the list of `[licenses]` and that `nix build .#checks.<system>.integration` passes
+- [x] 3.1 Extend `server/deny.toml` with `[bans]`, `[sources]` and `[advisories]` as design.md describes. Rename the check `rustLicenses` to `rustDependencies` in `flake.nix` and wherever `git grep rustLicenses` finds it and drop its attribute `cargoDenyChecks`, so crane's default applies. Update the row `lint` in `docs/arc42/08-cross-cutting-concepts.md` with the skill `arc42` and the command without Nix in the README to `cargo deny check bans licenses sources`. Verify that the check passes, that it fails when a dependency of `server/Cargo.toml` points to a git repository or has the version `*`, that `npm run lint:licenses` still reads the list of `[licenses]` and that `nix build .#checks.<system>.integration` passes
 
 ## 4. zizmor
 

@@ -212,12 +212,11 @@
 
           rustFormatting = craneLib.cargoFmt { src = serverSource; };
 
-          rustLicenses = craneLib.cargoDeny {
+          rustDependencies = craneLib.cargoDeny {
             src = pkgs.lib.fileset.toSource {
               root = ./server;
               fileset = craneLib.fileset.commonCargoSources ./server;
             };
-            cargoDenyChecks = "licenses";
           };
 
           serverUnitTests =
@@ -298,7 +297,7 @@
             inherit (built)
               clippy
               rustFormatting
-              rustLicenses
+              rustDependencies
               clientLint
               ;
 
