@@ -41,7 +41,6 @@
           rustfmt
           sccache
           skopeo
-          spdx-license-list-data
           zizmor
           ;
       };
@@ -242,20 +241,36 @@
             {
               name = "glibc";
               package = pkgs.glibc;
+              licenseFiles = [
+                "LGPL-2.1.txt"
+                "GPL-2.0.txt"
+                "glibc-LICENSES.txt"
+              ];
             }
             {
               name = "gcc";
               package = pkgs.stdenv.cc.cc;
-              exceptions = [ "GCC-exception-3.1" ];
+              licenseFiles = [
+                "GPL-3.0.txt"
+                "GCC-exception-3.1.txt"
+              ];
             }
             {
               name = "xgcc";
               package = pkgs.stdenv.cc.cc;
-              exceptions = [ "GCC-exception-3.1" ];
+              licenseFiles = [
+                "GPL-3.0.txt"
+                "GCC-exception-3.1.txt"
+              ];
             }
             {
               name = "libidn2";
               package = pkgs.libidn2;
+              licenseFiles = [
+                "LGPL-3.0.txt"
+                "GPL-3.0.txt"
+                "GPL-2.0.txt"
+              ];
               # pkgs.libidn2 wraps the package that glibc links and exposes no source of its own.
               source = {
                 url = "https://ftp.gnu.org/gnu/libidn/libidn2-2.3.8.tar.gz";
@@ -265,10 +280,15 @@
             {
               name = "libunistring";
               package = pkgs.libunistring;
+              licenseFiles = [
+                "LGPL-3.0.txt"
+                "GPL-3.0.txt"
+              ];
             }
             {
               name = "nss-cacert";
               package = pkgs.cacert;
+              licenseFiles = [ "MPL-2.0.txt" ];
             }
           ];
 
@@ -280,16 +300,15 @@
             let
               source = entry.source or entry.package.src;
               url = source.url or (builtins.head source.urls);
-              texts = licenseIdsOf entry ++ entry.exceptions or [ ];
             in
             ''
               mkdir -p "$dir/${entry.name}"
-              ${pkgs.lib.concatMapStrings (id: ''
-                cp ${tools.spdx-license-list-data.text}/text/${id}.txt "$dir/${entry.name}/"
-              '') texts}
+              ${pkgs.lib.concatMapStrings (file: ''
+                cp ${./nix/licenses}/${file} "$dir/${entry.name}/"
+              '') entry.licenseFiles}
               cat > "$dir/${entry.name}/SOURCE" <<'EOF'
               Package: ${entry.name} ${versionOf entry}
-              Licenses: ${pkgs.lib.concatStringsSep ", " texts}
+              Licenses: ${pkgs.lib.concatStringsSep ", " (licenseIdsOf entry)}
               Built by nixpkgs revision ${nixpkgs.rev} from the source
               ${url}
               with the hash ${source.outputHash}.
