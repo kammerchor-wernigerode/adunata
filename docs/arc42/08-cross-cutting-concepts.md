@@ -146,7 +146,7 @@ The workflow `advisories` checks `server/Cargo.lock` with `cargo deny check advi
 
 |Target|Contains|Builds on|
 |-|-|-|
-|`lint`|Formatting of Rust, Nix and every file per `.editorconfig`, Clippy, oxlint, the licenses of crates and npm packages against the approved list in `server/deny.toml`, crates only from crates.io and with a version requirement, zizmor over the GitHub workflows and the Dependabot configuration, whether `server/about.toml` accepts the same licenses for the notices and whether the versions of Rust, `editorconfig-checker`, `cargo-deny` and `cargo-about` pinned for work without Nix match nixpkgs|nothing|
+|`lint`|Formatting of Rust, Nix and every file per `.editorconfig`, Clippy, oxlint, the licenses of crates and npm packages against the approved list in `server/deny.toml`, crates only from crates.io and with a version requirement, zizmor over the GitHub workflows and the Dependabot configuration, whether `server/about.toml` accepts the same licenses for the notices, whether the notices of the Rust standard library come from the version that builds the server and whether the versions of Rust, `editorconfig-checker`, `cargo-deny` and `cargo-about` pinned for work without Nix match nixpkgs|nothing|
 |`build`|The server with the embedded client|`lint`|
 |`test`|Unit tests of server and client|`build`|
 |`integration`|Integration tests of server and client, startup tests of the binary and the contract|`test`|

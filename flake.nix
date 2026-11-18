@@ -81,7 +81,12 @@
             cp -r ${client} $out
             chmod -R u+w $out
             cat ${crateNotices}/licenses.txt >> $out/licenses.txt
+            printf '\nThe binary was built with Rust %s.\n' ${pkgs.rustc.version} >> $out/licenses.txt
+            cp ${rustStandardLibraryNotices} $out/licenses-rust.html
           '';
+
+          # The rustc of nixpkgs builds its copyright file offline and leaves out the crates of the standard library, so the file comes from the prebuilt release of the same version.
+          rustStandardLibraryNotices = "${pkgs.rust.packages.prebuilt.rustc.unwrapped}/share/doc/rust/COPYRIGHT-library.html";
 
           serverSource = pkgs.lib.fileset.toSource {
             root = ./server;
@@ -174,7 +179,7 @@
             cp ${./deploy/systemd/adunata.service} $out/adunata.service
             cp ${./deploy/systemd/adunata.env.example} $out/adunata.env.example
             cp ${./LICENSE} $out/LICENSE
-            cp ${clientWithNotices}/licenses.txt $out/licenses.txt
+            cp ${clientWithNotices}/licenses.txt ${clientWithNotices}/licenses-rust.html $out/
           '';
 
           releaseLinkage =
@@ -395,6 +400,18 @@
               fi
               touch $out
             '';
+
+            rustStandardLibraryNoticesVersion =
+              pkgs.runCommand "check-rust-standard-library-notices-version" { }
+                (
+                  if pkgs.rust.packages.prebuilt.rustc.version == pkgs.rustc.version then
+                    "touch $out"
+                  else
+                    ''
+                      echo "The notices of the Rust standard library come from the prebuilt rustc ${pkgs.rust.packages.prebuilt.rustc.version}, but the server is built with Rust ${pkgs.rustc.version}. Take COPYRIGHT-library.html of the release of Rust ${pkgs.rustc.version} instead."
+                      exit 1
+                    ''
+                );
 
             crateNoticeLicenses =
               let

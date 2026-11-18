@@ -43,7 +43,7 @@ Significant: no. Which tool collects the texts is invisible to operators.
 
 ### `COPYRIGHT-library.html` for the Rust standard library
 
-The notices of the standard library are the file `COPYRIGHT-library.html` from the `rustc` in nixpkgs, served as `licenses-rust.html` next to `licenses.txt`. The Rust project maintains it per release, and it lists the third-party dependencies of the standard library that `Cargo.lock` does not see. `licenses.txt` names the file and the version of Rust. The first crate task confirms in which output of `rustc` the file lies, for example `doc`.
+The notices of the standard library are the file `COPYRIGHT-library.html` of the Rust release, served as `licenses-rust.html` next to `licenses.txt`. The Rust project maintains it per release, and it lists the third-party dependencies of the standard library that `Cargo.lock` does not see. The `rustc` that nixpkgs builds from source generates this file offline and leaves the list of those dependencies empty, so the file comes from the prebuilt release in `rust.packages.prebuilt`, which nixpkgs uses to bootstrap. A check in `lint` fails when the version of that release differs from the `rustc` that builds the server. `licenses.txt` names the file and the version of Rust.
 
 Alternatives: converting the HTML to text keeps one file but adds a converter and about 400 KB. `LICENSE-MIT`, `LICENSE-APACHE` and `COPYRIGHT` alone miss the third-party parts of the standard library.
 
