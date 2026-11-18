@@ -5,8 +5,7 @@
   image,
 }:
 let
-  # A certificate authority of its own, which only the hosts that trust it accept, and a certificate for Mailpit at 127.0.0.1.
-  certificates =
+  testAuthorityAndMailpitCertificate =
     pkgs.runCommand "adunata-test-certificates" { nativeBuildInputs = [ pkgs.openssl ]; }
       ''
         mkdir $out
@@ -19,18 +18,17 @@ let
           -extfile mailpit.ext -out $out/mailpit.crt
       '';
 
-  # Mailpit with implicit TLS on port 1465.
-  mailpit =
+  mailpitWithImplicitTls =
     { pkgs, ... }:
     {
       systemd.services.mailpit = {
         wantedBy = [ "multi-user.target" ];
-        serviceConfig.ExecStart = "${pkgs.mailpit}/bin/mailpit --smtp 127.0.0.1:1465 --listen 127.0.0.1:8025 --smtp-tls-cert ${certificates}/mailpit.crt --smtp-tls-key ${certificates}/mailpit.key --smtp-require-tls";
+        serviceConfig.ExecStart = "${pkgs.mailpit}/bin/mailpit --smtp 127.0.0.1:1465 --listen 127.0.0.1:8025 --smtp-tls-cert ${testAuthorityAndMailpitCertificate}/mailpit.crt --smtp-tls-key ${testAuthorityAndMailpitCertificate}/mailpit.key --smtp-require-tls";
       };
     };
 
   trustsTestAuthority = {
-    security.pki.certificateFiles = [ "${certificates}/authority.crt" ];
+    security.pki.certificateFiles = [ "${testAuthorityAndMailpitCertificate}/authority.crt" ];
   };
 in
 pkgs.testers.runNixOSTest {
@@ -42,7 +40,7 @@ pkgs.testers.runNixOSTest {
       {
         imports = [
           module
-          mailpit
+          mailpitWithImplicitTls
           trustsTestAuthority
         ];
         services.adunata = {
@@ -67,7 +65,7 @@ pkgs.testers.runNixOSTest {
       { pkgs, ... }:
       {
         imports = [
-          mailpit
+          mailpitWithImplicitTls
           trustsTestAuthority
         ];
         environment.ldso = pkgs.stdenv.cc.bintools.dynamicLinker;
@@ -93,7 +91,7 @@ pkgs.testers.runNixOSTest {
     container =
       { pkgs, ... }:
       {
-        imports = [ mailpit ];
+        imports = [ mailpitWithImplicitTls ];
         virtualisation.podman.enable = true;
         virtualisation.memorySize = 2048;
         services.postgresql = {
@@ -202,11 +200,12 @@ pkgs.testers.runNixOSTest {
         container.wait_until_succeeds("podman logs untrusting 2>&1 | grep 'mail delivery failed' | grep --quiet 'encryption'", timeout=60)
         container.succeed("curl --fail --silent http://127.0.0.1:8025/api/v1/messages | grep --quiet '\"total\":0'")
         container.succeed("podman stop untrusting")
+        container.succeed("sudo -u postgres psql -d adunata -c 'UPDATE mail_outbox SET next_attempt_at = now()'")
 
     with subtest("Image trusts the bundle that SSL_CERT_FILE names"):
         container.succeed(
             "podman run --detach --name trusting"
-            " --volume ${certificates}/authority.crt:/authority.crt:ro"
+            " --volume ${testAuthorityAndMailpitCertificate}/authority.crt:/authority.crt:ro"
             " --env SSL_CERT_FILE=/authority.crt"
             + container_settings + " adunata:latest"
         )
