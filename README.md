@@ -217,7 +217,7 @@ npm run test:integration
 npm run check:generated
 ```
 
-CI also checks the formatting of Nix files, the linkage of the release binary and whether the pinned versions of Rust, `editorconfig-checker` and `cargo-deny` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
+CI also checks the formatting of Nix files, the linkage of the release binary, the GitHub workflows with zizmor and whether the pinned versions of Rust, `editorconfig-checker` and `cargo-deny` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
 
 ### Parallel worktrees
 
