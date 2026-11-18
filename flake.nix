@@ -343,11 +343,11 @@
             integration
             ;
         }
-        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux rec {
           nixosVmTest = vmTest pkgs built;
           nixos = pkgs.linkFarm "nixos" {
             inherit integration;
-            vm = vmTest pkgs built;
+            vm = nixosVmTest;
           };
         }
       );
