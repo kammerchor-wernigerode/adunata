@@ -8,9 +8,9 @@
 
 ## 2. Contract check in two halves
 
-- [ ] 2.1 Add a test to the module `integration` of `server/src/api.rs` that reads the file named by `ADUNATA_OPENAPI_DOCUMENT` at run time, with the fallback `../client/openapi.json`, compares the text of the file with `to_pretty_json()` plus a newline and names the command that regenerates the file. Let `serverIntegrationTests` in `flake.nix` set the variable to `client/openapi.json` in the store. Verify that the test passes, fails after a temporary change in `client/openapi.json`, also of whitespace alone, and passes in `nix build .#checks.<system>.integration`.
+- [x] 2.1 Add a test to the module `integration` of `server/src/api.rs` that reads the file named by `ADUNATA_OPENAPI_DOCUMENT` at run time, with the fallback `../client/openapi.json`, compares the text of the file with `to_pretty_json()` plus a newline and names the command that regenerates the file. Let `serverIntegrationTests` in `flake.nix` set the variable to `client/openapi.json` in the store. Verify that the test passes, fails after a temporary change in `client/openapi.json`, also of whitespace alone, and passes in `nix build .#checks.<system>.integration`.
 - [ ] 2.2 Add `client/scripts/check-generated.sh` and the script `check:generated`, which runs it with `sh`. It copies `src/api/generated` to a temporary directory, runs Orval, compares both and restores the copy through a trap on every exit. Let `contract` in `flake.nix` run the script and remove the derivation `openapi`. Verify that `npm run check:generated` passes, fails after a temporary edit in `src/api/generated` with the edit still present afterwards, and that `nix build .#checks.<system>.integration` passes.
-- [ ] 2.3 Update the section on the API contract in `README.md` with both halves and how to fix each failure, and run the documented commands once.
+- [x] 2.3 Update the section on the API contract in `README.md` with both halves and how to fix each failure, and run the documented commands once.
 
 ## 3. End-to-end tests outside the flake
 

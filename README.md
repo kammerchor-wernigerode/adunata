@@ -147,6 +147,15 @@ cd ../client
 npm run generate
 ```
 
+The contract check has two halves:
+
+|Directory|Command|Fails when|Fix|
+|-|-|-|-|
+|`server/`|`cargo test --bins -- api::integration::the_client_holds_the_current_document`|`client/openapi.json` differs from the document of the server, even in whitespace|`cargo run -- openapi > ../client/openapi.json` in `server/`|
+|`client/`|`npm run check:generated`|The code in `src/api/generated` differs from what Orval generates from `openapi.json`|`npm run generate` in `client/`|
+
+`cargo test` runs the first half among the integration tests. `npm run check:generated` regenerates the code in place and restores the code it found afterwards, also when it fails.
+
 ### Checks before a push
 
 CI runs the checks of the flake. Run the checks up to `integration` locally before each push. Replace `x86_64-linux` with your system, such as `aarch64-darwin`. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target.
