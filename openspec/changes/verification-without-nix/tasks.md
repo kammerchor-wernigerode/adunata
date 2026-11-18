@@ -14,7 +14,7 @@
 
 ## 3. End-to-end tests outside the flake
 
-- [ ] 3.1 Spike whether host port `0` in `compose.yaml` gives free ports with Docker Compose and whether `docker compose port` reads them back. Record the result in design.md. Verify by starting the project once with all three port variables set to `0`.
+- [x] 3.1 Spike whether host port `0` in `compose.yaml` gives free ports with Docker Compose and whether `docker compose port` reads them back. Record the result in design.md. Verify by starting the project once with all three port variables set to `0`.
 - [ ] 3.2 In one commit:
   - Add a global setup to `client/playwright.config.ts` that starts the project `adunata-e2e-<hash of the checkout>` from `compose.yaml` after a `down --volumes`, on the ports of 3.1, then starts the server from `ADUNATA_E2E_SERVER` or from a release build of the source with a cleared environment and every setting design.md lists, passes `ADUNATA_E2E_URL` and `ADUNATA_E2E_MAILPIT_URL` to the tests and runs `down --volumes` in its teardown.
   - Stop loading `client/.env.local` in `playwright.config.ts` and remove the fallbacks to ports 8080 and 8025 from the tests.

@@ -71,7 +71,7 @@ We considered Ryuk, the reaper of Testcontainers, to remove the project after a 
 
 The server is the binary in `ADUNATA_E2E_SERVER` if set. Otherwise the setup builds the client and runs `cargo build --release` in `server/`, then starts that binary. A release build reads no settings file either.
 
-A spike at the start of the work confirms that host port `0` works with Docker Compose. If it does not, the setup picks free ports itself before the start.
+A spike at the start of the work confirmed that host port `0` works with Docker Compose 5.7 on Docker 29.9. With all three port variables set to `0`, the engine bound PostgreSQL and both ports of Mailpit to free ports on `127.0.0.1`, and `docker compose port` printed each of them.
 
 Without Nix the run is:
 
