@@ -148,7 +148,7 @@ ADR 0005 also says that CI runs the checks of the flake and nothing else. Its st
 ## Risks / Trade-offs
 
 - [The npm package `editorconfig-checker` downloads its tool from GitHub on the first run, outside the hashes of `package-lock.json`] → `EC_VERSION` pins the release to the one in nixpkgs. The commit that adds the wrapper names the download next to the license. The flake does not use it, so CI does not depend on that download.
-- [nixpkgs updates `editorconfig-checker` and the pinned `EC_VERSION` falls behind] → A difference shows as a failing check in one place, and `EC_VERSION` follows nixpkgs when it does.
+- [nixpkgs updates `editorconfig-checker` and the pinned `EC_VERSION` falls behind] → The check `editorconfigCheckerVersion` in the target `lint` compares `EC_VERSION` with the version in nixpkgs and fails when they differ.
 - [Browsers and images download from the network in CI] → The cache keeps the browsers per version of Playwright. The images are small and come from the registries that `compose.yaml` already uses.
 - [`cargo build --release` in the global setup compiles for minutes on the first run] → The timeout of the global setup allows for it, and later runs reuse the build.
 - [A killed run leaves its server process running] → It holds only a free port and loses its database when the next run removes the project. The README names how to find and end it.

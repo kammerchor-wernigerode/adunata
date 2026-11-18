@@ -373,6 +373,15 @@
               touch $out
             '';
 
+            editorconfigCheckerVersion = pkgs.runCommand "check-editorconfig-checker-version" { } ''
+              pinned=$(sed --quiet 's/.*EC_VERSION=v\([0-9.]*\) .*/\1/p' ${./client/package.json})
+              if [ "$pinned" != "${pkgs.editorconfig-checker.version}" ]; then
+                echo "npm run lint:editorconfig pins editorconfig-checker $pinned, but nixpkgs ships ${pkgs.editorconfig-checker.version}. Set EC_VERSION in client/package.json to the version of nixpkgs."
+                exit 1
+              fi
+              touch $out
+            '';
+
             nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
               find ${self} -name '*.nix' -exec nixfmt --check {} +
               touch $out

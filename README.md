@@ -202,7 +202,7 @@ npm run test:integration
 npm run check:generated
 ```
 
-CI also checks the formatting of Nix files and the linkage of the release binary, which need Nix. The end-to-end tests stay optional before a push.
+CI also checks the formatting of Nix files, the linkage of the release binary and whether the pinned versions of Rust and `editorconfig-checker` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
 
 ### Parallel worktrees
 

@@ -6,7 +6,7 @@ A maintainer without Nix can run only part of the automated verification. The co
 
 ## What Changes
 
-- Every check gets a documented command that runs without Nix, except four that stay with Nix. Where the flake runs the same check, it calls that command instead of a copy of its logic. The NixOS VM test, the linkage check of the release binary and the formatting of Nix files verify Nix artifacts. The memory measurement reads `/proc` and needs Linux.
+- Every check gets a documented command that runs without Nix, except some that stay with Nix. Where the flake runs the same check, it calls that command instead of a copy of its logic. The NixOS VM test, the linkage check of the release binary and the formatting of Nix files verify Nix artifacts. The memory measurement reads `/proc` and needs Linux. Two checks compare the versions that the paths without Nix pin, of Rust and of `editorconfig-checker`, with those of nixpkgs.
 - `npm run lint` fails on warnings by itself, so a local run is as strict as CI.
 - An npm package provides `editorconfig-checker`, and `npm run lint:editorconfig` checks the whole repository. The flake keeps the tool from nixpkgs, and both read the same `.editorconfig`.
 - The contract check splits in two. A server test compares the OpenAPI document of the API with `client/openapi.json`. `npm run check:generated` regenerates the client code and compares it with the code it found, which it restores afterwards.
