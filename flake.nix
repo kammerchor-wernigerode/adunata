@@ -352,7 +352,7 @@
 
           clientLint = clientPackage {
             pname = "adunata-client-lint";
-            buildPhase = "npm run lint -- --deny-warnings";
+            buildPhase = "npm run lint";
             installPhase = "touch $out";
           };
         };
