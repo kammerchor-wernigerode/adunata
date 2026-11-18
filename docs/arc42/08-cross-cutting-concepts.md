@@ -27,6 +27,8 @@ Members never sign in. They reach their invitation through a personal link. Orga
 
 The module `access` owns sign-in, sessions and the first organizer. Other modules protect a route by taking the extractor `Organizer` as an argument. It loads the session from the cookie with its member and answers with status 401 unless the member is active and holds the organizer role. Revoking the role or deactivating a member therefore ends every session at the next request. The client sends a visitor without a session to the sign-in page.
 
+`adunata serve --dev` starts development mode for debug runs, see [ADR 0018](../decisions/0018-development-mode-on-localhost.md). It refuses to start unless the public URL is on `localhost` and the listen address is a loopback address. If the instance has no active organizer, it creates the first organizer from the bootstrap settings or the default member `organizer@example.org`. Before it accepts requests it logs a sign-in link for the oldest active organizer, without mail. While the mode is on, every requested link also goes to the log and the limit of links per address does not apply.
+
 An integration test in [`server/src/api.rs`](../../server/src/api.rs) calls every operation of the OpenAPI document without a session and expects status 401. Only health, catalogs, the legal links, sign-in and sign-out and the routes behind an invitation link are exempt. A new route that forgets the extractor fails this test.
 
 Sign-in requests are limited to three links per hour per address and 20 requests per hour per network address. Behind a trusted proxy the network address is the rightmost entry of `X-Forwarded-For` that is no trusted proxy.
@@ -113,6 +115,8 @@ Logs carry no personal data and no secrets. In particular they never contain:
 - the text of a mail server's reply, which often repeats the recipient
 
 An event instead names what happened and the identifiers an operator needs to look further, such as the id of an outbox entry. Requests are not logged. Personal links never reach a request line anyway, because their secret sits in the fragment of the URL, see personal links below.
+
+Development mode on `localhost` is the one exception. It logs sign-in links on purpose, see [authentication and authorization](#authentication-and-authorization).
 
 ## Mail delivery
 

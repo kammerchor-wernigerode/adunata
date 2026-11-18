@@ -19,3 +19,4 @@
 |0015|[Release binary linked against glibc](../decisions/0015-release-binary-linked-against-glibc.md)|Accepted|
 |0016|[Trust store of the host for mail server certificates](../decisions/0016-trust-store-of-the-host-for-mail-server-certificates.md)|Accepted|
 |0017|[Third-party notices in every artifact](../decisions/0017-third-party-notices-in-every-artifact.md)|Accepted|
+|0018|[Development mode on localhost](../decisions/0018-development-mode-on-localhost.md)|Accepted|

@@ -90,10 +90,26 @@ cd client
 npm ci
 npm run build
 cd ../server
-cargo run -- serve
+cargo run -- serve --dev
 ```
 
-The server listens on <http://localhost:8080> and applies database migrations on start.
+The server listens on <http://localhost:8080> and applies database migrations on start. The option `--dev` starts [development mode](docs/operating/installation.md#development-mode). On a fresh database it creates the organizer `organizer@example.org`, and before it accepts requests it logs a sign-in link for the oldest active organizer. Open that link to sign in. Every link you request on the sign-in page also appears in the log, so you need Mailpit only for other mail.
+
+An agent gets a session without a browser. It starts the server with its log in a file, waits until the server accepts requests, takes the link from the log and sends its secret to the API:
+
+```sh
+log=$(mktemp)
+cargo run -- serve --dev > "$log" &
+server=$!
+until grep -q '"accepting requests"' "$log"; do
+  kill -0 "$server" 2>/dev/null || { cat "$log"; break; }
+  sleep 1
+done
+jar=$(mktemp)
+link=$(jq -r 'select(.fields.message == "sign-in link for development") | .fields.link' "$log" | tail -n 1)
+curl -s -c "$jar" -X POST -H "Authorization: Bearer ${link#*#}" "${link%%/sign-in#*}/api/sessions"
+curl -s -b "$jar" "${link%%/sign-in#*}/api/session"
+```
 
 To work on the client, keep the server running and start the Vite development server in `client/`:
 

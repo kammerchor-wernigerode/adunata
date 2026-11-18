@@ -19,14 +19,14 @@
 
 ## 4. Documentation and decision record
 
-- [ ] 4.1 Write `docs/decisions/0018-development-mode-on-localhost.md` from the draft in design.md and add its row to `docs/arc42/09-architecture-decisions.md`. Verify that every link resolves.
-- [ ] 4.2 Update `docs/arc42/05-building-block-view.md` with the new interfaces of `access`, and `docs/arc42/08-cross-cutting-concepts.md` with a paragraph on development mode under Authentication and authorization and the exception for sign-in links under Logging, both linking to ADR 0018. Verify that the text matches the specs of `development-mode`, `organizer-access` and `service-operation`.
-- [ ] 4.3 Describe `adunata serve --dev`, its `localhost` guard and the link in the log under Commands in `docs/operating/installation.md`. Verify that the links resolve.
-- [ ] 4.4 Change the command under Run Adunata in `README.md` to `cargo run -- serve --dev` and show how an agent gets a session: wait for the line `accepting requests`, take `.fields.link` of the line whose `.fields.message` is `sign-in link for development` with `jq`, and send the part after `#` to `POST /api/sessions` as `Authorization: Bearer <secret>` with `curl` and a cookie jar. Verify by running these commands against a fresh database and getting status 200 from `GET /api/session` with the cookie.
+- [x] 4.1 Write `docs/decisions/0018-development-mode-on-localhost.md` from the draft in design.md and add its row to `docs/arc42/09-architecture-decisions.md`. Verify that every link resolves.
+- [x] 4.2 Update `docs/arc42/05-building-block-view.md` with the new interfaces of `access`, and `docs/arc42/08-cross-cutting-concepts.md` with a paragraph on development mode under Authentication and authorization and the exception for sign-in links under Logging, both linking to ADR 0018. Verify that the text matches the specs of `development-mode`, `organizer-access` and `service-operation`.
+- [x] 4.3 Describe `adunata serve --dev`, its `localhost` guard and the link in the log under Commands in `docs/operating/installation.md`. Verify that the links resolve.
+- [x] 4.4 Change the command under Run Adunata in `README.md` to `cargo run -- serve --dev` and show how an agent gets a session: wait for the line `accepting requests`, take `.fields.link` of the line whose `.fields.message` is `sign-in link for development` with `jq`, and send the part after `#` to `POST /api/sessions` as `Authorization: Bearer <secret>` with `curl` and a cookie jar. Verify by running these commands against a fresh database and getting status 200 from `GET /api/session` with the cookie.
 
 ## 5. Checks
 
-- [ ] 5.1 Run `openspec validate dev-mode --strict` and the checks up to integration, `nix build .#checks.<system>.integration` or the commands under Checks before a push in the README, and verify that both pass.
+- [x] 5.1 Run `openspec validate dev-mode --strict` and the checks up to integration, `nix build .#checks.<system>.integration` or the commands under Checks before a push in the README, and verify that both pass.
 
 ## Workflow follow-up
 

@@ -144,6 +144,10 @@ adunata grant-organizer organizer@example.org Ada Lovelace
 
 The command reads the same settings as the server, so pass it the same `--config` or `ADNT_CONFIG_FILE` if the service uses a [configuration file](configuration.md#configuration-file). It connects to the database and makes the member with that address an active organizer. It creates the member with both names if no member has the address. In a container run it with `docker compose exec adunata adunata grant-organizer …` or the equivalent of your platform. On NixOS and with the release binary run it as the service user with the settings of the service.
 
+### Development mode
+
+`adunata serve --dev` is meant for a debug run on your own machine, not for an instance that others use. It starts only when `ADNT_HTTP_PUBLIC_URL` is on `localhost` and `ADNT_HTTP_LISTEN_ADDRESS` is a loopback address such as the default `127.0.0.1:8080`, and exits with status 1 otherwise. If the instance has no active organizer, it creates the first organizer from the bootstrap settings or, without them, `organizer@example.org` named Ada Lovelace. Before it accepts requests it writes a sign-in link for the oldest active organizer to the log, with the message `sign-in link for development` and the link in the field `link`. While the mode is on, every sign-in link that Adunata sends by mail also goes to the log, and an address can request any number of links. Anyone who can read the log can therefore sign in as an organizer.
+
 ## Updates
 
 Install the newer release the same way and restart the service. Adunata applies pending database migrations on start. It refuses to start against a database that a newer release has already migrated, so going back to an older release needs a database backup from before the update.
