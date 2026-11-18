@@ -186,6 +186,7 @@
               Env = [
                 "ADNT_HTTP_LISTEN_ADDRESS=0.0.0.0:8080"
                 "PATH=${server}/bin"
+                "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
               ];
               ExposedPorts."8080/tcp" = { };
               User = "65534:65534";
