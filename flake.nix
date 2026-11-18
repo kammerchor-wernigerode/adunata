@@ -56,7 +56,7 @@
           serverSource = pkgs.lib.fileset.toSource {
             root = ./server;
             fileset = pkgs.lib.fileset.unions [
-              (craneLib.fileset.commonCargoSources ./server)
+              (pkgs.lib.fileset.difference (craneLib.fileset.commonCargoSources ./server) ./server/deny.toml)
               ./server/migrations
               ./server/locales
             ];
@@ -230,6 +230,14 @@
 
           rustFormatting = craneLib.cargoFmt { src = serverSource; };
 
+          rustLicenses = craneLib.cargoDeny {
+            src = pkgs.lib.fileset.toSource {
+              root = ./server;
+              fileset = craneLib.fileset.commonCargoSources ./server;
+            };
+            cargoDenyChecks = "licenses";
+          };
+
           serverUnitTests =
             serverTests serverArgs "-unit-tests"
               "cargoWithProfile test --locked --bins -- --skip integration::";
@@ -363,7 +371,12 @@
         in
         let
           lintChecks = {
-            inherit (built) clippy rustFormatting clientLint;
+            inherit (built)
+              clippy
+              rustFormatting
+              rustLicenses
+              clientLint
+              ;
 
             rustToolchain = pkgs.runCommand "check-rust-toolchain" { nativeBuildInputs = [ pkgs.rustc ]; } ''
               pinned=$(sed --quiet 's/^channel = "\(.*\)"$/\1/p' ${./server/rust-toolchain.toml})
