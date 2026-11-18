@@ -15,7 +15,7 @@
 
 ## 4. zizmor
 
-- [ ] 4.1 Set `persist-credentials: false` on every `actions/checkout` in `ci.yaml` and `release.yaml`. Change both `nix run nixpkgs#skopeo` in `release.yaml` to `nix run --inputs-from . nixpkgs#skopeo`. Add `# zizmor: ignore[cache-poisoning]` with the reason from design.md to the step `cache-nix-action` in `release.yaml`. Verify that `zizmor --offline .github/workflows` from the nixpkgs of the flake reports no finding
+- [x] 4.1 Set `persist-credentials: false` on every `actions/checkout` in `ci.yaml` and `release.yaml`. Change both `nix run nixpkgs#skopeo` in `release.yaml` to `nix run --inputs-from . nixpkgs#skopeo`. Add `# zizmor: ignore[cache-poisoning]` with the reason from design.md to the step `cache-nix-action` in `release.yaml`. Verify that `zizmor --offline .github/workflows` from the nixpkgs of the flake reports no finding
 - [ ] 4.2 Add the check `workflows` to the target `lint` in `flake.nix`. It runs zizmor from nixpkgs with `--offline` over a source of its own that holds only `.github`. The commit names zizmor, its MIT license and why the project needs it. Name zizmor in the row `lint` of `docs/arc42/08-cross-cutting-concepts.md` with the skill `arc42` and in the README sentence on checks that need Nix. Verify that the check passes, that it fails when a checkout loses `persist-credentials: false`, that an edit of a workflow does not rebuild `server` and that `nix build .#checks.<system>.integration` passes
 
 ## 5. Advisory workflow
