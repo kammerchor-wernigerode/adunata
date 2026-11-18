@@ -396,6 +396,22 @@
               touch $out
             '';
 
+            clientLicenses =
+              let
+                source = pkgs.lib.fileset.toSource {
+                  root = ./.;
+                  fileset = pkgs.lib.fileset.unions [
+                    ./client/scripts/check-licenses.mjs
+                    ./client/package-lock.json
+                    ./server/deny.toml
+                  ];
+                };
+              in
+              pkgs.runCommand "check-client-licenses" { nativeBuildInputs = [ pkgs.nodejs_24 ]; } ''
+                node ${source}/client/scripts/check-licenses.mjs
+                touch $out
+              '';
+
             nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
               find ${self} -name '*.nix' -exec nixfmt --check {} +
               touch $out

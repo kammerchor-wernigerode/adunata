@@ -13,6 +13,7 @@
     "generate": "orval",
     "e2e": "playwright test",
     "lint:editorconfig": "cd .. && EC_VERSION=v3.6.1 editorconfig-checker",
+    "lint:licenses": "node scripts/check-licenses.mjs",
     "check:generated": "sh scripts/check-generated.sh"
   },
   "dependencies": {
