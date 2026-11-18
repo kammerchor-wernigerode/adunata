@@ -6,7 +6,7 @@ The binary, the OCI image and the release archive contain third-party code under
 
 ## Decision
 
-We will build the notices from the license files of every crate compiled into the server, the copyright file of the Rust standard library, every package of the client and every entry of a manifest for what no lock file shows. Every instance serves them at `/licenses.txt` and `/licenses-rust.html`, and the client links them. The release archive carries both files next to `LICENSE`. The OCI image carries them in `/share/licenses` together with the license texts and a reference to the exact source of each package from nixpkgs in the image, and a check fails when a package enters the image without such an entry. We will answer the source obligations of the image with that reference, because the sources are public and fixed by hash.
+We will build the notices from the license files of every crate compiled into the server, the copyright file of the Rust standard library, every package of the client and every entry of a manifest for what no lock file shows. Every instance serves them at `/licenses.txt` and `/licenses-rust.html`. The HTML document of the client links `/licenses.txt` as its license, and that file names `/licenses-rust.html`. The release archive carries both files next to `LICENSE`. The OCI image carries them in `/share/licenses` together with the license texts and a reference to the exact source of each package from nixpkgs in the image, and a check fails when a package enters the image without such an entry. We will answer the source obligations of the image with that reference, because the sources are public and fixed by hash.
 
 ## Status
 
