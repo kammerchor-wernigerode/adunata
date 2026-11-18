@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { useTranslate } from '@/l10n/translate'
 import { DeleteMember } from './DeleteMember'
 import { memberErrorMessage } from './memberErrorMessage'
@@ -103,25 +103,14 @@ export function MemberForm({ member }: { member?: Member }) {
         </Field>
         <Field>
           <FieldLabel htmlFor={`${id}-language`}>{translate('member-language')}</FieldLabel>
-          <Controller
-            control={form.control}
-            name="language"
-            render={({ field: { ref, value, onChange } }) => (
-              <Select value={value} onValueChange={onChange}>
-                <SelectTrigger ref={ref} id={`${id}-language`} className="w-fit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="de" lang="de">
-                    {translate('language-name-de')}
-                  </SelectItem>
-                  <SelectItem value="en" lang="en">
-                    {translate('language-name-en')}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          />
+          <NativeSelect id={`${id}-language`} {...form.register('language')}>
+            <NativeSelectOption value="de" lang="de">
+              {translate('language-name-de')}
+            </NativeSelectOption>
+            <NativeSelectOption value="en" lang="en">
+              {translate('language-name-en')}
+            </NativeSelectOption>
+          </NativeSelect>
         </Field>
         {member && (
           <>

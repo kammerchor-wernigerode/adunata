@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { isLocale, type Locale } from './bundle'
 import { useLocale, useTranslate } from './translate'
 
@@ -13,18 +13,19 @@ export function LanguageSwitcher() {
   return (
     <div className="flex items-center gap-2">
       <Label htmlFor={id}>{translate('language-label')}</Label>
-      <Select value={locale} onValueChange={(value) => isLocale(value) && setLocale(value)}>
-        <SelectTrigger id={id} size="sm" className="bg-background text-foreground">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {Object.entries(languageNames).map(([value, name]) => (
-            <SelectItem key={value} value={value} lang={value}>
-              {name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <NativeSelect
+        id={id}
+        size="sm"
+        value={locale}
+        onChange={(event) => isLocale(event.target.value) && setLocale(event.target.value)}
+        className="rounded-lg bg-background text-foreground"
+      >
+        {Object.entries(languageNames).map(([value, name]) => (
+          <NativeSelectOption key={value} value={value} lang={value}>
+            {name}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
     </div>
   )
 }
