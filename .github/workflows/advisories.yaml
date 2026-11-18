@@ -15,7 +15,7 @@ on:
 
 concurrency:
   group: advisories-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -35,6 +35,4 @@ jobs:
       - name: npm packages
         if: ${{ !cancelled() }}
         working-directory: client
-        run: |
-          nix shell --inputs-from .. nixpkgs#nodejs_24 --command sh -c 'npm audit --json > "$RUNNER_TEMP/audit.json" || true'
-          nix shell --inputs-from .. nixpkgs#nodejs_24 --command node scripts/check-advisories.mjs "$RUNNER_TEMP/audit.json"
+        run: nix shell --inputs-from .. nixpkgs#nodejs_24 --command sh -c 'npm audit --json > "$RUNNER_TEMP/audit.json"; node scripts/check-advisories.mjs "$RUNNER_TEMP/audit.json"'

@@ -28,7 +28,7 @@ jobs:
         with:
           extra_nix_config: system-features = nixos-test benchmark big-parallel kvm
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
-        with: # zizmor: ignore[cache-poisoning] only runs on main save caches that a tag restores
+        with: # zizmor: ignore[cache-poisoning] a tag restores only caches saved on main or for tags, and only tags publish
           primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', 'flake.lock', 'server/Cargo.lock', 'client/package-lock.json') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
           gc-max-store-size-linux: 8G
