@@ -107,6 +107,14 @@ The release workflow keeps `nix flake check` and runs no end-to-end tests of its
 
 Not architecturally significant on its own. It follows from the previous decision.
 
+### Same Rust on both paths
+
+`server/rust-toolchain.toml` pins Rust to the version that nixpkgs ships, today `1.95.0`, with Clippy and rustfmt. rustup reads the file and installs that version by itself, so Clippy finds the same lints with and without Nix. A newer stable Rust brings lints that the flake does not know. The check `rustToolchain` in the target `lint` compares the pinned version with `rustc` of nixpkgs and fails when they differ, so an update of nixpkgs also updates the pin.
+
+Alternatives considered: Rust from an overlay such as fenix in the flake, pinned to the newest stable release, which adds a dependency to the flake. Documentation of the version only, which leaves the drift unnoticed.
+
+Not architecturally significant, because it changes only the tooling of development.
+
 ### Checks before a push without Nix
 
 Before a push, a maintainer without Nix runs the commands of `lint` without the formatting of Nix files, `build`, `test` and `integration`, as the README lists them. CI runs the formatting of Nix files and the linkage check of the release binary. The end-to-end tests stay optional before a push, as they are today with Nix.

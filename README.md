@@ -49,7 +49,7 @@ direnv allow
 
 Install these tools:
 
-- Rust, stable, with `clippy` and `rustfmt`
+- [rustup](https://rustup.rs), which installs the version of Rust that [`server/rust-toolchain.toml`](server/rust-toolchain.toml) pins, with `clippy` and `rustfmt`
 - Node.js 24
 - Docker or Podman with Compose
 

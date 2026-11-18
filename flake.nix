@@ -364,6 +364,15 @@
           lintChecks = {
             inherit (built) clippy rustFormatting clientLint;
 
+            rustToolchain = pkgs.runCommand "check-rust-toolchain" { nativeBuildInputs = [ pkgs.rustc ]; } ''
+              pinned=$(sed --quiet 's/^channel = "\(.*\)"$/\1/p' ${./server/rust-toolchain.toml})
+              if [ "$(rustc --version | cut --delimiter=' ' --fields=2)" != "$pinned" ]; then
+                echo "server/rust-toolchain.toml pins Rust $pinned, but nixpkgs ships $(rustc --version). Set the channel to the version of nixpkgs."
+                exit 1
+              fi
+              touch $out
+            '';
+
             nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
               find ${self} -name '*.nix' -exec nixfmt --check {} +
               touch $out

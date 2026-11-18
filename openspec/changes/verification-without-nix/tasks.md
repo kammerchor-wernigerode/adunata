@@ -40,3 +40,4 @@
 ## 6. Follow-up
 
 - [ ] 6.1 Add the checks `memoryMeasurement` and `nixosVmTest` for Linux to `flake.nix` and let the job `nixos` build them instead of the targets `memory` and `nixos`. Update section 08 of arc42. Verify that `nix flake check --no-build` passes and that `nixos` no longer builds Clippy or the tests in CI.
+- [ ] 6.2 Pin Rust in `server/rust-toolchain.toml` to the version of nixpkgs, add the check `rustToolchain` to the target `lint` and name rustup with the pin in the README. Verify that `cargo clippy` without the Nix development shell runs the pinned version and passes, and that `rustToolchain` fails for another version.
