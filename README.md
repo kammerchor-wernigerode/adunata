@@ -169,11 +169,40 @@ The contract check has two halves:
 
 ### Checks before a push
 
-CI runs the checks of the flake. Run the checks up to `integration` locally before each push. Replace `x86_64-linux` with your system, such as `aarch64-darwin`. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target.
+Run the checks up to `integration` locally before each push. CI runs them in the job `verify` and runs the end-to-end tests, the memory measurement and the NixOS VM test once a pull request is ready for review. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target and job.
+
+With Nix, one command runs them. Replace `x86_64-linux` with your system, such as `aarch64-darwin`:
 
 ```sh
 nix build .#checks.x86_64-linux.integration
 ```
+
+Without Nix, run the same checks in the order of the lifecycle, with the services running:
+
+```sh
+cd client
+npm ci
+npm run lint
+npm run lint:editorconfig
+cd ../server
+cargo fmt --check
+cargo clippy --all-targets -- --deny warnings
+cd ../client
+npm run build
+cd ../server
+cargo build
+cargo test --bins -- --skip integration::
+cd ../client
+npm test
+cd ../server
+cargo test --bins -- integration::
+cargo test --test startup
+cd ../client
+npm run test:integration
+npm run check:generated
+```
+
+CI also checks the formatting of Nix files and the linkage of the release binary, which need Nix. The end-to-end tests stay optional before a push.
 
 ### Parallel worktrees
 
