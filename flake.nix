@@ -52,6 +52,7 @@
           skopeo
           zizmor
           ;
+        rustc-prebuilt = pkgs.rust.packages.prebuilt.rustc;
       };
 
       build =
@@ -115,12 +116,12 @@
             cp -r ${client} $out
             chmod -R u+w $out
             cat ${crateNotices}/licenses.txt >> $out/licenses.txt
-            printf '\nThe binary was built with Rust %s.\n' ${tools.rustc.version} >> $out/licenses.txt
+            printf '\nThe binary was built with Rust %s. licenses-rust.html next to this file holds the copyright notices of its standard library.\n' ${tools.rustc.version} >> $out/licenses.txt
             cp ${rustStandardLibraryNotices} $out/licenses-rust.html
           '';
 
           # The rustc of nixpkgs builds its copyright file offline and leaves out the crates of the standard library, so the file comes from the prebuilt release of the same version.
-          rustStandardLibraryNotices = "${pkgs.rust.packages.prebuilt.rustc.unwrapped}/share/doc/rust/COPYRIGHT-library.html";
+          rustStandardLibraryNotices = "${tools.rustc-prebuilt.unwrapped}/share/doc/rust/COPYRIGHT-library.html";
 
           serverSource = pkgs.lib.fileset.toSource {
             root = ./server;
@@ -562,11 +563,11 @@
             rustStandardLibraryNoticesVersion =
               pkgs.runCommand "check-rust-standard-library-notices-version" { }
                 (
-                  if pkgs.rust.packages.prebuilt.rustc.version == tools.rustc.version then
+                  if tools.rustc-prebuilt.version == tools.rustc.version then
                     "touch $out"
                   else
                     ''
-                      echo "The notices of the Rust standard library come from the prebuilt rustc ${pkgs.rust.packages.prebuilt.rustc.version}, but the server is built with Rust ${tools.rustc.version}. Take COPYRIGHT-library.html of the release of Rust ${tools.rustc.version} instead."
+                      echo "The notices of the Rust standard library come from the prebuilt rustc ${tools.rustc-prebuilt.version}, but the server is built with Rust ${tools.rustc.version}. Take COPYRIGHT-library.html of the release of Rust ${tools.rustc.version} instead."
                       exit 1
                     ''
                 );
