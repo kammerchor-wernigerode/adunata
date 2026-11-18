@@ -133,7 +133,6 @@
                 doInstallCargoArtifacts = false;
               }
             );
-          openapi = pkgs.runCommand "adunata-openapi" { } "${server}/bin/adunata openapi > $out";
 
           system = pkgs.stdenv.hostPlatform.system;
 
@@ -251,18 +250,7 @@
 
           contract = clientPackage {
             pname = "adunata-contract";
-            buildPhase = ''
-              if ! diff -u openapi.json ${openapi}; then
-                echo "client/openapi.json differs from the server. Run: cargo run -- openapi > ../client/openapi.json"
-                exit 1
-              fi
-              cp -r src/api/generated "$TMPDIR/committed"
-              npx orval
-              if ! diff -ru "$TMPDIR/committed" src/api/generated; then
-                echo "Generated client code is out of date. Run: npm run generate"
-                exit 1
-              fi
-            '';
+            buildPhase = "sh scripts/check-generated.sh";
             installPhase = "touch $out";
           };
 

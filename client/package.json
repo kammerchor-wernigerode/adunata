@@ -12,7 +12,8 @@
     "test:integration": "vitest run integration.test",
     "generate": "orval",
     "e2e": "playwright test",
-    "lint:editorconfig": "cd .. && EC_VERSION=v3.6.1 editorconfig-checker"
+    "lint:editorconfig": "cd .. && EC_VERSION=v3.6.1 editorconfig-checker",
+    "check:generated": "sh scripts/check-generated.sh"
   },
   "dependencies": {
     "@fluent/bundle": "^0.19.1",
