@@ -39,7 +39,7 @@ CI runs the checks up to `integration` in the job `verify` on every push to a pu
 ## Code style
 
 - Every file follows `.editorconfig`.
-- Every dependency of server and client, including fonts, icons and tools for build and test, has a license approved by the OSI. Adunata meets the conditions of each license, such as shipping a notice or license text with the artifacts that contain the dependency. The commit that adds a dependency names its license.
+- Every dependency of server and client, including fonts, icons and tools for build and test, has a license approved by the OSI. A package that only tools for build and test use may have another license if [`client/license-exceptions.json`](client/license-exceptions.json) names it with a reason. Adunata meets the conditions of each license, such as shipping a notice or license text with the artifacts that contain the dependency. The commit that adds a dependency names its license.
 
 ### Rust
 

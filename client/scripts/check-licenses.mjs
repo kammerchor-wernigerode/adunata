@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
 const denyFile = new URL("../../server/deny.toml", import.meta.url);
+const exceptionsFile = new URL("../license-exceptions.json", import.meta.url);
 
 function allowedLicenses() {
   const withoutComments = readFileSync(denyFile, "utf8").replace(/#.*$/gm, "");
@@ -63,26 +64,46 @@ function satisfies(expression, allowed) {
   return result;
 }
 
-/** Checks the output of `pnpm licenses list --json`, which groups the installed packages by their license. */
-function problems(report) {
-  const allowed = allowedLicenses();
-  return Object.entries(report).flatMap(([license, packages]) => {
-    const names = packages.map((entry) => `${entry.name} ${entry.versions.join(", ")}`);
-    if (license === "Unknown") return names.map((name) => `${name} declares no license`);
-    try {
-      return satisfies(license, allowed) ? [] : names.map((name) => `${name} has license ${license}, which deny.toml does not allow`);
-    } catch (error) {
-      return names.map((name) => `${name}: ${error.message}`);
-    }
-  });
+/** Packages of a report of `pnpm licenses list --json`, which groups the installed packages by their license. */
+function entries(report) {
+  return Object.entries(report).flatMap(([license, packages]) => packages.map((entry) => ({ license, name: entry.name, versions: entry.versions })));
 }
 
-const reportFile = process.argv[2];
-if (!reportFile) {
-  console.error("usage: check-licenses.mjs <output of pnpm licenses list --json>");
+/** An exception covers a package only where no production dependency needs it, so its license never reaches an artifact. */
+function isExcepted(exceptions, production, { name, license }) {
+  return !production.has(name) && exceptions.some((exception) => exception.name === name && exception.license === license);
+}
+
+function unusedExceptions(exceptions, packages) {
+  return exceptions
+    .filter((exception) => !packages.some(({ name, license }) => name === exception.name && license === exception.license))
+    .map((exception) => `exception for ${exception.name} (${exception.license}) matches no package, remove it from license-exceptions.json`);
+}
+
+function problems(report, productionReport) {
+  const allowed = allowedLicenses();
+  const exceptions = JSON.parse(readFileSync(exceptionsFile, "utf8"));
+  const production = new Set(entries(productionReport).map(({ name }) => name));
+  const packages = entries(report);
+  const denied = packages.flatMap((entry) => {
+    const name = `${entry.name} ${entry.versions.join(", ")}`;
+    if (entry.license === "Unknown") return [`${name} declares no license`];
+    if (isExcepted(exceptions, production, entry)) return [];
+    try {
+      return satisfies(entry.license, allowed) ? [] : [`${name} has license ${entry.license}, which deny.toml does not allow`];
+    } catch (error) {
+      return [`${name}: ${error.message}`];
+    }
+  });
+  return [...denied, ...unusedExceptions(exceptions, packages)];
+}
+
+const [reportFile, productionReportFile] = process.argv.slice(2);
+if (!reportFile || !productionReportFile) {
+  console.error("usage: check-licenses.mjs <output of pnpm licenses list --json> <the same with --prod>");
   process.exit(2);
 }
-const found = problems(JSON.parse(readFileSync(reportFile, "utf8")));
+const found = problems(JSON.parse(readFileSync(reportFile, "utf8")), JSON.parse(readFileSync(productionReportFile, "utf8")));
 if (found.length > 0) {
   console.error(found.join("\n"));
   process.exit(1);

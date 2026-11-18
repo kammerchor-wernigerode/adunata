@@ -138,7 +138,7 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 |`client/`|`pnpm run test:integration`|Integration tests|
 |`client/`|`pnpm run lint`|Lints, failing on warnings|
 |`client/`|`pnpm run lint:editorconfig`|Rules of `.editorconfig` in the whole repository. Downloads `editorconfig-checker` on its first run|
-|`client/`|`pnpm run lint:licenses`|Licenses of the installed packages against the list in `server/deny.toml`|
+|`client/`|`pnpm run lint:licenses`|Licenses of the installed packages against the list in `server/deny.toml` and the exceptions in `client/license-exceptions.json`|
 
 `cargo test` finds PostgreSQL through `ADNT_DATABASE_URL` and Mailpit through `ADNT_SMTP_PORT` and `MAILPIT_UI_PORT`. It creates a separate database for each test and drops it when the test ends, so the user in `ADNT_DATABASE_URL` needs the right to create databases.
 

@@ -30,11 +30,12 @@ function readOrFail(file: string, reason: string): string {
 function installedPackage(name: string): Notice {
   const directory = `node_modules/${name}`
   const manifest = JSON.parse(readOrFail(`${directory}/package.json`, `client/notices.json names ${name}`))
+  const licenseFile = ['LICENSE', 'LICENSE.md'].map((file) => `${directory}/${file}`).find((file) => existsSync(fromClient(file)))
   return {
     name,
     version: manifest.version,
     identifier: manifest.license,
-    text: readOrFail(`${directory}/LICENSE`, `${name} reaches the browser through the stylesheet`),
+    text: readOrFail(licenseFile ?? `${directory}/LICENSE`, `${name} reaches the browser through the stylesheet`),
   }
 }
 

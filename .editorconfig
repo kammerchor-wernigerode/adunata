@@ -11,7 +11,7 @@ trim_trailing_whitespace = true
 [*.md]
 trim_trailing_whitespace = false
 
-[{LICENSE,.agents/skills/openspec-*/**,client/src/api/generated/**,client/src/shadcn.css,client/licenses/**,nix/licenses/**}]
+[{LICENSE,.agents/skills/openspec-*/**,client/src/api/generated/**,client/licenses/**,nix/licenses/**}]
 indent_style = unset
 indent_size = unset
 

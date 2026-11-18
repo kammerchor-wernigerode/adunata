@@ -1,0 +1,7 @@
+[
+  {
+    "name": "caniuse-lite",
+    "license": "CC-BY-4.0",
+    "reason": "Browser data that Babel and browserslist read while the command line tool of shadcn runs. It never reaches an artifact."
+  }
+]
