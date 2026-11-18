@@ -6,8 +6,8 @@
 
 ## 2. npm configuration
 
-- [ ] 2.1 Before you add any file, verify in `client/` that `npm ci --ignore-scripts`, `npm run build`, `npm test` and `npm run e2e` pass and that the Playwright tests start their browsers. Stop and report if one fails
-- [ ] 2.2 Add `client/.npmrc` with `min-release-age=7` and `ignore-scripts=true` and stage it with `git add`, because the fileset of the client takes only tracked files. If the Nix build of the client fails on `min-release-age`, set `npm_config_min_release_age = "0"` in `clientPackage` in `flake.nix`, as design.md describes. Verify that `npm ci` runs no install script, that `npm install some-package@<version>` fails for a version younger than 7 days, that `npm run e2e` passes and that `nix build .#checks.<system>.integration` passes
+- [x] 2.1 Before you add any file, verify in `client/` that `npm ci --ignore-scripts`, `npm run build`, `npm test` and `npm run e2e` pass and that the Playwright tests start their browsers. Stop and report if one fails
+- [x] 2.2 Add `client/.npmrc` with `min-release-age=7` and `ignore-scripts=true` and stage it with `git add`, because the fileset of the client takes only tracked files. If the Nix build of the client fails on `min-release-age`, set `npm_config_min_release_age = "0"` in `clientPackage` in `flake.nix`, as design.md describes. Verify that `npm ci` runs no install script, that `npm install some-package@<version>` fails for a version younger than 7 days, that `npm run e2e` passes and that `nix build .#checks.<system>.integration` passes
 
 ## 3. cargo-deny bans and sources
 
