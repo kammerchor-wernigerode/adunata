@@ -97,7 +97,7 @@ Not architecturally significant, because it changes where tests run and not what
 |`e2e`|downloads the artifact, restores its executable bit, installs Node 24 and Chromium with its system dependencies, runs `npm run e2e` with `ADUNATA_E2E_SERVER` pointing at the binary|`verify`|
 |`nixos`|`memory` and `nixos`, with the KVM setup|`verify`|
 
-`e2e` and `nixos` run only on pull requests ready for review and on pushes to `main`, as their steps do today. `verify` uploads the binary only then. The artifact keeps one day. New actions are pinned by commit SHA like the existing ones. `e2e` caches npm by `package-lock.json` and the browsers by the version of Playwright. On a failure it uploads `test-results` with the output of the server and prints `docker compose logs` of the project. `verify` saves the Nix cache, and `nixos` only restores it, so both use one key without a race.
+`e2e` and `nixos` run only on pull requests ready for review and on pushes to `main`, as their steps do today. `verify` uploads the binary only then. The artifact keeps one day. New actions are pinned by commit SHA like the existing ones. `e2e` caches npm by `package-lock.json` and the browsers by the version of Playwright. The teardown of the global setup writes `docker compose logs` of the project to `test-results/services.log` before it removes the project. On a failure the job prints that file and the output of the server and uploads `test-results`. `verify` saves the Nix cache, and `nixos` only restores it, so both use one key without a race.
 
 The end-to-end job runs the release binary on Ubuntu, a distribution without Nix. That covers the release archive outside a simulated distribution as well.
 

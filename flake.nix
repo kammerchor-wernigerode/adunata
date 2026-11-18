@@ -324,30 +324,6 @@
                 echo "$peak" > $out
               '';
 
-          endToEnd = clientPackage {
-            pname = "adunata-end-to-end";
-            nativeBuildInputs = [
-              pkgs.postgresql_17
-              pkgs.mailpit
-            ];
-            PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
-            PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
-            FONTCONFIG_FILE = pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; };
-            ADUNATA_E2E_URL = "http://localhost:18080";
-            ADUNATA_E2E_MAILPIT_URL = "http://127.0.0.1:18025";
-            buildPhase = ''
-              export HOME="$TMPDIR"
-              ${startInstance}
-              if ! npx playwright test; then
-                find test-results -name '*.md' -exec cat {} +
-                exit 1
-              fi
-              kill "$adunataPid"
-              pg_ctl stop --wait --silent
-            '';
-            installPhase = "touch $out";
-          };
-
           clientLint = clientPackage {
             pname = "adunata-client-lint";
             buildPhase = "npm run lint";
@@ -426,10 +402,6 @@
             ;
         }
         // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          e2e = pkgs.linkFarm "e2e" {
-            inherit integration;
-            inherit (built) endToEnd;
-          };
           memory = pkgs.linkFarm "memory" {
             inherit integration;
             inherit (built) memory;
@@ -452,10 +424,6 @@
         in
         pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
           vmChecks = {
-            e2e = pkgs.linkFarm "e2e" {
-              inherit integration;
-              inherit (builtForLinux) endToEnd;
-            };
             nixos = pkgs.linkFarm "nixos" {
               inherit integration;
               vm = vmTest pkgs builtForLinux;
