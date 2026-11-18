@@ -28,7 +28,7 @@
 
 ## 4. Documentation
 
-- [ ] 4.1 Add one sentence to the status of `docs/decisions/0005-nix-flake-as-build-definition.md` that the end-to-end tests run outside the flake, with a link to the section Testing in `docs/arc42/08-cross-cutting-concepts.md`. Verify that the link resolves.
+- [x] 4.1 Add one sentence to the status of `docs/decisions/0005-nix-flake-as-build-definition.md` that the end-to-end tests run outside the flake, with a link to the section Testing in `docs/arc42/08-cross-cutting-concepts.md`. Verify that the link resolves.
 - [ ] 4.2 Update `docs/arc42/04-solution-strategy.md` and the section Testing in `docs/arc42/08-cross-cutting-concepts.md` as design.md lists. Verify that every link resolves and that no text names a check that no longer exists.
 - [ ] 4.3 Update the section on pull requests in `AGENTS.md` and the checks before a push in `README.md` with the commands without Nix in the order of the lifecycle, as design.md fixes them, and with the jobs of CI. Verify that the commands run as written.
 
