@@ -21,7 +21,6 @@
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
-      # Licenses approved by the OSI that only packages from nixpkgs may use, on top of the allowed list in server/deny.toml.
       nixpkgsOnlyLicenses = [
         "GPL-2.0-or-later"
         "GPL-3.0-or-later"
@@ -30,7 +29,6 @@
         "PostgreSQL"
       ];
 
-      # Every tool the flake takes from nixpkgs. The check toolLicenses compares their licenses with the allowed lists.
       toolsOf = pkgs: {
         inherit (pkgs)
           binutils
@@ -122,7 +120,6 @@
             cp ${rustStandardLibraryNotices} $out/licenses-rust.html
           '';
 
-          # The rustc of nixpkgs builds its copyright file offline and leaves out the crates of the standard library, so the file comes from the prebuilt release of the same version.
           rustStandardLibraryNotices = "${tools.rustc-prebuilt.unwrapped}/share/doc/rust/COPYRIGHT-library.html";
 
           serverSource = pkgs.lib.fileset.toSource {
@@ -248,7 +245,6 @@
                 touch $out
               '';
 
-          # Every package from nixpkgs in the runtime closure of the image. The check imageClosure keeps the list exact.
           imagePackages = [
             {
               name = "glibc";
