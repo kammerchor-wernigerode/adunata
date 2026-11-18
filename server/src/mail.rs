@@ -146,13 +146,22 @@ fn failure_kind(error: &lettre::transport::smtp::Error) -> String {
         "permanent rejection".to_owned()
     } else if error.is_transient() {
         "temporary rejection".to_owned()
-    } else if error.is_tls() {
+    } else if error.is_tls() || failed_handshake(error) {
         "encryption".to_owned()
     } else if error.is_timeout() {
         "timeout".to_owned()
     } else {
         "connection".to_owned()
     }
+}
+
+/// lettre reports a failed TLS handshake, such as a rejected certificate, as a connection error. tokio-rustls hands the error of rustls on as an I/O error of kind `InvalidData`.
+fn failed_handshake(error: &(dyn std::error::Error + 'static)) -> bool {
+    std::iter::successors(error.source(), |cause| cause.source()).any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|io| io.kind() == std::io::ErrorKind::InvalidData)
+    })
 }
 
 async fn mark_sent(connection: &mut PgConnection, id: i64) -> Result<(), sqlx::Error> {
@@ -190,6 +199,36 @@ mod tests {
             escape_html(r#"<a href="x" title='y'>&</a>"#),
             "&lt;a href=&quot;x&quot; title=&#39;y&#39;&gt;&amp;&lt;/a&gt;"
         );
+    }
+
+    #[derive(Debug)]
+    struct Wrapped(std::io::Error);
+
+    impl std::fmt::Display for Wrapped {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("wrapped")
+        }
+    }
+
+    impl std::error::Error for Wrapped {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            Some(&self.0)
+        }
+    }
+
+    #[test]
+    fn invalid_data_below_the_error_is_a_failed_handshake() {
+        let rejected = Wrapped(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "invalid peer certificate",
+        ));
+        assert!(failed_handshake(&rejected));
+    }
+
+    #[test]
+    fn refused_connection_is_no_failed_handshake() {
+        let refused = Wrapped(std::io::Error::from(std::io::ErrorKind::ConnectionRefused));
+        assert!(!failed_handshake(&refused));
     }
 
     mod integration {
