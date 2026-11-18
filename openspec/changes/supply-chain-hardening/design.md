@@ -6,7 +6,7 @@ See proposal.md for the motivation and the prerequisites, which are `license-com
 
 The flake groups its checks into targets. `lint` builds on nothing and runs offline in the Nix sandbox. CI runs the targets up to `integration` in the job `verify` on every push to a pull request. It runs the jobs `e2e` and `nixos` on pull requests ready for review and on `main`. Every action in `ci.yaml` and `release.yaml` is pinned to a SHA. Both workflows set `permissions: contents: read` at the top.
 
-Two lint checks compare pins for work without Nix against nixpkgs. `rustToolchain` compares the channel in `server/rust-toolchain.toml` with `rustc` of nixpkgs. `editorconfigCheckerVersion` compares `EC_VERSION` in the script `lint:editorconfig` of `client/package.json` with `editorconfig-checker` of nixpkgs. Today both pins match, with Rust 1.95.0 and `editorconfig-checker` 3.6.1.
+Three lint checks compare pins for work without Nix against nixpkgs. `rustToolchain` compares the channel in `server/rust-toolchain.toml` with `rustc` of nixpkgs. `editorconfigCheckerVersion` compares `EC_VERSION` in the script `lint:editorconfig` of `client/package.json` with `editorconfig-checker` of nixpkgs. `cargoDenyVersion` compares `cargo-deny@<version>` in the README with `cargo-deny` of nixpkgs. Today all pins match, with Rust 1.95.0, `editorconfig-checker` 3.6.1 and `cargo-deny` 0.19.6.
 
 The client builds in Nix through `importNpmLock`. Its `npmConfigHook` runs `npm install --ignore-scripts` offline against a patched lock file and then `npm rebuild`. The fileset of the client takes only files that git tracks. `nodejs_24` in nixpkgs ships npm 11.19.1, which reads `min-release-age` and turns it into the option `before`.
 
@@ -59,11 +59,11 @@ Significant: no. It is tooling for development that no operator or running insta
 
 ### Updates of `flake.lock` that move pinned versions
 
-An update of `nixpkgs` can bring a new `rustc` or `editorconfig-checker`. The checks `rustToolchain` and `editorconfigCheckerVersion` then fail on the Dependabot pull request, by design. No bot can bump `EC_VERSION`, because it sits inside an npm script.
+An update of `nixpkgs` can bring a new `rustc`, `editorconfig-checker` or `cargo-deny`. The checks `rustToolchain`, `editorconfigCheckerVersion` and `cargoDenyVersion` then fail on the Dependabot pull request, by design. No bot can bump `EC_VERSION` or the version in the README, because they sit inside an npm script and in prose.
 
-A maintainer pushes one commit to the Dependabot branch that sets `channel` in `server/rust-toolchain.toml` and `EC_VERSION` in `client/package.json` to the versions that the error messages name. Rust warnings that a new Clippy brings belong in the same pull request. AGENTS.md asks for draft pull requests and forbids pushing a state with failing checks. Dependabot opens its pull requests ready for review. This one fails by design, so AGENTS.md gets a sentence that exempts pull requests opened by Dependabot. Dependabot stops rebasing a branch that has commits of someone else. If `main` moves before the merge, the maintainer rebases the branch by hand or closes it and lets Dependabot open a fresh one with `@dependabot recreate`, which drops the extra commit. The README describes this under dependency updates.
+A maintainer pushes one commit to the Dependabot branch that sets `channel` in `server/rust-toolchain.toml`, `EC_VERSION` in `client/package.json` and the version of `cargo-deny` in the README to the versions that the error messages name. Rust warnings that a new Clippy brings belong in the same pull request. AGENTS.md asks for draft pull requests and forbids pushing a state with failing checks. Dependabot opens its pull requests ready for review. This one fails by design, so AGENTS.md gets a sentence that exempts pull requests opened by Dependabot. Dependabot stops rebasing a branch that has commits of someone else. If `main` moves before the merge, the maintainer rebases the branch by hand or closes it and lets Dependabot open a fresh one with `@dependabot recreate`, which drops the extra commit. The README describes this under dependency updates.
 
-Alternative: drop the two checks. They exist so that work without Nix uses the same versions as CI, which the README promises.
+Alternative: drop the three checks. They exist so that work without Nix uses the same versions as CI, which the README promises.
 
 Significant: no. It concerns the development environment.
 
