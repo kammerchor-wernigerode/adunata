@@ -246,6 +246,53 @@ fn help_and_version_succeed() {
 }
 
 #[test]
+fn serve_offers_development_mode() {
+    let (code, help, _) = run(&["help", "serve"], &[]);
+    assert_eq!(code, Some(0));
+    assert!(help.contains("--dev"), "{help}");
+}
+
+#[test]
+fn development_mode_needs_a_public_url_on_localhost() {
+    let (code, output, error) = run(
+        &["serve", "--dev"],
+        &[
+            ("ADNT_HTTP_PUBLIC_URL", "https://adunata.example.org"),
+            ("ADNT_DATABASE_URL", UNREACHABLE_DATABASE),
+            ("ADNT_SMTP_HOST", "mail.example.org"),
+            ("ADNT_MAIL_SENDER", "Adunata <adunata@example.org>"),
+            ("ADNT_LOCALIZATION_TIME_ZONE", "Europe/Berlin"),
+        ],
+    );
+    let log = format!("{output}{error}");
+    assert_eq!(code, Some(1));
+    assert!(log.contains("ADNT_HTTP_PUBLIC_URL on localhost"), "{log}");
+    assert!(!log.contains("database is not ready"), "{log}");
+}
+
+#[test]
+fn development_mode_needs_a_loopback_listen_address() {
+    let (code, output, error) = run(
+        &["serve", "--dev"],
+        &[
+            ("ADNT_HTTP_PUBLIC_URL", "http://localhost:8080"),
+            ("ADNT_HTTP_LISTEN_ADDRESS", "0.0.0.0:8080"),
+            ("ADNT_DATABASE_URL", UNREACHABLE_DATABASE),
+            ("ADNT_SMTP_HOST", "mail.example.org"),
+            ("ADNT_MAIL_SENDER", "Adunata <adunata@example.org>"),
+            ("ADNT_LOCALIZATION_TIME_ZONE", "Europe/Berlin"),
+        ],
+    );
+    let log = format!("{output}{error}");
+    assert_eq!(code, Some(1));
+    assert!(
+        log.contains("ADNT_HTTP_LISTEN_ADDRESS on a loopback address"),
+        "{log}"
+    );
+    assert!(!log.contains("database is not ready"), "{log}");
+}
+
+#[test]
 fn unknown_command() {
     let (code, _, error) = run(&["serv"], &[]);
     assert_eq!(code, Some(2));

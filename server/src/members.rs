@@ -245,6 +245,17 @@ pub async fn active_organizer_by_mail(
         .await
 }
 
+/// The active organizer with the lowest id, who has been in the database the longest.
+pub async fn oldest_active_organizer(
+    connection: &mut PgConnection,
+) -> Result<Option<Member>, sqlx::Error> {
+    let query =
+        format!("SELECT {COLUMNS} FROM members WHERE active AND organizer ORDER BY id LIMIT 1");
+    sqlx::query_as(sqlx::AssertSqlSafe(query))
+        .fetch_optional(connection)
+        .await
+}
+
 /// The member with this id, active or not.
 pub async fn find(connection: &mut PgConnection, id: i64) -> Result<Option<Member>, sqlx::Error> {
     let query = format!("SELECT {COLUMNS} FROM members WHERE id = $1");
