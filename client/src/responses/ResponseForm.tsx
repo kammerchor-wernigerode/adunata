@@ -36,6 +36,14 @@ function combined({ day, time }: Moment): string | null {
   return day && time ? `${isoDay(day)}T${time}` : null
 }
 
+async function failedOnError(save: () => Promise<SaveResult>): Promise<SaveResult> {
+  try {
+    return await save()
+  } catch {
+    return { status: 'failed' }
+  }
+}
+
 function message(translate: Translate, error: ServerFieldError): string {
   switch (error.code) {
     case 'required':
@@ -109,21 +117,17 @@ export function ResponseForm({
     const found = incomplete()
     if (Object.keys(found).length === 0) {
       setBusy(true)
-      let result: SaveResult
-      try {
-        result = await onSave({
+      const result = await failedOnError(() =>
+        onSave({
           status,
           arrival: coming ? combined(arrival) : null,
           departure: coming ? combined(departure) : null,
           beds: coming && beds !== '' ? beds : null,
           bedCount: coming && (beds === 'need' || beds === 'offer') ? Number(bedCount) : null,
           comment: comment.trim() === '' ? null : comment,
-        })
-      } catch {
-        result = { status: 'failed' }
-      } finally {
-        setBusy(false)
-      }
+        }),
+      )
+      setBusy(false)
       if (result.status === 'saved') {
         setErrors({})
         setSaved(result.values)

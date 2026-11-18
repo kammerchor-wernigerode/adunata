@@ -110,7 +110,7 @@ function fontLicenses(): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, import.meta.dirname, '')
   return {
-    plugins: [react(), tailwindcss(), fontLicenses(), thirdPartyNotices()],
+    plugins: [react({ compiler: { logDiagnostics: true } }), tailwindcss(), fontLicenses(), thirdPartyNotices()],
     build: { license: { fileName: bundledLicensesFile } },
     resolve: {
       alias: { '@': path.resolve(import.meta.dirname, './src') },
