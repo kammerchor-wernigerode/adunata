@@ -2,15 +2,15 @@
 
 ## 1. Option and guard
 
-- [ ] 1.1 Add `dev: bool` with `#[arg(long)]` to `Command::Serve` in `server/src/main.rs` and pass it to `serve`. Verify with a test in `server/tests/startup.rs` that `adunata help serve` names `--dev`.
-- [ ] 1.2 Make `serve --dev` log an error naming `ADNT_HTTP_PUBLIC_URL` and exit with status 1 before connecting to the database when `configuration.public_url.localhost_port()` is `None`. Verify with a test in `server/tests/startup.rs` that `serve --dev` with `ADNT_HTTP_PUBLIC_URL=https://adunata.example.org` and the unreachable database exits with status 1 and names the public URL, not the database.
+- [x] 1.1 Add `dev: bool` with `#[arg(long)]` to `Command::Serve` in `server/src/main.rs` and pass it to `serve`. Verify with a test in `server/tests/startup.rs` that `adunata help serve` names `--dev`.
+- [x] 1.2 Make `serve --dev` log an error naming `ADNT_HTTP_PUBLIC_URL` and exit with status 1 before connecting to the database when `configuration.public_url.localhost_port()` is `None`. Verify with a test in `server/tests/startup.rs` that `serve --dev` with `ADNT_HTTP_PUBLIC_URL=https://adunata.example.org` and the unreachable database exits with status 1 and names the public URL, not the database.
 
 ## 2. Default organizer and link at start-up
 
-- [ ] 2.1 Add `access::development_organizer()` that returns `organizer@example.org`, Ada Lovelace. Verify with a unit test of its values.
-- [ ] 2.2 Move the insert of a sign-in link in `server/src/access.rs` into a private function and keep `send_sign_in_link` on it. Verify that the existing sign-in tests in `access` still pass.
-- [ ] 2.3 Add `access::development_sign_in_link(pool, public_url)` that creates a link for the active organizer with the lowest id, without mail and without the limit per address. Verify with integration tests that its secret starts a session through `POST /api/sessions`, that it picks the older of two active organizers, that it still returns a link after the limit per address is reached and that it puts no mail in the outbox.
-- [ ] 2.4 Add `start_development` in `server/src/main.rs` that picks the configured or default first organizer, calls `ensure_first_organizer` and returns the start-up link. Call it from `serve` in development mode before the listener binds, log the warning that development mode is on and the link at level `info` with the message `sign-in link for development` and the field `link`, and exit with status 1 on an error. Verify with integration tests in the `integration` module of `main.rs` that on an empty database it creates `organizer@example.org`, that bootstrap settings win, that the returned link starts a session and that its secret appears in `test_logs::captured_logs()` only on the development path.
+- [x] 2.1 Add `access::development_organizer()` that returns `organizer@example.org`, Ada Lovelace. Verify with a unit test of its values.
+- [x] 2.2 Move the insert of a sign-in link in `server/src/access.rs` into a private function and keep `send_sign_in_link` on it. Verify that the existing sign-in tests in `access` still pass.
+- [x] 2.3 Add `access::development_sign_in_link(pool, public_url)` that creates a link for the active organizer with the lowest id, without mail and without the limit per address. Verify with integration tests that its secret starts a session through `POST /api/sessions`, that it picks the older of two active organizers, that it still returns a link after the limit per address is reached and that it puts no mail in the outbox.
+- [x] 2.4 Add `prepare_organizers` in `server/src/main.rs` that creates the first organizer as before without development mode and, in development mode, picks the configured or default first organizer, calls `ensure_first_organizer` and returns the start-up link. Call it from `serve` before the listener binds, log the warning that development mode is on and the link at level `info` with the message `sign-in link for development` and the field `link`, and exit with status 1 on an error. Verify with integration tests in the `integration` module of `main.rs` that on an empty database it creates `organizer@example.org`, that bootstrap settings win, that the returned link starts a session and that its secret appears in `test_logs::captured_logs()` only on the development path.
 
 ## 3. Link of each request in the log
 

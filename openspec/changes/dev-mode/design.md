@@ -44,7 +44,7 @@ This decision is architecturally significant, because the shipped binary carries
 
 ### Development steps in one function
 
-`main.rs` gets `async fn start_development(pool: &PgPool, configuration: &Configuration) -> Result<String, sqlx::Error>`. It picks the first organizer, calls `ensure_first_organizer`, creates the start-up link and returns it. `serve` calls it in development mode after `connect` and before it binds the listener, logs the warning and the link and exits with status 1 on an error. The `integration` module in `main.rs` tests the function with a test database and `test_logs::captured_logs()`, so the wiring has automatic tests with and without the option.
+`main.rs` gets `async fn prepare_organizers(pool, first_organizer, language, public_url, development_mode) -> Result<Option<String>, sqlx::Error>`. Without development mode it creates the configured first organizer as before and returns `None`. In development mode it logs the warning, picks the configured or default first organizer, calls `ensure_first_organizer`, creates the start-up link, logs it and returns it. `serve` calls it after `connect` and before it binds the listener and exits with status 1 on an error. The `integration` module in `main.rs` tests the function with a test database and `test_logs::captured_logs()`, so the branch between both paths has automatic tests with and without the option.
 
 A test of the binary in `server/tests/startup.rs` that spawns `serve --dev` would come closer to real use. It needs a database and process handling that the file does not have, because all its tests stop before the database.
 
@@ -52,7 +52,7 @@ This decision is not architecturally significant, because it only arranges code 
 
 ### Default first organizer
 
-In development mode `start_development` uses `configuration.first_organizer` or, if it is unset, the member `organizer@example.org` named Ada Lovelace. `access` owns the default as a public function `development_organizer()`, because `access` owns the first organizer. `ensure_first_organizer` stays unchanged and creates the member only when no active organizer exists. The address and name match the example in the [configuration reference](../../../docs/operating/configuration.md) and in the end-to-end tests. `example.org` is a reserved domain, so no real person receives mail.
+In development mode `prepare_organizers` uses `configuration.first_organizer` or, if it is unset, the member `organizer@example.org` named Ada Lovelace. `access` owns the default as a public function `development_organizer()`, because `access` owns the first organizer. `ensure_first_organizer` stays unchanged and creates the member only when no active organizer exists. The address and name match the example in the [configuration reference](../../../docs/operating/configuration.md) and in the end-to-end tests. `example.org` is a reserved domain, so no real person receives mail.
 
 Creating or reactivating the default organizer on every start, like `grant-organizer` does, would change the roles of a database that someone set up on purpose.
 
