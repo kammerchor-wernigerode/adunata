@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import notices from './notices.json' with { type: 'json' }
@@ -111,7 +112,19 @@ function fontLicenses(): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, import.meta.dirname, '')
   return {
-    plugins: [react({ compiler: { logDiagnostics: true } }), tailwindcss(), fontLicenses(), thirdPartyNotices()],
+    plugins: [
+      tanstackRouter({
+        target: 'react',
+        autoCodeSplitting: mode !== 'test',
+        routeFileIgnorePattern: '\\.test\\.',
+        quoteStyle: 'single',
+        semicolons: false,
+      }),
+      react({ compiler: { logDiagnostics: true } }),
+      tailwindcss(),
+      fontLicenses(),
+      thirdPartyNotices(),
+    ],
     build: { license: { fileName: bundledLicensesFile } },
     resolve: {
       alias: { '@': path.resolve(import.meta.dirname, './src') },

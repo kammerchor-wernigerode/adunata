@@ -22,6 +22,19 @@
       "rules": {
         "react/only-export-components": "off"
       }
+    },
+    {
+      "files": [
+        "src/routes/__root.tsx",
+        "src/routes/**/index.tsx",
+        "src/routes/**/route.tsx"
+      ],
+      "rules": {
+        "react/only-export-components": "off"
+      }
     }
+  ],
+  "ignorePatterns": [
+    "src/routeTree.gen.ts"
   ]
 }
