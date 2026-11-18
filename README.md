@@ -225,12 +225,14 @@ Dependabot opens pull requests once a week for the crates in `server/`, the npm 
 
 An update of `flake.lock` can bring new versions of Rust, `editorconfig-checker` or `cargo-deny`. The lint checks that compare the pins for work without Nix then fail and name the version of nixpkgs. Push one commit to the Dependabot branch that sets `channel` in `server/rust-toolchain.toml`, `EC_VERSION` in `client/package.json` and the version of `cargo-deny` under [Tests and lints](#tests-and-lints) to those versions, together with fixes for new Clippy lints. Dependabot no longer rebases a branch with commits of someone else. If `main` moves before the merge, rebase the branch by hand or comment `@dependabot recreate`, which drops your commit. Dependabot moves only the revisions in `flake.lock`. Change the branch of `nixpkgs` and the tag of `crane` in `flake.nix` by hand.
 
-`client/.npmrc` lets npm install only releases older than seven days and runs no install scripts. To install a security fix that is younger, override the age once:
+`client/.npmrc` lets npm install only releases older than seven days and runs no install scripts. Dependabot security updates read the file too, so they cannot pick a fix younger than that. To take such a fix, override the age once. `npm update` also moves a package that comes in through another one, as long as the fixed version fits the range that the other package requires:
 
 ```sh
 cd client
-npm install <package>@<version> --min-release-age=0
+npm update <package> --min-release-age=0
 ```
+
+If the fix lies outside that range, pin it under `overrides` in `client/package.json`.
 
 The workflow [`advisories`](.github/workflows/advisories.yaml) checks both lock files against the advisory databases every day and on pull requests that change them. It fails on any advisory of a crate and on an npm advisory of severity high or critical. If an npm advisory has no fix yet, add it to `client/audit-exceptions.json` with its GHSA ID, the reason and an expiry date. The run fails once the date has passed and, outside pull requests, once the exception matches no advisory. GitHub notifies only the person who last changed the schedule of a failed scheduled run, so check the workflow in the Actions tab. For a crate, add `{ id, reason }` to `ignore` under `[advisories]` in `server/deny.toml`.
 

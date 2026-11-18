@@ -83,7 +83,7 @@ Significant: no. No operator or running instance notices them.
 
 `min-release-age` sets the option `before`. The Nix build runs offline against a lock file with resolved versions, which `before` should not touch. If it does, `clientPackage` in `flake.nix` sets `npm_config_min_release_age=0`, which npm reads as no limit. The task that adds the file verifies this.
 
-A security fix younger than 7 days cannot be installed with the file in place. Dependabot security updates ignore their cooldown but still run npm with the file. A maintainer then installs the fix with `npm install <package>@<version> --min-release-age=0`, because a flag on the command line overrides `.npmrc`. A probe with npm 11.19 showed that a later `npm ci`, online or with `--offline`, installs a locked version younger than the minimum age. `npm install` keeps it as well. The option only limits which versions npm resolves. `min-release-age-exclude` would exempt a package for good, which is not wanted.
+A security fix younger than 7 days cannot be installed with the file in place. Dependabot security updates ignore their cooldown but still run npm with the file. A maintainer then takes the fix with `npm update <package> --min-release-age=0`, because a flag on the command line overrides `.npmrc`. `npm update` also moves a package that comes in through another one, while `npm install` would add it as a direct dependency and leave the nested copies alone. A fix outside the range that the parent package requires goes under `overrides` in `client/package.json`. A probe with npm 11.19 showed that a later `npm ci`, online or with `--offline`, installs a locked version younger than the minimum age. `npm install` keeps it as well. The option only limits which versions npm resolves. `min-release-age-exclude` would exempt a package for good, which is not wanted.
 
 Alternatives: Setting both in the CI workflows only would leave laptops unprotected. pnpm is a non-goal.
 
@@ -111,7 +111,7 @@ The check `workflows` runs zizmor from nixpkgs with `--offline` over a source of
 The existing workflows get these fixes:
 
 - `artipacked`: each `actions/checkout` sets `persist-credentials: false`. No job pushes with git. `release.yaml` creates the release with `gh` and the token in `GH_TOKEN`.
-- `cache-poisoning`: the release restores the Nix store from `cache-nix-action`. Removing that cache is out of scope. The step gets an inline `# zizmor: ignore[cache-poisoning]` with the reason. Only runs on `main` and on tags save a cache that a tag can restore. Pull requests from forks cannot write it.
+- `cache-poisoning`: the release restores the Nix store from `cache-nix-action`. Removing that cache is out of scope. The step gets an inline `# zizmor: ignore[cache-poisoning]` with the reason. A run for a tag restores only caches that runs on `main` or for tags saved. Caches of pull requests stay in the scope of their merge ref, and pull requests from forks cannot write any. A run through `workflow_dispatch` on another branch can restore caches of that branch, but it publishes nothing, because the step that publishes runs only for tags.
 - zizmor does not see it, but `release.yaml` runs `nix run nixpkgs#skopeo` with credentials that can publish. That resolves `nixpkgs` through the global registry instead of `flake.lock`. It becomes `nix run --inputs-from . nixpkgs#skopeo`.
 
 Alternative: only `.github/workflows`. It would leave the cooldowns of `dependabot.yml` unchecked.
