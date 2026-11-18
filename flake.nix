@@ -56,7 +56,7 @@
           serverSource = pkgs.lib.fileset.toSource {
             root = ./server;
             fileset = pkgs.lib.fileset.unions [
-              (craneLib.fileset.commonCargoSources ./server)
+              (pkgs.lib.fileset.difference (craneLib.fileset.commonCargoSources ./server) ./server/deny.toml)
               ./server/migrations
               ./server/locales
             ];
@@ -186,6 +186,7 @@
               Env = [
                 "ADNT_HTTP_LISTEN_ADDRESS=0.0.0.0:8080"
                 "PATH=${server}/bin"
+                "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
               ];
               ExposedPorts."8080/tcp" = { };
               User = "65534:65534";
@@ -210,6 +211,14 @@
           );
 
           rustFormatting = craneLib.cargoFmt { src = serverSource; };
+
+          rustLicenses = craneLib.cargoDeny {
+            src = pkgs.lib.fileset.toSource {
+              root = ./server;
+              fileset = craneLib.fileset.commonCargoSources ./server;
+            };
+            cargoDenyChecks = "licenses";
+          };
 
           serverUnitTests =
             serverTests serverArgs "-unit-tests"
@@ -286,7 +295,12 @@
         in
         let
           lintChecks = {
-            inherit (built) clippy rustFormatting clientLint;
+            inherit (built)
+              clippy
+              rustFormatting
+              rustLicenses
+              clientLint
+              ;
 
             rustToolchain = pkgs.runCommand "check-rust-toolchain" { nativeBuildInputs = [ pkgs.rustc ]; } ''
               pinned=$(sed --quiet 's/^channel = "\(.*\)"$/\1/p' ${./server/rust-toolchain.toml})
@@ -301,6 +315,31 @@
               pinned=$(sed --quiet 's/.*EC_VERSION=v\([0-9.]*\) .*/\1/p' ${./client/package.json})
               if [ "$pinned" != "${pkgs.editorconfig-checker.version}" ]; then
                 echo "npm run lint:editorconfig pins editorconfig-checker $pinned, but nixpkgs ships ${pkgs.editorconfig-checker.version}. Set EC_VERSION in client/package.json to the version of nixpkgs."
+                exit 1
+              fi
+              touch $out
+            '';
+
+            clientLicenses =
+              let
+                source = pkgs.lib.fileset.toSource {
+                  root = ./.;
+                  fileset = pkgs.lib.fileset.unions [
+                    ./client/scripts/check-licenses.mjs
+                    ./client/package-lock.json
+                    ./server/deny.toml
+                  ];
+                };
+              in
+              pkgs.runCommand "check-client-licenses" { nativeBuildInputs = [ pkgs.nodejs_24 ]; } ''
+                node ${source}/client/scripts/check-licenses.mjs
+                touch $out
+              '';
+
+            cargoDenyVersion = pkgs.runCommand "check-cargo-deny-version" { } ''
+              pinned=$(sed --quiet 's/.*cargo-deny@\([0-9.]*\).*/\1/p' ${./README.md})
+              if [ "$pinned" != "${pkgs.cargo-deny.version}" ]; then
+                echo "The README pins cargo-deny $pinned, but nixpkgs ships ${pkgs.cargo-deny.version}. Set the version in the README to the version of nixpkgs."
                 exit 1
               fi
               touch $out

@@ -6,7 +6,7 @@ An instance takes its configuration from environment variables and from an optio
 
 A development build also reads the files `.env.local` and `.env` in its working directory, so `cargo run` and `cargo test` in `server/` need no setting in the shell. Each file is a source below the configuration file, and `.env.local` wins over `.env`. A release build never reads either file. The repository tracks `server/.env` with the settings for local development.
 
-The module `configuration` reads all settings at start-up and checks them together. It collects every problem before Adunata touches the database or opens a port, so an operator fixes all mistakes in one round. Each message names the setting and never a secret value. A message about the configuration file names the file and the key but never a value or the content of a line. Other modules receive typed settings, such as the public base URL, and never read the environment or the file themselves.
+The module `configuration` reads all settings at start-up and checks them together. It collects every problem before Adunata touches the database or opens a port, so an operator fixes all mistakes in one round. Each message names the setting and never a secret value. A message about the configuration file names the file and the key but never a value or the content of a line. Other modules receive typed settings, such as the public base URL, and never read the environment or the file themselves. The exceptions are `SSL_CERT_FILE` and `SSL_CERT_DIR`, which the TLS library of mail delivery reads to find the trust store, as every TLS tool on the host does. The module `configuration` does not check them.
 
 The settings and their defaults are listed in the [configuration reference](../operating/configuration.md).
 
@@ -118,7 +118,7 @@ An event instead names what happened and the identifiers an operator needs to lo
 
 Every mail goes through the outbox, see [ADR 0006](../decisions/0006-outbox-for-mail.md). A module that causes a mail adds it to the outbox within its own transaction and never talks to the mail server itself. Each mail has a plain text part and an HTML part with the same content and the same links, so it reads completely in any mail client.
 
-The connection to the mail server is encrypted with STARTTLS unless the operator chooses implicit TLS or, explicitly, no encryption. Adunata checks the server certificate against the Mozilla root certificates.
+The connection to the mail server is encrypted with STARTTLS unless the operator chooses implicit TLS or, explicitly, no encryption. Adunata checks the server certificate against the certificate authorities in the trust store of the host, see [ADR 0016](../decisions/0016-trust-store-of-the-host-for-mail-server-certificates.md). The [configuration reference](../operating/configuration.md#certificate-authorities) names the store each way of running Adunata uses.
 
 A failed delivery is logged with the outbox entry and the kind of failure, as described under logging. Mail that failed for good stays in the outbox with its failure time.
 
@@ -144,7 +144,7 @@ CI runs three jobs. `verify` runs the targets up to `integration` and builds the
 
 |Target|Contains|Builds on|
 |-|-|-|
-|`lint`|Formatting of Rust, Nix and every file per `.editorconfig`, Clippy, oxlint and whether the versions of Rust and `editorconfig-checker` pinned for work without Nix match nixpkgs|nothing|
+|`lint`|Formatting of Rust, Nix and every file per `.editorconfig`, Clippy, oxlint, the licenses of crates and npm packages against the approved list in `server/deny.toml` and whether the versions of Rust, `editorconfig-checker` and `cargo-deny` pinned for work without Nix match nixpkgs|nothing|
 |`build`|The server with the embedded client|`lint`|
 |`test`|Unit tests of server and client|`build`|
 |`integration`|Integration tests of server and client, startup tests of the binary and the contract|`test`|

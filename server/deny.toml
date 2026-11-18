@@ -1,0 +1,19 @@
+[licenses]
+allow = [
+  "0BSD",
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BlueOak-1.0.0",
+  "ISC",
+  "MIT",
+  "MPL-2.0",
+  "OFL-1.1",
+  "Python-2.0",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib",
+]
+confidence-threshold = 1.0
+unused-allowed-license = "allow"
+private = { ignore = true }

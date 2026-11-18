@@ -111,10 +111,12 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 |`server/`|`cargo test --bins -- --skip integration::`|Unit tests only, without any service|
 |`server/`|`cargo clippy --all-targets -- --deny warnings`|Lints|
 |`server/`|`cargo fmt --check`|Formatting|
+|`server/`|`cargo deny check licenses`|Licenses of the crates against the list in `server/deny.toml`. Needs `cargo-deny`, which `cargo install --locked cargo-deny@0.19.6` installs in the version of nixpkgs|
 |`client/`|`npm test`|Unit tests|
 |`client/`|`npm run test:integration`|Integration tests|
 |`client/`|`npm run lint`|Lints, failing on warnings|
 |`client/`|`npm run lint:editorconfig`|Rules of `.editorconfig` in the whole repository. Downloads `editorconfig-checker` on its first run|
+|`client/`|`npm run lint:licenses`|Licenses of the packages in `package-lock.json` against the list in `server/deny.toml`|
 
 `cargo test` finds PostgreSQL through `ADNT_DATABASE_URL` and Mailpit through `ADNT_SMTP_PORT` and `MAILPIT_UI_PORT`. It creates a separate database for each test and drops it when the test ends, so the user in `ADNT_DATABASE_URL` needs the right to create databases.
 
@@ -167,6 +169,17 @@ The contract check has two halves:
 
 `cargo test` runs the first half among the integration tests. `npm run check:generated` regenerates the code in place and restores the code it found afterwards, also when it fails.
 
+### UI components
+
+The components in `client/src/components/ui/` and the stylesheet `client/src/shadcn.css` are copies from shadcn. The client does not depend on the package `shadcn`, because its command line tool pulls in a dependency whose license the OSI has not approved. Run the tool through `npx` when you add a component, with the version that the header of `shadcn.css` names:
+
+```sh
+cd client
+npx shadcn@4.23.0 add <component>
+```
+
+`npx` fetches the tool outside `package-lock.json` and outside the license check. The tool leaves `package.json` free of `shadcn` and adds only the packages the component needs, which `npm run lint:licenses` then checks. Commit the component together with those packages.
+
 ### Checks before a push
 
 Run the checks up to `integration` locally before each push. CI runs them in the job `verify` and runs the end-to-end tests and the NixOS VM test once a pull request is ready for review. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target and job.
@@ -184,9 +197,11 @@ cd client
 npm ci
 npm run lint
 npm run lint:editorconfig
+npm run lint:licenses
 cd ../server
 cargo fmt --check
 cargo clippy --all-targets -- --deny warnings
+cargo deny check licenses
 cd ../client
 npm run build
 cd ../server
@@ -202,7 +217,7 @@ npm run test:integration
 npm run check:generated
 ```
 
-CI also checks the formatting of Nix files, the linkage of the release binary and whether the pinned versions of Rust and `editorconfig-checker` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
+CI also checks the formatting of Nix files, the linkage of the release binary and whether the pinned versions of Rust, `editorconfig-checker` and `cargo-deny` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
 
 ### Parallel worktrees
 
