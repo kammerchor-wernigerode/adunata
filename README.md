@@ -33,7 +33,7 @@ Development needs PostgreSQL to store data and Mailpit to catch outgoing mail. B
 
 ### With Nix
 
-Install [Nix](https://nixos.org/download/) and enable flakes. Install Docker or Podman with Compose as well. The development shell provides Rust, Node.js 26 and pnpm. It compiles Rust through sccache, which shares compiled dependencies between checkouts.
+Install [Nix](https://nixos.org/download/) and enable flakes. Install Docker or Podman with Compose as well. The development shell provides Rust, Node.js 26, pnpm, `cargo-deny` and `cargo-about`. It compiles Rust through sccache, which shares compiled dependencies between checkouts.
 
 ```sh
 nix develop
@@ -50,7 +50,7 @@ direnv allow
 Install these tools:
 
 - [rustup](https://rustup.rs), which installs the version of Rust that [`server/rust-toolchain.toml`](server/rust-toolchain.toml) pins, with `clippy`, `rustfmt` and the sources of the standard library
-- Node.js 26
+- Node.js in the version that [`.node-version`](.node-version) names. fnm reads this file and picks the newest installed release of that major version
 - [pnpm](https://pnpm.io/installation) in the version that `packageManager` in [`client/package.json`](client/package.json) names
 - Docker or Podman with Compose
 
@@ -132,8 +132,8 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 |`server/`|`cargo test --bins -- --skip integration::`|Unit tests only, without any service|
 |`server/`|`cargo clippy --all-targets -- --deny warnings`|Lints|
 |`server/`|`cargo fmt --check`|Formatting|
-|`server/`|`cargo deny check bans licenses sources`|Licenses of the crates against the list in `server/deny.toml`, version requirements without wildcards and crates.io as the only source. Needs `cargo-deny`, which `cargo install --locked cargo-deny@0.19.6` installs in the version of nixpkgs|
-|`server/`|`cargo about generate --frozen --fail about.hbs >> ../client/dist/licenses.txt`|Appends the notices of the crates to the notices of the client after `pnpm run build`, so the server embeds both. Needs `cargo-about`, which `cargo install --locked cargo-about@0.9.0` installs in the version of nixpkgs|
+|`server/`|`cargo deny check bans licenses sources`|Licenses of the crates against the list in `server/deny.toml`, version requirements without wildcards and crates.io as the only source. Needs `cargo-deny`, which the development shell provides. Without Nix, `cargo install --locked cargo-deny@0.19.6` installs it in the version of nixpkgs|
+|`server/`|`cargo about generate --frozen --fail about.hbs >> ../client/dist/licenses.txt`|Appends the notices of the crates to the notices of the client after `pnpm run build`, so the server embeds both. Needs `cargo-about`, which the development shell provides. Without Nix, `cargo install --locked cargo-about@0.9.0 --features cli` installs it in the version of nixpkgs|
 |`client/`|`pnpm test`|Unit tests|
 |`client/`|`pnpm run test:integration`|Integration tests|
 |`client/`|`pnpm run lint`|Lints, failing on warnings|

@@ -741,6 +741,8 @@
           default = pkgs.mkShell {
             packages = [
               tools.cargo
+              tools.cargo-about
+              tools.cargo-deny
               tools.rustc
               tools.clippy
               tools.rustfmt
