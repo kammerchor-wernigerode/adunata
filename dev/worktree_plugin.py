@@ -184,7 +184,7 @@ def merged_settings(existing: str, values: dict[str, str], slot_line: str | None
 
 
 def build_client(ctx) -> None:
-    script = "npm ci --prefer-offline && npm run build"
+    script = "pnpm install --frozen-lockfile --prefer-offline && pnpm run build"
     if shutil.which("nix"):
         command = ["nix", "develop", str(ctx.main), "--command", "bash", "-o", "pipefail", "-c", script]
     else:

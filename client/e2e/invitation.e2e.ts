@@ -6,7 +6,7 @@ test.use({ locale: 'en-US' })
 
 function mailpit(): string {
   const url = process.env.ADUNATA_E2E_MAILPIT_URL
-  if (!url) throw new Error('ADUNATA_E2E_MAILPIT_URL is missing, run the tests with npm run e2e')
+  if (!url) throw new Error('ADUNATA_E2E_MAILPIT_URL is missing, run the tests with pnpm run e2e')
   return url
 }
 
