@@ -61,7 +61,7 @@ Significant: no. It is tooling for development that no operator or running insta
 
 An update of `nixpkgs` can bring a new `rustc`, `editorconfig-checker` or `cargo-deny`. The checks `rustToolchain`, `editorconfigCheckerVersion` and `cargoDenyVersion` then fail on the Dependabot pull request, by design. No bot can bump `EC_VERSION` or the version in the README, because they sit inside an npm script and in prose.
 
-A maintainer pushes one commit to the Dependabot branch that sets `channel` in `server/rust-toolchain.toml`, `EC_VERSION` in `client/package.json` and the version of `cargo-deny` in the README to the versions that the error messages name. Rust warnings that a new Clippy brings belong in the same pull request. AGENTS.md asks for draft pull requests and forbids pushing a state with failing checks. Dependabot opens its pull requests ready for review. This one fails by design, so AGENTS.md gets a sentence that exempts pull requests opened by Dependabot. Dependabot stops rebasing a branch that has commits of someone else. If `main` moves before the merge, the maintainer rebases the branch by hand or closes it and lets Dependabot open a fresh one with `@dependabot recreate`, which drops the extra commit. The README describes this under dependency updates.
+A maintainer pushes one commit to the Dependabot branch that sets `channel` in `server/rust-toolchain.toml`, `EC_VERSION` in `client/package.json` and the version of `cargo-deny` in the README to the versions that the error messages name. Rust warnings that a new Clippy brings belong in the same pull request. AGENTS.md lets a pull request become ready for review only after local checks and forbids pushing a state with failing checks. Dependabot opens its pull requests ready for review without them. This one fails by design, so AGENTS.md gets a sentence that names this case and lets a maintainer push the fix. Dependabot stops rebasing a branch that has commits of someone else. If `main` moves before the merge, the maintainer rebases the branch by hand or closes it and lets Dependabot open a fresh one with `@dependabot recreate`, which drops the extra commit. The README describes this under dependency updates.
 
 Alternative: drop the three checks. They exist so that work without Nix uses the same versions as CI, which the README promises.
 
@@ -147,7 +147,7 @@ Significant: no. It is a check in CI.
 - `docs/arc42/11-risks-and-technical-debt.md`: a new row says that only the lock files are scanned. The OCI image and the nixpkgs closure are outside. The release binary carries no list of its crates for a scanner. The mitigation is the weekly `flake.lock` update and the lock file scan.
 - README: the checks without Nix run `cargo deny check bans licenses sources`. The sentence on checks that need Nix names zizmor. A new section on dependency updates covers the Dependabot pull requests, the `flake.lock` pins, the refs in `flake.nix` that move only by hand, a security fix under `min-release-age`, the advisory exceptions and the expected repository settings.
 
-- AGENTS.md: a sentence under pull requests that exempts pull requests opened by Dependabot from the rules on drafts and red checks.
+- AGENTS.md: a sentence under pull requests that says Dependabot opens pull requests without the local checks and that a maintainer pushes fixes for failing checks to them.
 
 No decision is architecturally significant, so the change drafts no decision record.
 

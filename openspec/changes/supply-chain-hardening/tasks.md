@@ -2,7 +2,7 @@
 
 ## 1. Prerequisite
 
-- [ ] 1.1 Once `license-compliance` is merged, pull `main` and rebase this branch onto it. Verify that `server/deny.toml` exists, that `flake.nix` has the check `rustLicenses` in the target `lint`, that `npm ls shadcn` in `client/` finds nothing and that `server/Cargo.toml` and `server/Cargo.lock` hold `lettre` 0.11.24 from the separate fix
+- [x] 1.1 Once `license-compliance` is merged, pull `main` and rebase this branch onto it. Verify that `server/deny.toml` exists, that `flake.nix` has the check `rustLicenses` in the target `lint`, that `npm ls shadcn` in `client/` finds nothing and that `server/Cargo.toml` and `server/Cargo.lock` hold `lettre` 0.11.24 from the separate fix
 
 ## 2. npm configuration
 
@@ -26,7 +26,7 @@
 ## 6. Dependabot
 
 - [ ] 6.1 Add `.github/dependabot.yml` with the four ecosystems, cooldowns and groups from design.md. Verify that the check `workflows` audits the file and passes, that each cooldown of `npm` is at least `min-release-age` in `client/.npmrc` and, after the merge, that the Dependabot page of the repository shows no configuration error
-- [x] 6.2 Add a section on dependency updates to the README. It covers how to handle Dependabot pull requests, how to set the pins of Rust, `editorconfig-checker` and `cargo-deny` after a `flake.lock` update, that the refs of `nixpkgs` and `crane` in `flake.nix` move only by hand, how to install a security fix younger than `min-release-age`, how to add an advisory exception with an expiry date, the daily advisory run and who it notifies as well as the repository settings the project expects. Add a sentence under pull requests in `AGENTS.md` that exempts pull requests opened by Dependabot from the rules on drafts and red checks. Add the row on scanning only the lock files to `docs/arc42/11-risks-and-technical-debt.md` with the skill `arc42`. Verify that every relative link resolves and that `nix build .#checks.<system>.lint` passes
+- [x] 6.2 Add a section on dependency updates to the README. It covers how to handle Dependabot pull requests, how to set the pins of Rust, `editorconfig-checker` and `cargo-deny` after a `flake.lock` update, that the refs of `nixpkgs` and `crane` in `flake.nix` move only by hand, how to install a security fix younger than `min-release-age`, how to add an advisory exception with an expiry date, the daily advisory run and who it notifies as well as the repository settings the project expects. Add a sentence under pull requests in `AGENTS.md` that says Dependabot opens pull requests without the local checks and that a maintainer pushes fixes for failing checks to them. Add the row on scanning only the lock files to `docs/arc42/11-risks-and-technical-debt.md` with the skill `arc42`. Verify that every relative link resolves and that `nix build .#checks.<system>.lint` passes
 
 ## 7. Repository settings
 

@@ -36,6 +36,6 @@ None. The change touches CI, dev tooling and dependency versions, not behavior t
 - `server/deny.toml` gains sections for `bans`, `sources` and `advisories`.
 - `client/.npmrc`, `client/audit-exceptions.json` and `client/scripts/check-advisories.mjs` are new.
 - Contributors who install with npm no longer run install scripts and get no release younger than the minimum age.
-- `AGENTS.md` exempts pull requests opened by Dependabot from its rules on drafts and red checks.
+- `AGENTS.md` says that Dependabot opens pull requests without the local checks and that a maintainer pushes fixes for failing checks to them.
 - Maintainers handle Dependabot pull requests, including a `flake.lock` update that needs new pins for Rust and `editorconfig-checker`.
 - Documentation: README and the arc42 sections on testing and risks.
