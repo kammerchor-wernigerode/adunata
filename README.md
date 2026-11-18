@@ -178,7 +178,7 @@ cd client
 npx shadcn@4.23.0 add <component>
 ```
 
-`npx` fetches the tool outside `package-lock.json` and outside the license check. Commit only the copied component.
+`npx` fetches the tool outside `package-lock.json` and outside the license check. The tool leaves `package.json` free of `shadcn` and adds only the packages the component needs, which `npm run lint:licenses` then checks. Commit the component together with those packages.
 
 ### Checks before a push
 

@@ -47,7 +47,7 @@ Two variables of OpenSSL change where Adunata looks. They are the only settings 
 |`SSL_CERT_FILE`|Path to a file with certificate authorities in PEM format. The container image sets it to its own bundle.|
 |`SSL_CERT_DIR`|Directories with certificate authorities in PEM format, separated by `:`.|
 
-If either is set, Adunata trusts only the authorities it names and ignores the store of the host and the bundle of the image. A bundle of your own therefore needs the public authorities too if the mail server uses one of them.
+If either is set, Adunata ignores the store of the host and trusts only the authorities in the file and the directories that are set. The container image keeps its own `SSL_CERT_FILE` unless you set it, so `SSL_CERT_DIR` alone adds to the bundle of the image. To trust only your own authorities in the container, set `SSL_CERT_FILE`. A bundle of your own needs the public authorities too if the mail server uses one of them.
 
 If deliveries fail and the log shows `mail delivery failed` with `failure` set to `encryption`, the mail server offered no encryption or Adunata did not trust its certificate. Check that the host has a trust store, that it contains the authority of the mail server and that `SSL_CERT_FILE` and `SSL_CERT_DIR` point to existing files.
 
