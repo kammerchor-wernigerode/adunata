@@ -95,7 +95,7 @@ Not architecturally significant, because it changes where tests run and not what
 |-|-|-|
 |`verify`|evaluation of the flake, `lint`, `build`, `test`, `integration`, then builds `packages.x86_64-linux.release` and uploads the binary as an artifact|nothing|
 |`e2e`|downloads the artifact, restores its executable bit, installs Node 24 and Chromium with its system dependencies, runs `npm run e2e` with `ADUNATA_E2E_SERVER` pointing at the binary|`verify`|
-|`nixos`|`memory` and `nixos`, with the KVM setup|`verify`|
+|`nixos`|the checks `memoryMeasurement` and `nixosVmTest`, which hold the memory measurement and the NixOS VM test without the targets up to `integration`, with the KVM setup|`verify`|
 
 `e2e` and `nixos` run only on pull requests ready for review and on pushes to `main`, as their steps do today. `verify` uploads the binary only then. The artifact keeps one day. New actions are pinned by commit SHA like the existing ones. `e2e` caches npm by `package-lock.json` and the browsers by the version of Playwright. The teardown of the global setup writes `docker compose logs` of the project to `test-results/services.log` before it removes the project. On a failure the job prints that file and the output of the server and uploads `test-results`. `verify` saves the Nix cache, and `nixos` only restores it, so both use one key without a race.
 
@@ -147,4 +147,4 @@ ADR 0005 also says that CI runs the checks of the flake and nothing else. Its st
 - [A release from a commit that CI never ran skips the end-to-end tests] → Releases come from `main`. A tag or a manual run on another commit is a deliberate exception.
 - [The commands before a push without Nix and the targets of the flake list the same checks in two places, and CI never runs the README list] → Task 5.1 compares them once, and a change to a target updates both.
 - [On NixOS the browsers of Playwright do not start without nix-ld] → The README and section 08 of arc42 name it. Development happens on macOS, other Linux distributions and WSL.
-- [Only `verify` saves the Nix cache, so `nixos` builds or fetches the closure of the VM test and of `memory` on every run] → Task 5.2 compares the duration of `nixos` with the step of today. A cache key of its own can follow if it takes too long.
+- [Only `verify` saves the Nix cache, so `nixos` builds the server and the closure of the VM test again on every run] → The first run of `nixos` took 7 to 8 minutes, most of it for rebuilding the targets up to `integration` that `verify` had already run. `nixos` therefore builds `memoryMeasurement` and `nixosVmTest`, which leave those targets out.

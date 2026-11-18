@@ -36,3 +36,7 @@
 
 - [x] 5.1 Run every command from the README for lint, build, unit, integration, contract and end-to-end tests in a shell without the Nix development shell and with the tools the README lists for development without Nix. Verify that each passes.
 - [x] 5.2 Mark the pull request ready for review and verify that `verify`, `e2e` and `nixos` pass in CI, that `e2e` and `nixos` run in parallel and how long `nixos` takes compared with the steps of today.
+
+## 6. Follow-up
+
+- [ ] 6.1 Add the checks `memoryMeasurement` and `nixosVmTest` for Linux to `flake.nix` and let the job `nixos` build them instead of the targets `memory` and `nixos`. Update section 08 of arc42. Verify that `nix flake check --no-build` passes and that `nixos` no longer builds Clippy or the tests in CI.

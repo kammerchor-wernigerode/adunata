@@ -402,6 +402,8 @@
             ;
         }
         // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          memoryMeasurement = built.memory;
+          nixosVmTest = vmTest pkgs built;
           memory = pkgs.linkFarm "memory" {
             inherit integration;
             inherit (built) memory;

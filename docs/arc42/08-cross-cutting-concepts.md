@@ -140,7 +140,7 @@ Tests run at several levels. Each level checks what the level below cannot see. 
 
 The flake groups its checks into targets that build on each other like the phases of a build lifecycle. Each target contains the one before it, so `nix build .#checks.<system>.integration` runs lint, build, unit and integration tests together.
 
-CI runs three jobs. `verify` runs the targets up to `integration` and builds the release binary. `e2e` runs the end-to-end tests against that binary, and `nixos` runs the targets `memory` and `nixos`. Both start after `verify` and run in parallel. They run only on pull requests ready for review and on pushes to `main`.
+CI runs three jobs. `verify` runs the targets up to `integration` and builds the release binary. `e2e` runs the end-to-end tests against that binary, and `nixos` runs the checks `memoryMeasurement` and `nixosVmTest`, which are the targets `memory` and `nixos` without the targets that `verify` already ran. Both start after `verify` and run in parallel. They run only on pull requests ready for review and on pushes to `main`.
 
 |Target|Contains|Builds on|
 |-|-|-|
