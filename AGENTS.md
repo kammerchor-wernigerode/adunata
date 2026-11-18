@@ -28,11 +28,11 @@ This file routes. It names where things live and the rules that apply everywhere
 
 CI runs the checks up to `integration` in the job `verify` on every push to a pull request. Pull requests that are ready for review and pushes to `main` also run the jobs `e2e` and `nixos`, which take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes the checks.
 
-- Open a pull request as a draft. Pushing to a draft needs no approval.
+- A change is ready for human review when nothing local can still find a problem in it. Every local check is cheaper than a CI round, and every push after review starts one. So a finished change goes through `openspec-verify-change` (for OpenSpec changes), a code review of the whole branch with the review command of your agent, and the checks up to integration. Once all three pass, push the branch and open the pull request ready for review. The first push then carries the reviewed state, and `e2e` and `nixos` run once.
+- Open a draft pull request only for an intermediate state that someone should see.
 - Before each push, run the checks up to integration locally with `nix build .#checks.<system>.integration`, where `<system>` is the local Nix system such as `aarch64-linux`. Without Nix, run the commands that the [README](README.md#checks-before-a-push) lists. Never push a state that fails them.
 - Push once per round of feedback. Collect every remark of a review, fix them together and then push.
-- Mark the pull request ready for review once the work is complete.
-- After an approval, push only after asking.
+- An approval covers the commit the reviewer saw. A push after it needs a new review, so mention in the pull request what changed and why.
 
 ## Code style
 
