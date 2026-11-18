@@ -1,5 +1,6 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { once } from 'node:events'
 import { mkdirSync, openSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import path from 'node:path'
@@ -19,6 +20,7 @@ function compose(...args: string[]): string {
     encoding: 'utf8',
     env: { ...process.env, POSTGRES_PORT: '0', MAILPIT_SMTP_PORT: '0', MAILPIT_UI_PORT: '0' },
     stdio: ['ignore', 'pipe', 'inherit'],
+    maxBuffer: 64 * 1024 * 1024,
   }).trim()
 }
 
@@ -33,7 +35,9 @@ function freePort(): Promise<number> {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', () => {
       const address = server.address()
-      server.close(() => resolve(typeof address === 'object' && address ? address.port : 0))
+      server.close(() =>
+        typeof address === 'object' && address ? resolve(address.port) : reject(new Error('no free port')),
+      )
     })
   })
 }
@@ -47,36 +51,53 @@ function serverBinary(): string {
   return path.join(root, 'server', 'target', 'release', 'adunata')
 }
 
-async function untilAnswers(url: string, server: ChildProcess): Promise<void> {
+/** Settles with an error once the server fails to start or exits. */
+function death(server: ChildProcess): Promise<never> {
+  const died = new Promise<never>((_, reject) => {
+    server.once('error', reject)
+    server.once('exit', (code, signal) =>
+      reject(new Error(`the server exited with ${code ?? signal}, see ${results}/server.log`)),
+    )
+  })
+  died.catch(() => undefined)
+  return died
+}
+
+async function untilAnswers(url: string, died: Promise<never>): Promise<void> {
   for (let attempt = 0; attempt < 300; attempt++) {
-    if (server.exitCode !== null) throw new Error(`the server exited with ${server.exitCode}, see ${results}/server.log`)
-    const answer = await fetch(url).catch(() => undefined)
+    const answer = await Promise.race([fetch(url).catch(() => undefined), died])
     if (answer?.ok) return
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    await Promise.race([new Promise((resolve) => setTimeout(resolve, 100)), died])
   }
   throw new Error(`the server did not answer at ${url}, see ${results}/server.log`)
 }
 
-/** Starts fresh services from compose.yaml as a Compose project of this checkout and a server with a cleared environment, and removes both afterwards. */
-export default async function globalSetup(): Promise<() => Promise<void>> {
-  const binary = serverBinary()
-  compose('down', '--volumes')
-  compose('up', '--detach', '--wait')
-  const postgres = hostPort('postgres', 5432)
-  const smtp = hostPort('mailpit', 1025)
-  const mailpit = hostPort('mailpit', 8025)
-  const http = await freePort()
-  const url = `http://localhost:${http}`
+async function stop(server: ChildProcess | undefined): Promise<void> {
+  if (!server?.pid || server.exitCode !== null || server.signalCode !== null) return
+  const exited = once(server, 'exit')
+  server.kill()
+  await exited
+}
 
+/** Keeps the output of the services in test-results and removes the project, also when the output cannot be kept. */
+function removeServices(): void {
+  try {
+    writeFileSync(path.join(results, 'services.log'), compose('logs', '--no-color'))
+  } finally {
+    compose('down', '--volumes')
+  }
+}
+
+function startServer(binary: string, postgres: number, smtp: number, http: number): ChildProcess {
   mkdirSync(results, { recursive: true })
   const log = openSync(path.join(results, 'server.log'), 'w')
-  const server = spawn(binary, ['serve'], {
+  return spawn(binary, ['serve'], {
     cwd: results,
     stdio: ['ignore', log, log],
     env: {
       ADNT_DATABASE_URL: `postgres://adunata:adunata@127.0.0.1:${postgres}/adunata`,
       ADNT_HTTP_LISTEN_ADDRESS: `127.0.0.1:${http}`,
-      ADNT_HTTP_PUBLIC_URL: url,
+      ADNT_HTTP_PUBLIC_URL: `http://localhost:${http}`,
       ADNT_SMTP_HOST: '127.0.0.1',
       ADNT_SMTP_PORT: String(smtp),
       ADNT_SMTP_ENCRYPTION: 'none',
@@ -87,19 +108,30 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME: 'Lovelace',
     },
   })
+}
 
+/** Starts fresh services from compose.yaml as a Compose project of this checkout and a server with a cleared environment, and removes both afterwards. */
+export default async function globalSetup(): Promise<() => Promise<void>> {
+  const binary = serverBinary()
+  compose('down', '--volumes')
+  let server: ChildProcess | undefined
   const teardown = async () => {
-    server.kill()
-    writeFileSync(path.join(results, 'services.log'), compose('logs', '--no-color'))
-    compose('down', '--volumes')
+    try {
+      await stop(server)
+    } finally {
+      removeServices()
+    }
   }
   try {
-    await untilAnswers(`${url}/api/health`, server)
+    compose('up', '--detach', '--wait')
+    const http = await freePort()
+    server = startServer(binary, hostPort('postgres', 5432), hostPort('mailpit', 1025), http)
+    await untilAnswers(`http://127.0.0.1:${http}/api/health`, death(server))
+    process.env.ADUNATA_E2E_URL = `http://localhost:${http}`
+    process.env.ADUNATA_E2E_MAILPIT_URL = `http://127.0.0.1:${hostPort('mailpit', 8025)}`
+    return teardown
   } catch (error) {
-    await teardown()
+    await teardown().catch((cleanup: unknown) => console.error('could not remove the services:', cleanup))
     throw error
   }
-  process.env.ADUNATA_E2E_URL = url
-  process.env.ADUNATA_E2E_MAILPIT_URL = `http://127.0.0.1:${mailpit}`
-  return teardown
 }
