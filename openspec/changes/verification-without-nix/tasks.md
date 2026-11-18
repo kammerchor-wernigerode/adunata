@@ -4,7 +4,7 @@
 
 - [x] 1.1 Change the script `lint` in `client/package.json` to `oxlint --deny-warnings` and let `clientLint` in `flake.nix` run `npm run lint` without extra flags. Verify that `npm run lint` fails on a temporary unused variable and that `nix build .#checks.<system>.lint` passes.
 - [x] 1.2 Add the npm package `editorconfig-checker` as a dev dependency of the client and the script `lint:editorconfig` that sets `EC_VERSION` to the release in nixpkgs and checks the root of the repository. Name its license and its download on the first run in the commit. Verify that `npm run lint:editorconfig` passes and fails on a temporary line with trailing spaces.
-- [ ] 1.3 Update the table of tests and lints in `README.md` with `npm run lint` and `npm run lint:editorconfig`, and run each listed command once as written.
+- [x] 1.3 Update the table of tests and lints in `README.md` with `npm run lint` and `npm run lint:editorconfig`, and run each listed command once as written.
 
 ## 2. Contract check in two halves
 
