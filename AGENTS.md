@@ -32,6 +32,7 @@ CI runs the checks up to `integration` in the job `verify` on every push to a pu
 - Open a draft pull request only for an intermediate state that someone should see.
 - Before each push, run the checks up to integration locally with `nix build .#checks.<system>.integration`, where `<system>` is the local Nix system such as `aarch64-linux`. Without Nix, run the commands that the [README](README.md#checks-before-a-push) lists. Never push a state that fails them.
 - Push once per round of feedback. Collect every remark of a review, fix them together and then push.
+- CodeRabbit reviews a pull request once it is ready for review. Its remarks fit well into the same round as the human ones, which saves a push and a CI run. A remark that does not hold up against the code is worth a short reply rather than a change.
 - An approval covers the commit the reviewer saw. A push after it needs a new review, so mention in the pull request what changed and why.
 
 ## Code style
