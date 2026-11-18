@@ -240,6 +240,8 @@ error-mail-taken = The address { $conflict } is already taken.
 error-last-organizer = The instance needs at least one active organizer.
 error-organizer-inactive = Only active members can be organizers.
 error-unexpected = Something went wrong. Try again.
+error-page-title = Page unavailable
+error-retry = Try again
 
 language-name-de = Deutsch
 language-name-en = English

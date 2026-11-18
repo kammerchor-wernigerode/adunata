@@ -6,7 +6,7 @@ import { useTranslate } from '@/l10n/translate'
 import { GatheringSection } from './-components/GatheringSection'
 
 export const Route = createFileRoute('/_organizer/gatherings/')({
-  loader: ({ context: { queryClient } }) => queryClient.ensureQueryData(getListGatheringsQueryOptions()),
+  loader: ({ context: { queryClient } }) => queryClient.query(getListGatheringsQueryOptions()),
   component: GatheringListPage,
 })
 

@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import { getCurrentSessionQueryKey, signIn } from '@/api/generated/api'
+import { signIn } from '@/api/generated/api'
 import { PageTitle } from '@/components/PageTitle'
 import { Button } from '@/components/ui/button'
 import { useTranslate } from '@/l10n/translate'
@@ -20,8 +20,7 @@ export function ConfirmSignIn({ secret, onRequestNew }: { secret: string; onRequ
       return
     }
     window.history.replaceState(null, '', window.location.pathname)
-    queryClient.removeQueries({ predicate: (query) => isUnauthorized(query.state.data) })
-    await queryClient.invalidateQueries({ queryKey: getCurrentSessionQueryKey() })
+    await queryClient.resetQueries({ predicate: (query) => isUnauthorized(query.state.data) })
     await navigate({ to: '/gatherings' })
   }
 

@@ -11,7 +11,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useTranslate } from '@/l10n/translate'
 
 export const Route = createFileRoute('/_organizer/members/')({
-  loader: ({ context: { queryClient } }) => queryClient.ensureQueryData(getListMembersQueryOptions()),
+  loader: ({ context: { queryClient } }) => queryClient.query(getListMembersQueryOptions()),
   component: MemberListPage,
 })
 

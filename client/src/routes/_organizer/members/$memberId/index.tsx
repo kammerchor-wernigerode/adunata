@@ -6,7 +6,7 @@ import { MemberForm } from '../-components/MemberForm'
 
 export const Route = createFileRoute('/_organizer/members/$memberId/')({
   loader: async ({ context: { queryClient }, params: { memberId } }) => {
-    const members = await queryClient.ensureQueryData(getListMembersQueryOptions())
+    const members = await queryClient.query(getListMembersQueryOptions())
     if (members.status === 200 && !members.data.some((member) => String(member.id) === memberId)) throw redirect({ to: '/members' })
   },
   component: EditMemberPage,

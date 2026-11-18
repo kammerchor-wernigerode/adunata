@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { signOut } from '@/api/generated/api'
+import { getCurrentSessionQueryKey, signOut } from '@/api/generated/api'
 import { Button } from '@/components/ui/button'
 import { useOrganizer } from '@/hooks/useOrganizer'
 import { useTranslate } from '@/l10n/translate'
@@ -18,8 +18,9 @@ export function OrganizerNavigation() {
 
   async function leave() {
     await signOut()
-    queryClient.clear()
     await navigate({ to: '/sign-in' })
+    await queryClient.resetQueries({ queryKey: getCurrentSessionQueryKey() })
+    queryClient.removeQueries({ type: 'inactive' })
   }
 
   return (

@@ -1,4 +1,4 @@
-/** Adds the browser APIs that Radix primitives call and jsdom lacks. Tests in Node skip it. */
+/** Adds the browser APIs that Radix primitives and the scroll restoration of the router call and jsdom lacks. Tests in Node skip it. */
 if (typeof window !== 'undefined') {
   if (!('ResizeObserver' in globalThis)) {
     globalThis.ResizeObserver = class {
@@ -7,7 +7,5 @@ if (typeof window !== 'undefined') {
       disconnect() {}
     }
   }
-  Element.prototype.hasPointerCapture = () => false
-  Element.prototype.releasePointerCapture = () => {}
-  Element.prototype.scrollIntoView = () => {}
+  window.scrollTo = () => {}
 }

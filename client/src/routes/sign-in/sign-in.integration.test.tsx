@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, screen } from '@testing-library/react'
+import { act, cleanup, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
@@ -92,6 +92,51 @@ describe('sign-in page', () => {
     await act(() => router.options.context.queryClient.refetchQueries())
     await screen.findByRole('heading', { level: 1, name: 'Sign in' })
     expect(router.state.location.pathname).toBe('/sign-in')
+  })
+
+  it('hides the organizer navigation after signing out', async () => {
+    let signedIn = true
+    server.use(
+      getLegalLinksMockHandler({}),
+      http.get('*/api/session', () => (signedIn ? HttpResponse.json(ada) : new HttpResponse(null, { status: 401 }))),
+      http.delete('*/api/session', () => {
+        signedIn = false
+        return new HttpResponse(null, { status: 204 })
+      }),
+      http.get('*/api/members', () => HttpResponse.json([ada])),
+    )
+    const { router } = renderApp('/members')
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
+    await screen.findByRole('heading', { level: 1, name: 'Sign in' })
+    expect(router.state.location.pathname).toBe('/sign-in')
+    await waitFor(() => expect(screen.queryByRole('navigation', { name: 'Main navigation' })).toBeNull())
+  })
+
+  it('signs in with a link and shows the organizer navigation', async () => {
+    let signedIn = false
+    server.use(
+      getLegalLinksMockHandler({}),
+      http.get('*/api/session', () => (signedIn ? HttpResponse.json(ada) : new HttpResponse(null, { status: 401 }))),
+      http.post('*/api/sessions', () => {
+        signedIn = true
+        return HttpResponse.json(ada, { status: 201 })
+      }),
+      http.get('*/api/gatherings', () => HttpResponse.json({ upcoming: [], past: [] })),
+    )
+    window.location.hash = 'abc123'
+    const { router } = renderApp('/sign-in')
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in' }))
+    await screen.findByRole('heading', { level: 1, name: 'Gatherings' })
+    expect(router.state.location.pathname).toBe('/gatherings')
+    expect(await screen.findByRole('navigation', { name: 'Main navigation' })).toBeTruthy()
+  })
+
+  it('names an unreachable server and offers to try again', async () => {
+    server.use(getLegalLinksMockHandler({}), http.get('*/api/session', () => HttpResponse.error()))
+    renderApp('/members')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Page unavailable' })).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toBe('Something went wrong. Try again.')
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
   })
 
   it('follows a sign-in link opened while the page is open', async () => {

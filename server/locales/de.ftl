@@ -240,6 +240,8 @@ error-mail-taken = Die Adresse { $conflict } ist schon vergeben.
 error-last-organizer = Die Instanz braucht mindestens einen aktiven Organisator.
 error-organizer-inactive = Nur aktive Mitglieder können Organisatoren sein.
 error-unexpected = Etwas ist schiefgegangen. Versuch es noch einmal.
+error-page-title = Seite nicht verfügbar
+error-retry = Erneut versuchen
 
 language-name-de = Deutsch
 language-name-en = English

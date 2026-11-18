@@ -18,7 +18,7 @@ import { useTranslate } from '@/l10n/translate'
 
 export const Route = createFileRoute('/_organizer/gatherings/$gatheringId/invitations/$invitationId/')({
   loader: async ({ context: { queryClient }, params: { gatheringId, invitationId } }) => {
-    const overview = await queryClient.ensureQueryData(getOverviewQueryOptions(Number(gatheringId)))
+    const overview = await queryClient.query(getOverviewQueryOptions(Number(gatheringId)))
     const unknown = overview.status === 200 && !overview.data.rows.some((row) => String(row.invitationId) === invitationId)
     if (unknown) throw redirect({ to: '/gatherings/$gatheringId', params: { gatheringId } })
   },
