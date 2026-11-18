@@ -234,10 +234,20 @@
             serverTests serverArgs "-unit-tests"
               "cargoWithProfile test --locked --bins -- --skip integration::";
 
-          serverIntegrationTests = serverTests (serverArgs // testServices) "-integration-tests" ''
-            cargoWithProfile test --locked --bins -- integration::
-            ADUNATA_TEST_BINARY=${server}/bin/adunata cargoWithProfile test --locked --test startup
-          '';
+          serverIntegrationTests =
+            serverTests
+              (
+                serverArgs
+                // testServices
+                // {
+                  ADUNATA_OPENAPI_DOCUMENT = ./client/openapi.json;
+                }
+              )
+              "-integration-tests"
+              ''
+                cargoWithProfile test --locked --bins -- integration::
+                ADUNATA_TEST_BINARY=${server}/bin/adunata cargoWithProfile test --locked --test startup
+              '';
 
           contract = clientPackage {
             pname = "adunata-contract";

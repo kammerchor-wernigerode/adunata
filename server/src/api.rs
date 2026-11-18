@@ -157,6 +157,21 @@ mod integration {
         assert_eq!(unprotected(routes()).await, Vec::<String>::new());
     }
 
+    #[test]
+    fn the_client_holds_the_current_document() {
+        let path = std::env::var("ADUNATA_OPENAPI_DOCUMENT")
+            .unwrap_or_else(|_| "../client/openapi.json".to_owned());
+        let committed = std::fs::read_to_string(&path).expect("OpenAPI document must be readable");
+        let current = document()
+            .to_pretty_json()
+            .expect("OpenAPI document must serialize")
+            + "\n";
+        assert!(
+            committed == current,
+            "{path} differs from the server. Run in server/: cargo run -- openapi > ../client/openapi.json"
+        );
+    }
+
     #[utoipa::path(post, path = "/api/forgotten", responses((status = 204, description = "Changes data without asking who")))]
     async fn forgotten() -> StatusCode {
         StatusCode::NO_CONTENT
