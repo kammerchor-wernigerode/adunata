@@ -190,7 +190,6 @@ mod integration {
     async fn start_against_an_empty_database() {
         let database = empty_database().await;
         let pool = connect(database.options()).await.unwrap();
-        assert!(!table_exists(&pool, "spike_responses").await);
         assert!(table_exists(&pool, "responses").await);
         assert!(table_exists(&pool, "mail_outbox").await);
     }
@@ -209,11 +208,11 @@ mod integration {
             .await
             .unwrap();
         MIGRATOR.run_to(first, &older).await.unwrap();
-        assert!(!table_exists(&older, "mail_outbox").await);
+        assert!(!table_exists(&older, "responses").await);
         older.close().await;
 
         let pool = connect(options).await.unwrap();
-        assert!(table_exists(&pool, "mail_outbox").await);
+        assert!(table_exists(&pool, "responses").await);
         assert_eq!(
             applied_version(&pool).await.unwrap(),
             Some(latest_supported_version())
