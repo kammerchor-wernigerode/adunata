@@ -15,7 +15,7 @@
 ## 3. End-to-end tests outside the flake
 
 - [x] 3.1 Spike whether host port `0` in `compose.yaml` gives free ports with Docker Compose and whether `docker compose port` reads them back. Record the result in design.md. Verify by starting the project once with all three port variables set to `0`.
-- [ ] 3.2 In one commit:
+- [x] 3.2 In one commit:
   - Add a global setup to `client/playwright.config.ts` that starts the project `adunata-e2e-<hash of the checkout>` from `compose.yaml` after a `down --volumes`, on the ports of 3.1, then starts the server from `ADUNATA_E2E_SERVER` or from a release build of the source with a cleared environment and every setting design.md lists, passes `ADUNATA_E2E_URL` and `ADUNATA_E2E_MAILPIT_URL` to the tests and runs `down --volumes` in its teardown.
   - Stop loading `client/.env.local` in `playwright.config.ts` and remove the fallbacks to ports 8080 and 8025 from the tests.
   - Replace the job `checks` in `.github/workflows/ci.yaml` with the jobs `verify`, `e2e` and `nixos` as design.md describes. `verify` saves the Nix cache and uploads the release binary only when `e2e` runs, with a retention of one day. `nixos` only restores the cache. `e2e` restores the executable bit, installs Chromium with its system dependencies, caches npm and the browsers and runs `npm run e2e` against the binary. New actions are pinned by commit SHA.
@@ -35,4 +35,4 @@
 ## 5. Integration
 
 - [x] 5.1 Run every command from the README for lint, build, unit, integration, contract and end-to-end tests in a shell without the Nix development shell and with the tools the README lists for development without Nix. Verify that each passes.
-- [ ] 5.2 Mark the pull request ready for review and verify that `verify`, `e2e` and `nixos` pass in CI, that `e2e` and `nixos` run in parallel and how long `nixos` takes compared with the steps of today.
+- [x] 5.2 Mark the pull request ready for review and verify that `verify`, `e2e` and `nixos` pass in CI, that `e2e` and `nixos` run in parallel and how long `nixos` takes compared with the steps of today.
