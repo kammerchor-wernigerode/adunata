@@ -30,8 +30,8 @@
 
 ## 7. Repository settings
 
-- [ ] 7.1 A maintainer enables Dependabot security updates, secret scanning and push protection under Settings, Advanced Security. Verify that the settings page shows all three as enabled and that they match the list in the README
-- [ ] 7.2 A maintainer adds the two rulesets from design.md, one for `main` that requires the check `Verify` and one that restricts tags `v*`, both with a bypass for repository admins. Verify with `gh api repos/{owner}/{repo}/rulesets` that both exist and are active, that GitHub marks a test pull request with a failing `Verify` as blocked and that the list in the README matches
+- [x] 7.1 A maintainer enables Dependabot security updates, secret scanning and push protection under Settings, Advanced Security. Verify that the settings page shows all three as enabled and that they match the list in the README
+- [x] 7.2 A maintainer adds the two rulesets from design.md, one for `main` that requires the check `Verify` and one that restricts tags `v*`, both with a bypass for repository admins. Verify with `gh api repos/{owner}/{repo}/rulesets` that both exist and are active, that GitHub marks a test pull request with a failing `Verify` as blocked and that the list in the README matches
 
 ## Workflow follow-up
 

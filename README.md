@@ -241,7 +241,7 @@ The repository expects these settings, which no file holds:
 |Setting|Where|
 |-|-|
 |Dependabot alerts and security updates|Settings, Advanced Security|
-|Secret scanning with push protection|Settings, Advanced Security|
+|Secret Protection with push protection|Settings, Advanced Security|
 |Ruleset for `main` that requires the check `Verify`, with a bypass for admins|Settings, Rules|
 |Ruleset for tags `v*` that restricts creation, update and deletion, with a bypass for admins|Settings, Rules|
 
