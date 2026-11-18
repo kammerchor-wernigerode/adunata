@@ -5,10 +5,12 @@ import axe from 'axe-core'
 import { EnglishLocalization } from '@/l10n/testing'
 import { createAppRouter } from '@/router'
 
-globalThis.ResizeObserver ??= class {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
+if (!('ResizeObserver' in globalThis)) {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
 }
 
 /** Renders the whole client at a path, in English and against the API mocks of the test. */

@@ -68,7 +68,7 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
         setRefusal(message(translate, error))
       }
     }
-    const first = fields.find((field) => result.data.errors.some((error) => error.field === field))
+    const first = fields.find((name) => result.data.errors.some((error) => error.field === name))
     if (first) form.setFocus(first)
   }
 
@@ -77,7 +77,7 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
       <Field data-invalid={errors[name] ? true : undefined}>
         <FieldLabel htmlFor={`${id}-${name}`}>{label}</FieldLabel>
         {input}
-        <FieldError id={`${id}-${name}-error`} errors={errors[name] ? [{ message: errors[name]?.message }] : []} />
+        <FieldError id={`${id}-${name}-error`} errors={errors[name] ? [{ message: errors[name].message }] : []} />
       </Field>
     )
   }

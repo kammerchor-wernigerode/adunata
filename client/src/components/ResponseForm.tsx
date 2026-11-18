@@ -1,3 +1,4 @@
+import { format } from 'date-fns'
 import { CalendarDays } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
 import { de, enUS } from 'react-day-picker/locale'
@@ -17,23 +18,19 @@ const bedChoices: Beds[] = ['need', 'offer', 'none']
 
 export type SaveResult = { status: 'saved'; values: ResponseValues } | { status: 'invalid'; errors: ServerFieldError[] } | { status: 'failed' }
 
-interface Moment {
+type Moment = {
   day?: Date
   time: string
 }
 
-function isoDay(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-
 function moment(value: string | null | undefined): Moment {
   if (!value) return { time: '' }
-  const [, time] = value.split('T')
-  return { day: wallClock(value), time }
+  const day = wallClock(value)
+  return { day, time: format(day, 'HH:mm') }
 }
 
 function combined({ day, time }: Moment): string | null {
-  return day && time ? `${isoDay(day)}T${time}` : null
+  return day && time ? `${format(day, 'yyyy-MM-dd')}T${time}` : null
 }
 
 async function failedOnError(save: () => Promise<SaveResult>): Promise<SaveResult> {
@@ -134,8 +131,8 @@ export function ResponseForm({
         return
       }
       if (result.status === 'invalid') {
-        for (const error of result.errors) {
-          found[formFields.includes(error.field) ? error.field : 'form'] = message(translate, error)
+        for (const serverError of result.errors) {
+          found[formFields.includes(serverError.field) ? serverError.field : 'form'] = message(translate, serverError)
         }
       } else {
         found.form = translate('error-unexpected')
@@ -177,7 +174,7 @@ export function ResponseForm({
                 >
                   <span id={`${id}-${field}-value`}>
                     {value.day
-                      ? formatDay(isoDay(value.day), locale, { weekday: 'short', day: 'numeric', month: 'long' })
+                      ? formatDay(format(value.day, 'yyyy-MM-dd'), locale, { weekday: 'short', day: 'numeric', month: 'long' })
                       : translate('response-choose-day')}
                   </span>
                   <CalendarDays aria-hidden="true" />

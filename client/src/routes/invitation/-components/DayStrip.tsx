@@ -1,15 +1,5 @@
+import { eachDayOfInterval, parseISO } from 'date-fns'
 import { useLocale, useTranslate } from '@/l10n/translate'
-
-function days(firstDay: string, lastDay: string): Date[] {
-  const [year, month, day] = firstDay.split('-').map(Number)
-  const [lastYear, lastMonth, lastDayOfMonth] = lastDay.split('-').map(Number)
-  const last = new Date(lastYear, lastMonth - 1, lastDayOfMonth)
-  const result: Date[] = []
-  for (let current = new Date(year, month - 1, day); current <= last; current.setDate(current.getDate() + 1)) {
-    result.push(new Date(current))
-  }
-  return result
-}
 
 /** One tile per day of the gathering with weekday, date and month. */
 export function DayStrip({ firstDay, lastDay }: { firstDay: string; lastDay: string }) {
@@ -21,7 +11,7 @@ export function DayStrip({ firstDay, lastDay }: { firstDay: string; lastDay: str
   const full = new Intl.DateTimeFormat(locale, { dateStyle: 'full' })
   return (
     <ul aria-label={translate('response-days')} className="mt-4 flex flex-wrap gap-2">
-      {days(firstDay, lastDay).map((day) => (
+      {eachDayOfInterval({ start: parseISO(firstDay), end: parseISO(lastDay) }).map((day) => (
         <li
           key={day.toISOString()}
           className="min-w-[4.5rem] flex-1 rounded-lg border border-border bg-card px-2 py-1.5 text-center text-sm text-muted-foreground"

@@ -48,7 +48,7 @@ function signedIn(members: Member[] = [johannes, ada, clara]) {
 function names(): string[] {
   return within(screen.getByRole('table'))
     .getAllByRole('link')
-    .map((link) => link.textContent ?? '')
+    .map((link) => link.textContent)
 }
 
 describe('member list', () => {

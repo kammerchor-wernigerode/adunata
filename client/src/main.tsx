@@ -3,13 +3,16 @@ import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import { LocalizationProvider } from './l10n/Localization'
+import { LocalizationProvider } from './l10n/LocalizationProvider'
 import { createAppRouter } from './router'
 
 const queryClient = new QueryClient()
 const router = createAppRouter(queryClient)
 
-createRoot(document.getElementById('root')!).render(
+const root = document.getElementById('root')
+if (!root) throw new Error('index.html has no element with the id root')
+
+createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <LocalizationProvider>

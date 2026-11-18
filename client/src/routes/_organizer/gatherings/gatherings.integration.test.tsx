@@ -62,7 +62,7 @@ describe('gathering list', () => {
       'Concert in April',
     ])
     expect(within(past).getAllByRole('link').map((link) => link.textContent)).toEqual(['Autumn camp'])
-    expect(within(upcoming).getAllByText(/Drübeck Abbey/)[0].textContent).toContain('2027')
+    expect(within(upcoming).getAllByText(/Drübeck Abbey/)[0]!.textContent).toContain('2027')
     expect(await violations(container)).toEqual([])
   })
 })

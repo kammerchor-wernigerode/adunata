@@ -10,7 +10,7 @@ function readReport(path) {
   try {
     report = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    throw new Error(`pnpm audit wrote no JSON report to ${path}: ${error.message}`);
+    throw new Error(`pnpm audit wrote no JSON report to ${path}: ${error.message}`, { cause: error });
   }
   if (report.error) {
     throw new Error(`pnpm audit failed: ${JSON.stringify(report.error)}`);
@@ -68,7 +68,7 @@ const exceptions = JSON.parse(readFileSync(exceptionsFile, "utf8"));
 const failures = problems(found, exceptions, new Date().toISOString().slice(0, 10));
 const stale = staleExceptions(found, exceptions);
 
-for (const advisory of found.filter((advisory) => !failingSeverities.has(advisory.severity))) {
+for (const advisory of found.filter((candidate) => !failingSeverities.has(candidate.severity))) {
   console.log(`${advisory.id} (${advisory.severity}) in ${[...advisory.packages].join(", ")}: ${advisory.title}`);
 }
 if (staleExceptionsFail) {

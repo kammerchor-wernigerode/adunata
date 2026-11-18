@@ -13,6 +13,7 @@ export function createAppRouter(queryClient: QueryClient, history?: RouterHistor
 }
 
 declare module '@tanstack/react-router' {
+  // oxlint-disable-next-line typescript/consistent-type-definitions -- module augmentation needs an interface
   interface Register {
     router: ReturnType<typeof createAppRouter>
   }

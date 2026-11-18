@@ -14,7 +14,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { getLegalLinksMockHandler } from '@/api/generated/api.msw'
 import { EnglishLocalization } from '@/l10n/testing'
 import { PageTitle } from '@/components/PageTitle'
-import { Route as RootRoute } from './__root'
+import { RootLayout } from '@/components/RootLayout'
 
 const server = setupServer()
 
@@ -26,7 +26,7 @@ afterEach(() => {
 afterAll(() => server.close())
 
 function renderLayout() {
-  const root = createRootRoute({ component: RootRoute.options.component })
+  const root = createRootRoute({ component: RootLayout })
   const first = createRoute({
     getParentRoute: () => root,
     path: '/',

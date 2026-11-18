@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import AxeBuilder from '@axe-core/playwright'
+import { AxeBuilder } from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 
 test.use({ locale: 'en-US' })
@@ -15,7 +15,7 @@ async function newestLink(kind: string): Promise<string> {
   for (let attempt = 0; attempt < 100; attempt++) {
     const list = (await (await fetch(`${mailpit()}/api/v1/messages?limit=1`)).json()) as { messages: { ID: string }[] }
     if (list.messages.length > 0) {
-      const message = (await (await fetch(`${mailpit()}/api/v1/message/${list.messages[0].ID}`)).json()) as { Text: string }
+      const message = (await (await fetch(`${mailpit()}/api/v1/message/${list.messages[0]!.ID}`)).json()) as { Text: string }
       const found = message.Text.match(new RegExp(`/${kind}#[0-9a-f]{64}`))
       if (found) return found[0]
     }

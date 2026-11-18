@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint --deny-warnings",
+    "lint": "oxlint --type-aware --deny-warnings",
     "preview": "vite preview",
     "test": "vitest run --exclude '**/*.integration.test.*'",
     "test:integration": "vitest run integration.test",
@@ -55,6 +55,7 @@
     "orval": "^8.47.0",
     "oxc-transform-react": "^0.156.0",
     "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2006",
     "shadcn": "^4.23.0",
     "tailwindcss": "^4.3.5",
     "typescript": "~7.0.2",

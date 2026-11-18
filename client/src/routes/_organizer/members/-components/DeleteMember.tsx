@@ -25,7 +25,8 @@ export function DeleteMember({
     const result = await deleteMember(member.id)
     if (result.status === 204) return onDeleted()
     setAsking(false)
-    onRefused(result.status === 422 ? memberErrorMessage(translate, result.data.errors[0]) : translate('error-unexpected'))
+    const [reason] = result.status === 422 ? result.data.errors : []
+    onRefused(reason ? memberErrorMessage(translate, reason) : translate('error-unexpected'))
   }
 
   return (

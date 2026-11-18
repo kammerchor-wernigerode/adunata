@@ -78,7 +78,7 @@ function names(): string[] {
   return within(screen.getByRole('table'))
     .getAllByRole('row')
     .slice(1)
-    .map((row) => within(row).getAllByRole('cell')[0].textContent ?? '')
+    .map((row) => within(row).getAllByRole('cell')[0]!.textContent)
 }
 
 describe('overview', () => {

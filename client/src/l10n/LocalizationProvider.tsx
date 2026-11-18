@@ -9,6 +9,7 @@ import {
   storeLocale,
   type Locale,
 } from './bundle'
+import { CatalogUnavailable } from './CatalogUnavailable'
 import { LocalizationContext, type Localization } from './translate'
 
 async function fetchCatalog(locale: Locale): Promise<string> {
@@ -47,14 +48,4 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
     },
   }
   return <LocalizationContext.Provider value={value}>{children}</LocalizationContext.Provider>
-}
-
-/** Without a catalog no text can be translated, so this notice is the only text written into the client. */
-function CatalogUnavailable() {
-  return (
-    <main role="alert" className="p-6">
-      <p lang="de">Adunata kann seine Texte gerade nicht laden. Bitte lade die Seite neu.</p>
-      <p lang="en">Adunata cannot load its texts right now. Please reload the page.</p>
-    </main>
-  )
 }

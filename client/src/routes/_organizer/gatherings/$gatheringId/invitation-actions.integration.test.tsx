@@ -94,7 +94,7 @@ describe('invitation actions', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Cancel gathering' }))
     expect(screen.getByText('Cancel Rehearsal weekend and inform every invited member by mail?')).toBeTruthy()
     expect(cancelled).toBe(false)
-    await userEvent.click(screen.getAllByRole('button', { name: 'Cancel gathering' })[0])
+    await userEvent.click(screen.getAllByRole('button', { name: 'Cancel gathering' })[0]!)
     await waitFor(() => expect(cancelled).toBe(true))
   })
 })

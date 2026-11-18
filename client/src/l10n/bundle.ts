@@ -8,7 +8,7 @@ export type MessageArgs = Record<string, FluentVariable>
 
 const storageKey = 'adunata.locale'
 
-export function isLocale(value: string | null): value is Locale {
+export function isLocale(value: unknown): value is Locale {
   return supportedLocales.some((locale) => locale === value)
 }
 

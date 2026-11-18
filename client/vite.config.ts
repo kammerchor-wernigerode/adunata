@@ -10,7 +10,7 @@ const fonts = ['literata', 'source-sans-3']
 const bundledLicensesFile = '.vite/licenses.json'
 const noticesFile = 'licenses.txt'
 
-interface Notice {
+type Notice = {
   name: string
   version: string
   identifier?: string
@@ -30,7 +30,7 @@ function readOrFail(file: string, reason: string): string {
 
 function installedPackage(name: string): Notice {
   const directory = `node_modules/${name}`
-  const manifest = JSON.parse(readOrFail(`${directory}/package.json`, `client/notices.json names ${name}`))
+  const manifest = JSON.parse(readOrFail(`${directory}/package.json`, `client/notices.json names ${name}`)) as { version: string; license?: string }
   const licenseFile = ['LICENSE', 'LICENSE.md'].map((file) => `${directory}/${file}`).find((file) => existsSync(fromClient(file)))
   return {
     name,
