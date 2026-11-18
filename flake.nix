@@ -39,7 +39,7 @@
           editorconfig-checker
           mailpit
           nixfmt
-          nodejs_24
+          nodejs_26
           openssl
           patchelf
           postgresql_17
@@ -76,6 +76,7 @@
                   );
                 };
                 sourceRoot = "source/client";
+                nodejs = tools.nodejs_26;
                 inherit npmDeps;
                 npmConfigHook = pkgs.importNpmLock.npmConfigHook;
               }
@@ -523,7 +524,7 @@
                   ];
                 };
               in
-              pkgs.runCommand "check-client-licenses" { nativeBuildInputs = [ tools.nodejs_24 ]; } ''
+              pkgs.runCommand "check-client-licenses" { nativeBuildInputs = [ tools.nodejs_26 ]; } ''
                 node ${source}/client/scripts/check-licenses.mjs
                 touch $out
               '';
@@ -705,7 +706,7 @@
               tools.clippy
               tools.rustfmt
               tools.rust-analyzer
-              tools.nodejs_24
+              tools.nodejs_26
               tools.sccache
             ];
 

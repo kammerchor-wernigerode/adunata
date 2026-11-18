@@ -33,7 +33,7 @@ Development needs PostgreSQL to store data and Mailpit to catch outgoing mail. B
 
 ### With Nix
 
-Install [Nix](https://nixos.org/download/) and enable flakes. Install Docker or Podman with Compose as well. The development shell provides Rust and Node.js 24. It compiles Rust through sccache, which shares compiled dependencies between checkouts.
+Install [Nix](https://nixos.org/download/) and enable flakes. Install Docker or Podman with Compose as well. The development shell provides Rust and Node.js 26. It compiles Rust through sccache, which shares compiled dependencies between checkouts.
 
 ```sh
 nix develop
@@ -50,7 +50,7 @@ direnv allow
 Install these tools:
 
 - [rustup](https://rustup.rs), which installs the version of Rust that [`server/rust-toolchain.toml`](server/rust-toolchain.toml) pins, with `clippy`, `rustfmt` and the sources of the standard library
-- Node.js 24
+- Node.js 26
 - Docker or Podman with Compose
 
 ### RustRover

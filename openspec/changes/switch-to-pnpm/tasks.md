@@ -2,7 +2,7 @@
 
 ## 1. Node.js 26
 
-- [ ] 1.1 Replace `nodejs_24` with `nodejs_26` in `toolsOf`, the development shell, `clientLicenses` and `advisories.yaml`, pass `nodejs = tools.nodejs_26` to `buildNpmPackage`, set `node-version: 26` in the job `e2e`, move `@types/node` to `^26` and name Node.js 26 in the README, all in one commit. Verify that `nix develop --command node --version` prints 26.13.0, that `toolLicenses` passes and that `nix build .#checks.<system>.integration` passes
+- [x] 1.1 Replace `nodejs_24` with `nodejs_26` in `toolsOf`, the development shell, `clientLicenses` and `advisories.yaml`, pass `nodejs = tools.nodejs_26` to `buildNpmPackage`, set `node-version: 26` in the job `e2e`, move `@types/node` to `^26` and name Node.js 26 in the README, all in one commit. Verify that `nix develop --command node --version` prints 26.13.0, that `toolLicenses` passes and that `nix build .#checks.<system>.integration` passes
 
 ## 2. Client on pnpm
 
