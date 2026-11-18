@@ -30,6 +30,19 @@ function isoDay(offset: number): string {
   return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
 }
 
+/** Opens the calendar of a day field, turns to the month of an ISO day and picks it. */
+async function pickDay(page: Page, label: string, day: string): Promise<void> {
+  await page.getByRole('button', { name: new RegExp(`^${label}`) }).click()
+  const grid = page.locator(`[role="grid"][aria-label="${label}"]`)
+  await expect(grid).toBeVisible()
+  const button = grid.locator(`[data-day="${day}"]:not([data-outside]) button`)
+  for (let month = 0; month < 3 && !(await button.isVisible()); month++) {
+    await page.getByRole('button', { name: 'Go to the Next Month' }).click()
+  }
+  await button.click()
+  await page.keyboard.press('Escape')
+}
+
 /** Waits until no finite CSS transition or animation runs any more, so that axe sees the final colors after a change of the color scheme. A transition that a newer one replaces rejects its promise, so the check repeats until none is left. Finished and paused animations do not count. */
 async function settle(page: Page): Promise<void> {
   await page.evaluate(async () => {
@@ -84,8 +97,8 @@ test('organizer invites and a member answers through the personal link', async (
   await page.getByRole('link', { name: 'Create gathering' }).click()
   await page.getByLabel('Title').fill('Rehearsal weekend')
   await page.getByLabel('Location').fill('Drübeck Abbey')
-  await page.getByLabel('First day').fill(isoDay(30))
-  await page.getByLabel('Last day').fill(isoDay(32))
+  await pickDay(page, 'First day', isoDay(30))
+  await pickDay(page, 'Last day', isoDay(32))
   await page.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Rehearsal weekend' })).toBeVisible()
   await page.getByRole('button', { name: 'Invite the one active member not invited yet' }).click()

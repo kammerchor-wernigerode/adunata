@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import type { Gathering } from '@/api/generated/model'
+import { Badge } from '@/components/ui/badge'
 import { formatSpan } from '@/l10n/dates'
 import { useLocale, useTranslate } from '@/l10n/translate'
 
@@ -28,9 +29,9 @@ export function GatheringSection({ title, gatherings }: { title: string; gatheri
                 </p>
               </div>
               {gathering.cancelled && (
-                <span className="rounded-full bg-muted px-2.5 py-0.5 text-sm font-semibold text-muted-foreground">
+                <Badge variant="secondary" className="h-auto bg-muted px-2.5 text-sm font-semibold text-muted-foreground">
                   {translate('gathering-cancelled')}
-                </span>
+                </Badge>
               )}
             </li>
           ))}

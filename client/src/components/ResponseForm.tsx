@@ -1,15 +1,12 @@
-import { format } from 'date-fns'
-import { CalendarDays } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
-import { de, enUS } from 'react-day-picker/locale'
 import type { Beds, FieldError as ServerFieldError, ResponseStatus as Status, ResponseValues } from '@/api/generated/model'
+import { DatePicker } from '@/components/DatePicker'
 import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { formatDay, formatWallClock, wallClock } from '@/l10n/dates'
+import { Textarea } from '@/components/ui/textarea'
+import { formatWallClock, wallClock } from '@/l10n/dates'
 import { useLocale, useTranslate, type Translate } from '@/l10n/translate'
 
 const formFields = ['status', 'arrival', 'departure', 'beds', 'bedCount', 'comment']
@@ -19,18 +16,17 @@ const bedChoices: Beds[] = ['need', 'offer', 'none']
 export type SaveResult = { status: 'saved'; values: ResponseValues } | { status: 'invalid'; errors: ServerFieldError[] } | { status: 'failed' }
 
 type Moment = {
-  day?: Date
+  day: string
   time: string
 }
 
 function moment(value: string | null | undefined): Moment {
-  if (!value) return { time: '' }
-  const day = wallClock(value)
-  return { day, time: format(day, 'HH:mm') }
+  const [day = '', time = ''] = value?.split('T') ?? []
+  return { day, time }
 }
 
 function combined({ day, time }: Moment): string | null {
-  return day && time ? `${format(day, 'yyyy-MM-dd')}T${time}` : null
+  return day && time ? `${day}T${time}` : null
 }
 
 async function failedOnError(save: () => Promise<SaveResult>): Promise<SaveResult> {
@@ -162,40 +158,18 @@ export function ResponseForm({
             <FieldLabel id={`${id}-${field}-label`} htmlFor={`${id}-${field}`} className="sr-only">
               {dayLabel}
             </FieldLabel>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id={`${id}-${field}`}
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-between border-input font-normal"
-                  aria-labelledby={`${id}-${field}-label ${id}-${field}-value`}
-                  {...described(field)}
-                >
-                  <span id={`${id}-${field}-value`}>
-                    {value.day
-                      ? formatDay(format(value.day, 'yyyy-MM-dd'), locale, { weekday: 'short', day: 'numeric', month: 'long' })
-                      : translate('response-choose-day')}
-                  </span>
-                  <CalendarDays aria-hidden="true" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  locale={locale === 'de' ? de : enUS}
-                  weekStartsOn={1}
-                  defaultMonth={value.day ?? wallClock(`${firstDay}T00:00`)}
-                  selected={value.day}
-                  onSelect={(day) => change({ ...value, day })}
-                  disabled={{ before: wallClock(`${firstDay}T00:00`), after: wallClock(`${lastDay}T00:00`) }}
-                  labels={{
-                    labelGrid: () => dayLabel,
-                    labelNav: () => translate(`response-${field}-months`),
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
+            <DatePicker
+              id={`${id}-${field}`}
+              labelId={`${id}-${field}-label`}
+              value={value.day}
+              onChange={(day) => change({ ...value, day })}
+              gridLabel={dayLabel}
+              navigationLabel={translate(`response-${field}-months`)}
+              displayFormat={{ weekday: 'short', day: 'numeric', month: 'long' }}
+              firstDay={firstDay}
+              lastDay={lastDay}
+              {...described(field)}
+            />
           </Field>
           <Field>
             <FieldLabel htmlFor={`${id}-${field}-time`} className="sr-only">
@@ -302,13 +276,12 @@ export function ResponseForm({
         <Field data-invalid={errors.comment ? true : undefined}>
           <FieldLabel htmlFor={`${id}-comment`}>{translate('response-comment')}</FieldLabel>
           <FieldDescription id={`${id}-comment-hint`}>{translate('response-comment-hint')}</FieldDescription>
-          <textarea
+          <Textarea
             id={`${id}-comment`}
             rows={3}
             maxLength={2000}
             value={comment}
             onChange={(event) => setComment(event.target.value)}
-            className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring"
             {...described('comment', `${id}-comment-hint`)}
           />
           {error('comment')}

@@ -67,6 +67,14 @@ describe('gathering list', () => {
   })
 })
 
+/** Opens the calendar of a day field and picks a day of the month it shows. Days 18 to 20 never appear twice in one month view. */
+async function pickDay(label: string, dayOfMonth: string) {
+  await userEvent.click(screen.getByLabelText(label))
+  const grid = await screen.findByRole('grid', { name: label })
+  await userEvent.click(within(grid).getByText(dayOfMonth))
+  await userEvent.keyboard('{Escape}')
+}
+
 describe('gathering form', () => {
   it('marks a last day before the first day', async () => {
     signedIn()
@@ -78,8 +86,8 @@ describe('gathering form', () => {
     const { container } = renderApp('/gatherings/new')
     await userEvent.type(await screen.findByLabelText('Title'), 'Rehearsal weekend')
     await userEvent.type(screen.getByLabelText('Location'), 'Drübeck Abbey')
-    await userEvent.type(screen.getByLabelText('First day'), '2027-03-14')
-    await userEvent.type(screen.getByLabelText('Last day'), '2027-03-12')
+    await pickDay('First day', '20')
+    await pickDay('Last day', '18')
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
     const lastDay = screen.getByLabelText('Last day')
     await waitFor(() => expect(lastDay.getAttribute('aria-invalid')).toBe('true'))

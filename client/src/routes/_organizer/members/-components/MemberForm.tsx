@@ -1,12 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useId, useState } from 'react'
-import { useForm, type FieldPath } from 'react-hook-form'
+import { useId, useState, type ComponentProps } from 'react'
+import { Controller, useForm, type FieldPath } from 'react-hook-form'
 import { addMember, changeMember, getListMembersQueryKey } from '@/api/generated/api'
 import type { FieldError as ServerFieldError, Member, MemberChange } from '@/api/generated/model'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useTranslate } from '@/l10n/translate'
 import { DeleteMember } from './DeleteMember'
 import { memberErrorMessage } from './memberErrorMessage'
@@ -56,6 +58,24 @@ export function MemberForm({ member }: { member?: Member }) {
     }
   }
 
+  function checkbox(name: 'active' | 'organizer', description: ComponentProps<typeof Checkbox>) {
+    return (
+      <Controller
+        control={form.control}
+        name={name}
+        render={({ field: { ref, value, onChange } }) => (
+          <Checkbox
+            ref={ref}
+            id={`${id}-${name}`}
+            checked={value}
+            onCheckedChange={(checked) => onChange(checked === true)}
+            {...description}
+          />
+        )}
+      />
+    )
+  }
+
   function errorOf(field: FieldPath<MemberChange>) {
     const error = errors[field]
     return <FieldError id={`${id}-${field}-error`} errors={error ? [{ message: error.message }] : []} />
@@ -83,41 +103,38 @@ export function MemberForm({ member }: { member?: Member }) {
         </Field>
         <Field>
           <FieldLabel htmlFor={`${id}-language`}>{translate('member-language')}</FieldLabel>
-          <select
-            id={`${id}-language`}
-            className="h-8 w-fit rounded-lg border border-input bg-background px-2.5 text-base text-foreground md:text-sm"
-            {...form.register('language')}
-          >
-            <option value="de" lang="de">
-              {translate('language-name-de')}
-            </option>
-            <option value="en" lang="en">
-              {translate('language-name-en')}
-            </option>
-          </select>
+          <Controller
+            control={form.control}
+            name="language"
+            render={({ field: { ref, value, onChange } }) => (
+              <Select value={value} onValueChange={onChange}>
+                <SelectTrigger ref={ref} id={`${id}-language`} className="w-fit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="de" lang="de">
+                    {translate('language-name-de')}
+                  </SelectItem>
+                  <SelectItem value="en" lang="en">
+                    {translate('language-name-en')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
         </Field>
         {member && (
           <>
             <Field orientation="horizontal" data-invalid={errors.active ? true : undefined}>
-              <input
-                id={`${id}-active`}
-                type="checkbox"
-                className="size-4 accent-primary"
-                {...described('active')}
-                {...form.register('active')}
-              />
+              {checkbox('active', described('active'))}
               <FieldLabel htmlFor={`${id}-active`}>{translate('member-active')}</FieldLabel>
             </Field>
             {errorOf('active')}
             <Field orientation="horizontal" data-invalid={errors.organizer ? true : undefined}>
-              <input
-                id={`${id}-organizer`}
-                type="checkbox"
-                className="size-4 accent-primary"
-                aria-describedby={`${id}-organizer-hint${errors.organizer ? ` ${id}-organizer-error` : ''}`}
-                aria-invalid={errors.organizer ? true : undefined}
-                {...form.register('organizer')}
-              />
+              {checkbox('organizer', {
+                'aria-describedby': `${id}-organizer-hint${errors.organizer ? ` ${id}-organizer-error` : ''}`,
+                'aria-invalid': errors.organizer ? true : undefined,
+              })}
               <FieldLabel htmlFor={`${id}-organizer`}>{translate('member-organizer')}</FieldLabel>
             </Field>
             <FieldDescription id={`${id}-organizer-hint`}>{translate('member-organizer-hint')}</FieldDescription>

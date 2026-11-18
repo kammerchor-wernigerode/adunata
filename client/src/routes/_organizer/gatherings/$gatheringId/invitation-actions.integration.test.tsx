@@ -76,7 +76,7 @@ describe('invitation actions', () => {
       }),
     )
     organizerPage()
-    await userEvent.click(await screen.findByText('Choose members to invite', { selector: 'summary' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Choose members to invite' }))
     await userEvent.click(screen.getByLabelText('Schumann, Clara'))
     await userEvent.click(screen.getByRole('button', { name: 'Invite one chosen member' }))
     await waitFor(() => expect(body).toEqual({ memberIds: [2] }))

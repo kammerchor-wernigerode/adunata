@@ -69,7 +69,8 @@ describe('language of the client', () => {
   it('keeps a switched language after a reload', async () => {
     preferLanguages(['de-DE'])
     const first = openClient()
-    await userEvent.selectOptions(await screen.findByLabelText('Sprache'), 'en')
+    await userEvent.click(await screen.findByLabelText('Sprache'))
+    await userEvent.click(await screen.findByRole('option', { name: 'English' }))
     expect(await screen.findByLabelText('Language')).toBeTruthy()
     first.unmount()
 

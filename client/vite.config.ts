@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
@@ -126,6 +127,7 @@ export default defineConfig(({ mode }) => {
       thirdPartyNotices(),
     ],
     build: { license: { fileName: bundledLicensesFile } },
+    test: { setupFiles: ['src/testing/jsdom.ts'] },
     resolve: {
       alias: { '@': path.resolve(import.meta.dirname, './src') },
     },

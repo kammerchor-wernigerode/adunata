@@ -12,7 +12,8 @@ test('switches the language and stays accessible', async ({ page }) => {
   await expect(page.getByLabel('Language')).toBeVisible()
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
 
-  await page.getByLabel('Language').selectOption('de')
+  await page.getByLabel('Language').click()
+  await page.getByRole('option', { name: 'Deutsch' }).click()
   await expect(page.getByLabel('Sprache')).toBeVisible()
   await expect(page.locator('html')).toHaveAttribute('lang', 'de')
 

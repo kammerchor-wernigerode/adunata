@@ -1,8 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { signOut } from '@/api/generated/api'
+import { Button } from '@/components/ui/button'
 import { useOrganizer } from '@/hooks/useOrganizer'
 import { useTranslate } from '@/l10n/translate'
+import { cn } from '@/lib/utils'
 
 const item =
   'rounded-sm underline-offset-4 decoration-2 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-primary-foreground aria-[current=page]:underline'
@@ -34,9 +36,9 @@ export function OrganizerNavigation() {
           </Link>
         </li>
         <li>
-          <button type="button" onClick={leave} className={item}>
+          <Button variant="link" onClick={leave} className={cn(item, 'h-auto p-0 text-base font-normal text-primary-foreground')}>
             {translate('nav-sign-out')}
-          </button>
+          </Button>
         </li>
       </ul>
     </nav>

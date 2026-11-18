@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import type { Attendees as AttendeeList } from '@/api/generated/model'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { useTranslate } from '@/l10n/translate'
+import { cn } from '@/lib/utils'
 
 const shownAtFirst = 12
 
@@ -20,27 +23,24 @@ export function Attendees({ attendees }: { attendees: AttendeeList }) {
       </h2>
       <ul className="flex flex-wrap gap-2">
         {shown.map((attendee) => (
-          <li
-            key={attendee.name}
-            className={
-              attendee.status === 'tentative'
-                ? 'rounded-full border border-dashed border-muted-foreground px-3 py-0.5 text-sm'
-                : 'rounded-full bg-muted px-3 py-0.5 text-sm'
-            }
-          >
-            {attendee.name}
-            {attendee.status === 'tentative' && <span className="sr-only"> ({translate('response-status-tentative')})</span>}
+          <li key={attendee.name}>
+            <Badge
+              variant={attendee.status === 'tentative' ? 'outline' : 'secondary'}
+              className={cn(
+                'h-auto px-3 text-sm font-normal',
+                attendee.status === 'tentative' ? 'border-dashed border-muted-foreground' : 'bg-muted',
+              )}
+            >
+              {attendee.name}
+              {attendee.status === 'tentative' && <span className="sr-only"> ({translate('response-status-tentative')})</span>}
+            </Badge>
           </li>
         ))}
         {hidden > 0 && (
           <li>
-            <button
-              type="button"
-              onClick={() => setAll(true)}
-              className="rounded-full bg-muted px-3 py-0.5 text-sm underline underline-offset-4"
-            >
+            <Button variant="secondary" size="sm" onClick={() => setAll(true)} className="h-auto rounded-full bg-muted px-3 py-0.5 underline underline-offset-4">
               {translate('attendees-more', { count: hidden })}
-            </button>
+            </Button>
           </li>
         )}
       </ul>

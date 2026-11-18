@@ -6,6 +6,7 @@ import { PageTitle } from '@/components/PageTitle'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useTranslate } from '@/l10n/translate'
 
@@ -63,19 +64,19 @@ function MemberListPage() {
       {members.data && shown.length === 0 ? (
         <p>{translate('members-empty')}</p>
       ) : (
-        <table className="w-full border-collapse overflow-hidden rounded-lg border border-border text-sm">
-          <thead className="bg-muted text-left text-xs text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 font-semibold">{translate('member-name')}</th>
-              <th className="px-3 py-2 font-semibold">{translate('member-mail')}</th>
-              <th className="px-3 py-2 font-semibold">{translate('member-status')}</th>
-              <th className="px-3 py-2 font-semibold">{translate('member-role')}</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table className="overflow-hidden rounded-lg border border-border">
+          <TableHeader className="bg-muted text-xs">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="px-3 font-semibold text-muted-foreground">{translate('member-name')}</TableHead>
+              <TableHead className="px-3 font-semibold text-muted-foreground">{translate('member-mail')}</TableHead>
+              <TableHead className="px-3 font-semibold text-muted-foreground">{translate('member-status')}</TableHead>
+              <TableHead className="px-3 font-semibold text-muted-foreground">{translate('member-role')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {shown.map((member) => (
-              <tr key={member.id} className="border-t border-border even:bg-muted/50">
-                <td className="px-3 py-2">
+              <TableRow key={member.id} className="even:bg-muted/50">
+                <TableCell className="px-3 py-2">
                   <Link
                     to="/members/$memberId"
                     params={{ memberId: String(member.id) }}
@@ -83,14 +84,14 @@ function MemberListPage() {
                   >
                     {member.lastName}, {member.firstName}
                   </Link>
-                </td>
-                <td className="px-3 py-2 break-all">{member.mail}</td>
-                <td className="px-3 py-2">{translate(member.active ? 'member-active' : 'member-inactive')}</td>
-                <td className="px-3 py-2">{member.organizer ? translate('member-organizer') : ''}</td>
-              </tr>
+                </TableCell>
+                <TableCell className="px-3 py-2 break-all whitespace-normal">{member.mail}</TableCell>
+                <TableCell className="px-3 py-2">{translate(member.active ? 'member-active' : 'member-inactive')}</TableCell>
+                <TableCell className="px-3 py-2">{member.organizer ? translate('member-organizer') : ''}</TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       )}
     </>
   )

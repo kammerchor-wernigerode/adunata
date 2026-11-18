@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useId, useState } from 'react'
-import { useForm, type FieldPath } from 'react-hook-form'
+import { useId, useState, type ReactNode } from 'react'
+import { Controller, useForm, type FieldPath } from 'react-hook-form'
 import {
   changeGathering,
   createGathering,
@@ -9,9 +9,11 @@ import {
   getListGatheringsQueryKey,
 } from '@/api/generated/api'
 import type { FieldError as ServerFieldError, Gathering, GatheringInput } from '@/api/generated/model'
+import { DatePicker } from '@/components/DatePicker'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { useTranslate, type Translate } from '@/l10n/translate'
 
 const fields = ['title', 'location', 'description', 'firstDay', 'lastDay'] as const
@@ -72,23 +74,49 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
     if (first) form.setFocus(first)
   }
 
-  function field(name: FieldPath<GatheringInput>, label: string, input: React.ReactNode) {
+  function field(name: FieldPath<GatheringInput>, label: string, input: ReactNode) {
     return (
       <Field data-invalid={errors[name] ? true : undefined}>
-        <FieldLabel htmlFor={`${id}-${name}`}>{label}</FieldLabel>
+        <FieldLabel id={`${id}-${name}-label`} htmlFor={`${id}-${name}`}>
+          {label}
+        </FieldLabel>
         {input}
         <FieldError id={`${id}-${name}-error`} errors={errors[name] ? [{ message: errors[name].message }] : []} />
       </Field>
     )
   }
 
-  function control(name: FieldPath<GatheringInput>) {
+  function described(name: FieldPath<GatheringInput>) {
     return {
-      id: `${id}-${name}`,
       'aria-invalid': errors[name] ? true : undefined,
       'aria-describedby': errors[name] ? `${id}-${name}-error` : undefined,
-      ...form.register(name),
     }
+  }
+
+  function control(name: FieldPath<GatheringInput>) {
+    return { id: `${id}-${name}`, ...described(name), ...form.register(name) }
+  }
+
+  function day(name: 'firstDay' | 'lastDay') {
+    return (
+      <Controller
+        control={form.control}
+        name={name}
+        render={({ field: { ref, value, onChange } }) => (
+          <DatePicker
+            ref={ref}
+            id={`${id}-${name}`}
+            labelId={`${id}-${name}-label`}
+            value={value}
+            onChange={onChange}
+            gridLabel={translate(name === 'firstDay' ? 'gathering-first-day' : 'gathering-last-day')}
+            navigationLabel={translate(name === 'firstDay' ? 'gathering-first-day-months' : 'gathering-last-day-months')}
+            displayFormat={{ weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }}
+            {...described(name)}
+          />
+        )}
+      />
+    )
   }
 
   return (
@@ -99,15 +127,11 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
         {field(
           'description',
           translate('gathering-description'),
-          <textarea
-            rows={4}
-            className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring md:text-sm"
-            {...control('description')}
-          />,
+          <Textarea rows={4} {...control('description')} />,
         )}
         <div className="grid gap-4 sm:grid-cols-2">
-          {field('firstDay', translate('gathering-first-day'), <Input type="date" {...control('firstDay')} />)}
-          {field('lastDay', translate('gathering-last-day'), <Input type="date" {...control('lastDay')} />)}
+          {field('firstDay', translate('gathering-first-day'), day('firstDay'))}
+          {field('lastDay', translate('gathering-last-day'), day('lastDay'))}
         </div>
         <div className="flex flex-wrap gap-3">
           <Button type="submit" disabled={isSubmitting}>
