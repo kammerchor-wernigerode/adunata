@@ -1,0 +1,7 @@
+[
+  {
+    "id": "GHSA-fc5q-39xc-vjpf",
+    "reason": "picomatch 4.0.7 is the newest release and has no fix. It reaches the client only through vite, vitest and orval during build and test, which match globs from the repository, not from users.",
+    "expires": "2027-02-18"
+  }
+]
