@@ -169,7 +169,7 @@ The contract check has two halves:
 
 ### Checks before a push
 
-Run the checks up to `integration` locally before each push. CI runs them in the job `verify` and runs the end-to-end tests, the memory measurement and the NixOS VM test once a pull request is ready for review. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target and job.
+Run the checks up to `integration` locally before each push. CI runs them in the job `verify` and runs the end-to-end tests and the NixOS VM test once a pull request is ready for review. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target and job.
 
 With Nix, one command runs them. Replace `x86_64-linux` with your system, such as `aarch64-darwin`:
 

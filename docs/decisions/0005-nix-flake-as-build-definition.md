@@ -18,7 +18,7 @@ We considered a Dockerfile next to a Nix package, which means two build definiti
 
 ## Status
 
-Accepted. [ADR 0015](0015-release-binary-linked-against-glibc.md) supersedes the statically linked binary. The end-to-end tests run outside the flake, as the [testing concept](../arc42/08-cross-cutting-concepts.md#testing) describes.
+Accepted. [ADR 0015](0015-release-binary-linked-against-glibc.md) supersedes the statically linked binary. The end-to-end tests run outside the flake, as the [testing concept](../arc42/08-cross-cutting-concepts.md#testing) describes. The flake has no memory measurement.
 
 ## Consequences
 

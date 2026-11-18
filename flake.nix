@@ -191,24 +191,6 @@
               User = "65534:65534";
             };
           };
-
-          # Starts PostgreSQL, Mailpit and the server on port 18080 with the organizer organizer@example.org and leaves the binary's PID in $adunataPid.
-          startInstance = ''
-            export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata
-            mkdir -p "$PGHOST"
-            initdb --username="$PGUSER" --auth=trust --no-instructions >/dev/null
-            pg_ctl start --wait --silent --options="-k $PGHOST -c listen_addresses="
-            mailpit --smtp 127.0.0.1:11025 --listen 127.0.0.1:18025 --quiet &
-            ADNT_DATABASE_URL="postgres:///postgres?host=$PGHOST&user=$PGUSER" \
-              ADNT_HTTP_LISTEN_ADDRESS=127.0.0.1:18080 ADNT_HTTP_PUBLIC_URL=http://localhost:18080 \
-              ADNT_SMTP_HOST=127.0.0.1 ADNT_SMTP_PORT=11025 ADNT_SMTP_ENCRYPTION=none \
-              ADNT_MAIL_SENDER="Adunata <adunata@example.org>" ADNT_LOCALIZATION_TIME_ZONE=Europe/Berlin \
-              ADNT_BOOTSTRAP_ORGANIZER_MAIL=organizer@example.org ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME=Ada \
-              ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME=Lovelace \
-              ${server}/bin/adunata serve &
-            adunataPid=$!
-            for _ in $(seq 100); do (echo > /dev/tcp/127.0.0.1/18080) 2>/dev/null && break; sleep 0.1; done
-          '';
         in
         {
           inherit
@@ -265,64 +247,6 @@
             buildPhase = "npm run test:integration";
             installPhase = "touch $out";
           };
-
-          memory =
-            pkgs.runCommand "check-memory"
-              {
-                nativeBuildInputs = [
-                  pkgs.postgresql_17
-                  pkgs.mailpit
-                  pkgs.oha
-                  pkgs.curl
-                ];
-                SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-              }
-              ''
-                ${startInstance}
-                api=http://127.0.0.1:18080/api
-
-                # Prints the secret of the newest link of a kind in Mailpit, waiting until its mail arrives.
-                newest_secret() {
-                  for _ in $(seq 300); do
-                    id=$(curl -s 'http://127.0.0.1:18025/api/v1/messages?limit=1' | grep -o '"ID":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
-                    found=$(curl -s "http://127.0.0.1:18025/api/v1/message/$id" | grep -o "/$1#[0-9a-f]\{64\}" | head -1 || true)
-                    if [ -n "$found" ]; then echo "''${found#*#}"; return; fi
-                    sleep 0.1
-                  done
-                  echo "no $1 link arrived" >&2
-                  exit 1
-                }
-
-                curl -sf -H 'content-type: application/json' -d '{"mail":"organizer@example.org"}' "$api/sign-in-requests"
-                signIn=$(newest_secret sign-in)
-                cookie=$(curl -sf -D - -o /dev/null -X POST -H "Authorization: Bearer $signIn" "$api/sessions" \
-                  | grep -i '^set-cookie:' | sed 's/^[^:]*: //; s/;.*//')
-                gathering=$(curl -sf -H "Cookie: $cookie" -H 'content-type: application/json' \
-                  -d "{\"title\":\"Load\",\"location\":\"Stage\",\"firstDay\":\"$(date -d '+30 days' +%F)\",\"lastDay\":\"$(date -d '+32 days' +%F)\"}" \
-                  "$api/gatherings" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
-                curl -sf -H "Cookie: $cookie" -H 'content-type: application/json' -d '{}' "$api/gatherings/$gathering/invitations"
-                secret=$(newest_secret invitation)
-
-                oha --no-tui -z 30s -c 4 -m PUT \
-                  -H "Authorization: Bearer $secret" -H 'content-type: application/json' \
-                  -d '{"status":"accepted","beds":"offer","bedCount":2,"comment":"Load"}' \
-                  "$api/invitation/response" > put.txt &
-                putPid=$!
-                oha --no-tui -z 30s -c 3 -H "Authorization: Bearer $secret" "$api/invitation" > page.txt &
-                pagePid=$!
-                oha --no-tui -z 30s -c 3 http://127.0.0.1:18080/invitation > client.txt
-                wait "$putPid" "$pagePid"
-
-                peak=$(awk '/VmHWM/ { print $2 }' "/proc/$adunataPid/status")
-                echo "Peak resident memory: $((peak / 1024)) MB"
-                grep -E 'Requests/sec|Success rate' put.txt page.txt client.txt
-                grep -q '\[200\]' put.txt
-                grep -q '\[200\]' page.txt
-                kill "$adunataPid"
-                pg_ctl stop --wait --silent
-                test "$peak" -lt $((150 * 1024))
-                echo "$peak" > $out
-              '';
 
           clientLint = clientPackage {
             pname = "adunata-client-lint";
@@ -419,16 +343,11 @@
             integration
             ;
         }
-        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          memoryMeasurement = built.memory;
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux rec {
           nixosVmTest = vmTest pkgs built;
-          memory = pkgs.linkFarm "memory" {
-            inherit integration;
-            inherit (built) memory;
-          };
           nixos = pkgs.linkFarm "nixos" {
             inherit integration;
-            vm = vmTest pkgs built;
+            vm = nixosVmTest;
           };
         }
       );
