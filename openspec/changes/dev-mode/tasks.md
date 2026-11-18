@@ -3,7 +3,7 @@
 ## 1. Option and guard
 
 - [x] 1.1 Add `dev: bool` with `#[arg(long)]` to `Command::Serve` in `server/src/main.rs` and pass it to `serve`. Verify with a test in `server/tests/startup.rs` that `adunata help serve` names `--dev`.
-- [x] 1.2 Make `serve --dev` log an error naming `ADNT_HTTP_PUBLIC_URL` and exit with status 1 before connecting to the database when `configuration.public_url.localhost_port()` is `None`. Verify with a test in `server/tests/startup.rs` that `serve --dev` with `ADNT_HTTP_PUBLIC_URL=https://adunata.example.org` and the unreachable database exits with status 1 and names the public URL, not the database.
+- [x] 1.2 Make `serve --dev` log an error naming `ADNT_HTTP_PUBLIC_URL` and `ADNT_HTTP_LISTEN_ADDRESS` and exit with status 1 before connecting to the database when `configuration.public_url.localhost_port()` is `None` or the listen address is no loopback address. Verify with tests in `server/tests/startup.rs` that `serve --dev` with `ADNT_HTTP_PUBLIC_URL=https://adunata.example.org`, and with `ADNT_HTTP_LISTEN_ADDRESS=0.0.0.0:8080`, exits with status 1 and names the setting, not the database.
 
 ## 2. Default organizer and link at start-up
 
@@ -30,7 +30,7 @@
 
 ## 6. Hand-over
 
-- [ ] 6.1 Run `openspec-verify-change` for `dev-mode` and resolve every critical issue and warning it reports. Verify that a second run reports none.
-- [ ] 6.2 Review the whole branch against `main` with the review command of the agent and fix every confirmed finding. Verify that the fixes keep `cargo test` and `openspec validate dev-mode --strict` green.
-- [ ] 6.3 Run the checks up to integration on the current base, `nix build .#checks.<system>.integration` or the commands under Checks before a push in the README. Verify that they pass.
-- [ ] 6.4 Push the branch and open the pull request ready for review. Verify that the pull request is not a draft and that its job `verify` starts.
+- [x] 6.1 Run `openspec-verify-change` for `dev-mode` and resolve every critical issue and warning it reports. Verify that a second run reports none.
+- [x] 6.2 Review the whole branch against `main` with the review command of the agent and fix every confirmed finding. Verify that the fixes keep `cargo test` and `openspec validate dev-mode --strict` green.
+- [x] 6.3 Run the checks up to integration on the current base, `nix build .#checks.<system>.integration` or the commands under Checks before a push in the README. Verify that they pass.
+- [x] 6.4 Push the branch and open the pull request ready for review. Verify that the pull request is not a draft and that its job `verify` starts.

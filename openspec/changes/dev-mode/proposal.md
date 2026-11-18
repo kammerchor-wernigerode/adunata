@@ -6,9 +6,9 @@ A manual debug run against a fresh database starts with no organizer, so nobody 
 
 ## What Changes
 
-- `adunata serve` gets the option `--dev`. Every other setting and behavior of `serve` stays as it is. The option works in every build, but only when the public base URL is on `localhost`, so a production instance cannot turn it on.
+- `adunata serve` gets the option `--dev`. Every other setting and behavior of `serve` stays as it is. The option works in every build, but only when the public base URL is on `localhost` and the listen address is a loopback address, so a production instance cannot turn it on.
 - In development mode the first organizer falls back to a fixed default member when the bootstrap settings are not set. As today, Adunata creates the first organizer only when the instance has no active organizer.
-- In development mode Adunata writes a fresh sign-in link for the active organizer it created first to its log at start-up. A person opens it in the browser. An agent reads it from standard output and opens it or redeems its secret through the API.
+- In development mode Adunata writes a fresh sign-in link for the active organizer whose member entry is the oldest to its log at start-up. A person opens it in the browser. An agent reads it from standard output and opens it or redeems its secret through the API.
 - In development mode Adunata also writes the link of every sign-in link it sends to its log. The mail still goes out.
 - In development mode the limit of sign-in links per address does not apply, so frequent restarts do not block sign-in. The limit per network address stays.
 - The rule that logs contain no secrets gets an exception for sign-in links in development mode.

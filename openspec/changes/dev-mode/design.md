@@ -34,7 +34,7 @@ This decision is architecturally significant, because an operator sees the optio
 
 The option does not depend on `cfg(debug_assertions)`, unlike the reading of `.env`. A person can debug a release build from `nix build` or from the end-to-end setup the same way, and an agent never needs to know which build runs.
 
-`serve` refuses to start with `--dev` when `configuration.public_url.localhost_port()` is `None`. It logs an error that names `ADNT_HTTP_PUBLIC_URL` and exits with status 1, before it connects to the database, as for an invalid configuration. A production instance needs HTTPS on its own host, so it cannot turn on development mode. Every local run, every worktree and the end-to-end setup use `localhost`.
+`serve` refuses to start with `--dev` when `configuration.public_url.localhost_port()` is `None` or `configuration.listen_address` is no loopback address. It logs an error that names `ADNT_HTTP_PUBLIC_URL` and `ADNT_HTTP_LISTEN_ADDRESS` and exits with status 1, before it connects to the database, as for an invalid configuration. A production instance needs HTTPS on its own host, so it cannot turn on development mode. The public URL alone does not keep other machines out, because an instance on `0.0.0.0` with a public URL on `localhost` answers every host on the network. The default listen address `127.0.0.1:8080`, every local run, every worktree and the end-to-end setup pass both checks.
 
 The guard is specific to this mode, because the mode puts links that grant access into the log. It sets no rule for other features of development.
 
@@ -44,7 +44,7 @@ This decision is architecturally significant, because the shipped binary carries
 
 ### Development steps in one function
 
-`main.rs` gets `async fn prepare_organizers(pool, first_organizer, language, public_url, development_mode) -> Result<Option<String>, sqlx::Error>`. Without development mode it creates the configured first organizer as before and returns `None`. In development mode it logs the warning, picks the configured or default first organizer, calls `ensure_first_organizer`, creates the start-up link, logs it and returns it. `serve` calls it after `connect` and before it binds the listener and exits with status 1 on an error. The `integration` module in `main.rs` tests the function with a test database and `test_logs::captured_logs()`, so the branch between both paths has automatic tests with and without the option.
+`main.rs` gets `async fn prepare_organizers(pool, first_organizer, language, public_url, development_mode) -> Result<Option<String>, sqlx::Error>`. Without development mode it creates the configured first organizer as before and returns `None`. In development mode it logs the warning, picks the configured or default first organizer, calls `ensure_first_organizer`, creates the start-up link, logs it and returns it. `serve` calls it after it checks the mail settings and binds the listener, so a start that fails there leaves no link in the log. It logs the line `accepting requests` only afterwards and exits with status 1 on an error. The `integration` module in `main.rs` tests the function with a test database and `test_logs::captured_logs()`, so the branch between both paths has automatic tests with and without the option.
 
 A test of the binary in `server/tests/startup.rs` that spawns `serve --dev` would come closer to real use. It needs a database and process handling that the file does not have, because all its tests stop before the database.
 
@@ -123,7 +123,7 @@ Debug runs happen with debug builds and with release builds, such as the binary 
 
 ## Decision
 
-We will offer `adunata serve --dev` in every build and refuse it unless the public URL is on `localhost`. No environment variable turns it on.
+We will offer `adunata serve --dev` in every build and refuse it unless the public URL is on `localhost` and Adunata listens on a loopback address. No environment variable turns it on.
 
 In development mode Adunata uses `organizer@example.org`, Ada Lovelace, as the first organizer unless the bootstrap settings name one. At start-up it logs a sign-in link for the oldest active organizer. It logs the link of every sign-in link it sends by mail and drops the limit of links per address. These are exceptions to ADR 0011 and ADR 0010 for development mode only. It logs a warning that development mode is on.
 
@@ -137,7 +137,7 @@ Accepted
 
 A person or an agent starts a debug run with one command and signs in with the link from the log. An agent can redeem the secret of the link through the API without a browser.
 
-A production instance cannot turn on development mode, because its public URL is not on `localhost`. A staging server on another host cannot use it either.
+A production instance cannot turn on development mode, because its public URL is not on `localhost`. Another machine on the network cannot reach an instance in development mode. A staging server on another host and a server in a container that listens on every interface cannot use it either.
 
 On `localhost` anyone who reads the log can sign in as an organizer within one hour.
 ```

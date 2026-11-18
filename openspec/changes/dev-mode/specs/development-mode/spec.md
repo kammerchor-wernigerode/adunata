@@ -18,11 +18,15 @@ The subcommand `serve` SHALL accept the option `--dev` to turn on development mo
 - **THEN** Adunata creates no sign-in link at start-up and writes no sign-in link to its log
 
 ### Requirement: Development mode only on localhost
-Adunata SHALL refuse to start in development mode unless the host of the public base URL is `localhost`.
+Adunata SHALL refuse to start in development mode unless the host of the public base URL is `localhost` and the listen address is a loopback address.
 
 #### Scenario: Public URL on another host
 - **WHEN** an operator runs `adunata serve --dev` with the public base URL `https://adunata.example.org`
 - **THEN** Adunata exits with a non-zero status before it opens a port or touches the database and names the public base URL as the reason
+
+#### Scenario: Listen address on every interface
+- **WHEN** an operator runs `adunata serve --dev` with the public base URL `http://localhost:8080` and the listen address `0.0.0.0:8080`
+- **THEN** Adunata exits with a non-zero status before it opens a port or touches the database and names the listen address as the reason
 
 ### Requirement: Default first organizer
 In development mode Adunata SHALL use the member with the mail address `organizer@example.org`, the first name `Ada` and the last name `Lovelace` as the first organizer if the bootstrap settings name no first organizer.
@@ -40,7 +44,7 @@ In development mode Adunata SHALL use the member with the mail address `organize
 - **THEN** Adunata leaves members and roles unchanged
 
 ### Requirement: Sign-in link at start-up
-In development mode Adunata SHALL create a sign-in link for the active organizer it created first and write the link to its log before it accepts requests. The link SHALL work like a link sent by mail. Adunata SHALL send no mail for it.
+In development mode Adunata SHALL create a sign-in link for the active organizer whose member entry is the oldest and write the link to its log before it accepts requests. The link SHALL work like a link sent by mail. Adunata SHALL send no mail for it.
 
 #### Scenario: Sign in right after the start
 - **WHEN** a person starts Adunata in development mode on a fresh database and opens the link from the log within one hour
@@ -51,7 +55,7 @@ In development mode Adunata SHALL create a sign-in link for the active organizer
 - **THEN** Adunata starts a session for the organizer of the link
 
 #### Scenario: Database copied from another checkout
-- **WHEN** Adunata starts in development mode on a database whose active organizers are Grace and, created later, Alan
+- **WHEN** Adunata starts in development mode on a database whose active organizers are Grace and Alan, whose member entry was created after Grace's
 - **THEN** the link in the log signs in Grace
 
 #### Scenario: Frequent restarts
