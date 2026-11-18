@@ -166,9 +166,18 @@ mod integration {
             .to_pretty_json()
             .expect("OpenAPI document must serialize")
             + "\n";
+        let first_difference = committed
+            .lines()
+            .zip(current.lines())
+            .position(|(found, expected)| found != expected)
+            .map_or(
+                committed.lines().count().min(current.lines().count()),
+                |line| line,
+            )
+            + 1;
         assert!(
             committed == current,
-            "{path} differs from the server. Run in server/: cargo run -- openapi > ../client/openapi.json"
+            "{path} differs from the server from line {first_difference} on. Run in server/: cargo run -- openapi > ../client/openapi.json"
         );
     }
 
