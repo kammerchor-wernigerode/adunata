@@ -7,11 +7,14 @@ Defines how operators configure an Adunata instance and how the service checks t
 ## Requirements
 
 ### Requirement: Configuration from the environment
-Adunata SHALL read its configuration from environment variables and, if the operator names one, from a configuration file. Every setting SHALL have a documented name. Every setting without a safe default SHALL be required. A development build SHALL also read the files `.env.local` and `.env` in its working directory. Each of them SHALL be a source below the configuration file. `.env.local` SHALL win over `.env`. A release build SHALL never read either file. A missing file SHALL count as empty. An empty value in a file SHALL count as unset. A malformed line SHALL stop the start with a message that names the file and the line number.
+Adunata SHALL read its configuration from environment variables and, if the operator names one, from a configuration file. Every setting SHALL have a documented name. Every setting without a safe default SHALL be required.
 
 #### Scenario: Start with all required settings
 - **WHEN** an operator sets every required environment variable to a valid value
 - **THEN** Adunata starts with that configuration
+
+### Requirement: Settings files of a development build
+A development build SHALL also read the files `.env.local` and `.env` in its working directory. Each of them SHALL be a source below the configuration file. `.env.local` SHALL win over `.env`. A release build SHALL never read either file. A missing file SHALL count as empty. An empty value in a file SHALL count as unset. A malformed line SHALL stop the start with a message that names the file and the line number.
 
 #### Scenario: Release build ignores settings files
 - **WHEN** a release build starts in a directory that holds a `.env` file with a database URL
@@ -46,7 +49,7 @@ Adunata SHALL read its configuration from environment variables and, if the oper
 - **THEN** a development build listens on port 9000
 
 ### Requirement: Secrets from files
-Adunata SHALL accept each secret, such as the database password or the mail server password, either as a plain value or as the path to a file that holds the value. Both SHALL be possible in the environment and in the configuration file. A relative path SHALL resolve against the working directory. The environment SHALL win over the configuration file for secrets too. When one source sets both the plain value and the file of the same secret, Adunata SHALL refuse to start and name both settings. A secret file that is empty SHALL mean no secret and SHALL NOT fall back to the configuration file. A password from these settings SHALL win over a password in the database URL, whatever source each comes from. Adunata SHALL never require a secret to appear in a command line and SHALL never print a secret value.
+Adunata SHALL accept each secret, such as the database password or the mail server password, either as a plain value or as the path to a file that holds the value. Both SHALL be possible in the environment and in the configuration file. A relative path SHALL resolve against the working directory. Adunata SHALL never require a secret to appear in a command line and SHALL never print a secret value.
 
 #### Scenario: Read a secret from a file
 - **WHEN** an operator sets the variable for the database password file to a readable file
@@ -55,6 +58,13 @@ Adunata SHALL accept each secret, such as the database password or the mail serv
 #### Scenario: Secret as a plain value
 - **WHEN** an operator sets `ADNT_SMTP_PASSWORD` and no file for the mail server password
 - **THEN** Adunata signs in to the mail server with that value
+
+#### Scenario: Secret file unreadable
+- **WHEN** a configured secret file does not exist or cannot be read
+- **THEN** Adunata refuses to start with a message that names the setting but not any secret value
+
+### Requirement: Precedence of secrets
+The environment SHALL win over the configuration file for secrets too. When one source sets both the plain value and the file of the same secret, Adunata SHALL refuse to start and name both settings. A secret file that is empty SHALL mean no secret and SHALL NOT fall back to the configuration file. A password from these settings SHALL win over a password in the database URL, whatever source each comes from.
 
 #### Scenario: Both forms in one source
 - **WHEN** the environment sets both `ADNT_DATABASE_PASSWORD` and `ADNT_DATABASE_PASSWORD_FILE`
@@ -69,10 +79,6 @@ Adunata SHALL accept each secret, such as the database password or the mail serv
 - **WHEN** the environment sets `ADNT_DATABASE_PASSWORD_FILE` to an empty file
 - **AND** the configuration file sets `password` in the table `database`
 - **THEN** Adunata connects to the database without a password
-
-#### Scenario: Secret file unreadable
-- **WHEN** a configured secret file does not exist or cannot be read
-- **THEN** Adunata refuses to start with a message that names the setting but not any secret value
 
 ### Requirement: Validation before start
 Adunata SHALL validate the whole configuration before it opens a port or touches the database. It SHALL report every invalid or missing setting at once and exit with a non-zero status.
