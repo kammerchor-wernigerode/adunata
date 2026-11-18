@@ -19,7 +19,7 @@ Requires the change `license-compliance` on `main`, because it creates `server/d
 
 ## 4. License check for tools from nixpkgs
 
-- [ ] 4.1 Define one attribute set of every tool the flake takes from nixpkgs and let the development shell, the checks and `nix/test.nix` take their packages from it. Drop `pkgs.curl` from `nix/test.nix`, so the nodes use `curl` from the NixOS base system. Verify that `nix build .#checks.<system>.integration` and `nix build .#checks.x86_64-linux.nixosVmTest` pass
+- [x] 4.1 Define one attribute set of every tool the flake takes from nixpkgs and let the development shell, the checks and `nix/test.nix` take their packages from it. Drop `pkgs.curl` from `nix/test.nix`, so the nodes use `curl` from the NixOS base system. Verify that `nix build .#checks.<system>.integration` and `nix build .#checks.x86_64-linux.nixosVmTest` pass
 - [ ] 4.2 Add the check to the target `lint` that reads `meta.license` of every package in the set and of the closure list, the latter from the Linux package set, and compares it with `server/deny.toml` plus a list in `flake.nix` for licenses allowed only for packages from nixpkgs. Start that list from the licenses the packages use today, each approved by the OSI. Name the check in the row `lint` of the testing table with the skill `arc42`. Verify that the check passes on Linux and macOS, fails by package name for a package with a license on neither list and fails for a package without `spdxId`
 
 ## 5. Decision record and risks

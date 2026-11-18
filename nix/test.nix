@@ -1,12 +1,13 @@
 {
   pkgs,
+  toolsOf,
   module,
   release,
   image,
 }:
 let
   testAuthorityAndMailpitCertificate =
-    pkgs.runCommand "adunata-test-certificates" { nativeBuildInputs = [ pkgs.openssl ]; }
+    pkgs.runCommand "adunata-test-certificates" { nativeBuildInputs = [ (toolsOf pkgs).openssl ]; }
       ''
         mkdir $out
         openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 3650 \
@@ -23,7 +24,7 @@ let
     {
       systemd.services.mailpit = {
         wantedBy = [ "multi-user.target" ];
-        serviceConfig.ExecStart = "${pkgs.mailpit}/bin/mailpit --smtp 127.0.0.1:1465 --listen 127.0.0.1:8025 --smtp-tls-cert ${testAuthorityAndMailpitCertificate}/mailpit.crt --smtp-tls-key ${testAuthorityAndMailpitCertificate}/mailpit.key --smtp-require-tls";
+        serviceConfig.ExecStart = "${(toolsOf pkgs).mailpit}/bin/mailpit --smtp 127.0.0.1:1465 --listen 127.0.0.1:8025 --smtp-tls-cert ${testAuthorityAndMailpitCertificate}/mailpit.crt --smtp-tls-key ${testAuthorityAndMailpitCertificate}/mailpit.key --smtp-require-tls";
       };
     };
 
@@ -85,7 +86,6 @@ pkgs.testers.runNixOSTest {
           ];
           authentication = "host adunata adunata 127.0.0.1/32 trust";
         };
-        environment.systemPackages = [ pkgs.curl ];
       };
 
     container =
@@ -106,7 +106,6 @@ pkgs.testers.runNixOSTest {
           ];
           authentication = "host adunata adunata 127.0.0.1/32 trust";
         };
-        environment.systemPackages = [ pkgs.curl ];
       };
   };
 

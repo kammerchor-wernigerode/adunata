@@ -21,10 +21,36 @@
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
+      # Every tool the flake takes from nixpkgs.
+      toolsOf = pkgs: {
+        inherit (pkgs)
+          binutils
+          cargo
+          cargo-about
+          cargo-deny
+          clippy
+          editorconfig-checker
+          mailpit
+          nixfmt
+          nodejs_24
+          openssl
+          patchelf
+          postgresql_17
+          rust-analyzer
+          rustc
+          rustfmt
+          sccache
+          skopeo
+          spdx-license-list-data
+          zizmor
+          ;
+      };
+
       build =
         pkgs:
         let
           craneLib = crane.mkLib pkgs;
+          tools = toolsOf pkgs;
           npmDeps = pkgs.importNpmLock { npmRoot = ./client; };
 
           clientPackage =
@@ -72,7 +98,7 @@
             pnameSuffix = "-crate-notices";
             cargoArtifacts = null;
             doInstallCargoArtifacts = false;
-            nativeBuildInputs = [ pkgs.cargo-about ];
+            nativeBuildInputs = [ tools.cargo-about ];
             buildPhaseCargoCommand = "cargo about generate --frozen --fail about.hbs --output-file licenses.txt";
             installPhaseCommand = "install -D licenses.txt $out/licenses.txt";
           };
@@ -81,7 +107,7 @@
             cp -r ${client} $out
             chmod -R u+w $out
             cat ${crateNotices}/licenses.txt >> $out/licenses.txt
-            printf '\nThe binary was built with Rust %s.\n' ${pkgs.rustc.version} >> $out/licenses.txt
+            printf '\nThe binary was built with Rust %s.\n' ${tools.rustc.version} >> $out/licenses.txt
             cp ${rustStandardLibraryNotices} $out/licenses-rust.html
           '';
 
@@ -109,8 +135,8 @@
             # The tests bind PostgreSQL and Mailpit to the loopback address, which the macOS sandbox forbids otherwise.
             __darwinAllowLocalNetworking = true;
             nativeCheckInputs = [
-              pkgs.postgresql_17
-              pkgs.mailpit
+              tools.postgresql_17
+              tools.mailpit
             ];
             preCheck = ''
               export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata PGDATABASE=postgres
@@ -171,7 +197,7 @@
 
           system = pkgs.stdenv.hostPlatform.system;
 
-          release = pkgs.runCommand "adunata-release-${system}" { nativeBuildInputs = [ pkgs.patchelf ]; } ''
+          release = pkgs.runCommand "adunata-release-${system}" { nativeBuildInputs = [ tools.patchelf ]; } ''
             mkdir $out
             cp ${server}/bin/adunata $out/adunata
             chmod u+w $out/adunata
@@ -183,7 +209,7 @@
           '';
 
           releaseLinkage =
-            pkgs.runCommand "check-release-linkage" { nativeBuildInputs = [ pkgs.binutils ]; }
+            pkgs.runCommand "check-release-linkage" { nativeBuildInputs = [ tools.binutils ]; }
               ''
                 binary=${release}/adunata
                 readelf --dynamic $binary > dynamic
@@ -259,7 +285,7 @@
             ''
               mkdir -p "$dir/${entry.name}"
               ${pkgs.lib.concatMapStrings (id: ''
-                cp ${pkgs.spdx-license-list-data.text}/text/${id}.txt "$dir/${entry.name}/"
+                cp ${tools.spdx-license-list-data.text}/text/${id}.txt "$dir/${entry.name}/"
               '') texts}
               cat > "$dir/${entry.name}/SOURCE" <<'EOF'
               Package: ${entry.name} ${versionOf entry}
@@ -397,13 +423,13 @@
       vmTest =
         pkgs: built:
         import ./nix/test.nix {
-          inherit pkgs;
+          inherit pkgs toolsOf;
           inherit (built) release image;
           module = self.nixosModules.default;
         };
     in
     {
-      formatter = forAllSystems (pkgs: pkgs.nixfmt);
+      formatter = forAllSystems (pkgs: (toolsOf pkgs).nixfmt);
 
       packages = forAllSystems (
         pkgs:
@@ -422,6 +448,7 @@
         pkgs:
         let
           built = build pkgs;
+          tools = toolsOf pkgs;
         in
         let
           lintChecks = {
@@ -432,7 +459,7 @@
               clientLint
               ;
 
-            rustToolchain = pkgs.runCommand "check-rust-toolchain" { nativeBuildInputs = [ pkgs.rustc ]; } ''
+            rustToolchain = pkgs.runCommand "check-rust-toolchain" { nativeBuildInputs = [ tools.rustc ]; } ''
               pinned=$(sed --quiet 's/^channel = "\(.*\)"$/\1/p' ${./server/rust-toolchain.toml})
               if [ "$(rustc --version | cut --delimiter=' ' --fields=2)" != "$pinned" ]; then
                 echo "server/rust-toolchain.toml pins Rust $pinned, but nixpkgs ships $(rustc --version). Set the channel to the version of nixpkgs."
@@ -443,8 +470,8 @@
 
             editorconfigCheckerVersion = pkgs.runCommand "check-editorconfig-checker-version" { } ''
               pinned=$(sed --quiet 's/.*EC_VERSION=v\([0-9.]*\) .*/\1/p' ${./client/package.json})
-              if [ "$pinned" != "${pkgs.editorconfig-checker.version}" ]; then
-                echo "npm run lint:editorconfig pins editorconfig-checker $pinned, but nixpkgs ships ${pkgs.editorconfig-checker.version}. Set EC_VERSION in client/package.json to the version of nixpkgs."
+              if [ "$pinned" != "${tools.editorconfig-checker.version}" ]; then
+                echo "npm run lint:editorconfig pins editorconfig-checker $pinned, but nixpkgs ships ${tools.editorconfig-checker.version}. Set EC_VERSION in client/package.json to the version of nixpkgs."
                 exit 1
               fi
               touch $out
@@ -461,15 +488,15 @@
                   ];
                 };
               in
-              pkgs.runCommand "check-client-licenses" { nativeBuildInputs = [ pkgs.nodejs_24 ]; } ''
+              pkgs.runCommand "check-client-licenses" { nativeBuildInputs = [ tools.nodejs_24 ]; } ''
                 node ${source}/client/scripts/check-licenses.mjs
                 touch $out
               '';
 
             cargoDenyVersion = pkgs.runCommand "check-cargo-deny-version" { } ''
               pinned=$(sed --quiet 's/.*cargo-deny@\([0-9.]*\).*/\1/p' ${./README.md})
-              if [ "$pinned" != "${pkgs.cargo-deny.version}" ]; then
-                echo "The README pins cargo-deny $pinned, but nixpkgs ships ${pkgs.cargo-deny.version}. Set the version in the README to the version of nixpkgs."
+              if [ "$pinned" != "${tools.cargo-deny.version}" ]; then
+                echo "The README pins cargo-deny $pinned, but nixpkgs ships ${tools.cargo-deny.version}. Set the version in the README to the version of nixpkgs."
                 exit 1
               fi
               touch $out
@@ -482,15 +509,15 @@
                   fileset = ./.github;
                 };
               in
-              pkgs.runCommand "check-workflows" { nativeBuildInputs = [ pkgs.zizmor ]; } ''
+              pkgs.runCommand "check-workflows" { nativeBuildInputs = [ tools.zizmor ]; } ''
                 zizmor --offline --no-progress ${source}/.github
                 touch $out
               '';
 
             cargoAboutVersion = pkgs.runCommand "check-cargo-about-version" { } ''
               pinned=$(sed --quiet 's/.*cargo-about@\([0-9.]*\).*/\1/p' ${./README.md})
-              if [ "$pinned" != "${pkgs.cargo-about.version}" ]; then
-                echo "The README pins cargo-about $pinned, but nixpkgs ships ${pkgs.cargo-about.version}. Set the version in the README to the version of nixpkgs."
+              if [ "$pinned" != "${tools.cargo-about.version}" ]; then
+                echo "The README pins cargo-about $pinned, but nixpkgs ships ${tools.cargo-about.version}. Set the version in the README to the version of nixpkgs."
                 exit 1
               fi
               touch $out
@@ -499,11 +526,11 @@
             rustStandardLibraryNoticesVersion =
               pkgs.runCommand "check-rust-standard-library-notices-version" { }
                 (
-                  if pkgs.rust.packages.prebuilt.rustc.version == pkgs.rustc.version then
+                  if pkgs.rust.packages.prebuilt.rustc.version == tools.rustc.version then
                     "touch $out"
                   else
                     ''
-                      echo "The notices of the Rust standard library come from the prebuilt rustc ${pkgs.rust.packages.prebuilt.rustc.version}, but the server is built with Rust ${pkgs.rustc.version}. Take COPYRIGHT-library.html of the release of Rust ${pkgs.rustc.version} instead."
+                      echo "The notices of the Rust standard library come from the prebuilt rustc ${pkgs.rust.packages.prebuilt.rustc.version}, but the server is built with Rust ${tools.rustc.version}. Take COPYRIGHT-library.html of the release of Rust ${tools.rustc.version} instead."
                       exit 1
                     ''
                 );
@@ -529,13 +556,13 @@
                   ''
               );
 
-            nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
+            nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ tools.nixfmt ]; } ''
               find ${self} -name '*.nix' -exec nixfmt --check {} +
               touch $out
             '';
 
             editorconfig =
-              pkgs.runCommand "check-editorconfig" { nativeBuildInputs = [ pkgs.editorconfig-checker ]; }
+              pkgs.runCommand "check-editorconfig" { nativeBuildInputs = [ tools.editorconfig-checker ]; }
                 ''
                   cd ${self}
                   editorconfig-checker
@@ -596,20 +623,26 @@
         }
       );
 
-      devShells = forAllSystems (pkgs: {
-        default = pkgs.mkShell {
-          packages = [
-            pkgs.cargo
-            pkgs.rustc
-            pkgs.clippy
-            pkgs.rustfmt
-            pkgs.rust-analyzer
-            pkgs.nodejs_24
-            pkgs.sccache
-          ];
+      devShells = forAllSystems (
+        pkgs:
+        let
+          tools = toolsOf pkgs;
+        in
+        {
+          default = pkgs.mkShell {
+            packages = [
+              tools.cargo
+              tools.rustc
+              tools.clippy
+              tools.rustfmt
+              tools.rust-analyzer
+              tools.nodejs_24
+              tools.sccache
+            ];
 
-          RUSTC_WRAPPER = "sccache";
-        };
-      });
+            RUSTC_WRAPPER = "sccache";
+          };
+        }
+      );
     };
 }
