@@ -412,6 +412,15 @@
                 touch $out
               '';
 
+            cargoDenyVersion = pkgs.runCommand "check-cargo-deny-version" { } ''
+              pinned=$(sed --quiet 's/.*cargo-deny@\([0-9.]*\).*/\1/p' ${./README.md})
+              if [ "$pinned" != "${pkgs.cargo-deny.version}" ]; then
+                echo "The README pins cargo-deny $pinned, but nixpkgs ships ${pkgs.cargo-deny.version}. Set the version in the README to the version of nixpkgs."
+                exit 1
+              fi
+              touch $out
+            '';
+
             nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
               find ${self} -name '*.nix' -exec nixfmt --check {} +
               touch $out

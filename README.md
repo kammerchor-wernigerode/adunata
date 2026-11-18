@@ -111,7 +111,7 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 |`server/`|`cargo test --bins -- --skip integration::`|Unit tests only, without any service|
 |`server/`|`cargo clippy --all-targets -- --deny warnings`|Lints|
 |`server/`|`cargo fmt --check`|Formatting|
-|`server/`|`cargo deny check licenses`|Licenses of the crates against the list in `server/deny.toml`. Needs `cargo-deny`, which `cargo install --locked cargo-deny` installs|
+|`server/`|`cargo deny check licenses`|Licenses of the crates against the list in `server/deny.toml`. Needs `cargo-deny`, which `cargo install --locked cargo-deny@0.19.6` installs in the version of nixpkgs|
 |`client/`|`npm test`|Unit tests|
 |`client/`|`npm run test:integration`|Integration tests|
 |`client/`|`npm run lint`|Lints, failing on warnings|
@@ -217,7 +217,7 @@ npm run test:integration
 npm run check:generated
 ```
 
-CI also checks the formatting of Nix files, the linkage of the release binary and whether the pinned versions of Rust and `editorconfig-checker` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
+CI also checks the formatting of Nix files, the linkage of the release binary and whether the pinned versions of Rust, `editorconfig-checker` and `cargo-deny` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
 
 ### Parallel worktrees
 
