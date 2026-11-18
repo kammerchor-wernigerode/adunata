@@ -48,7 +48,7 @@ The image has no operating system and therefore no store. Its `Env` sets `SSL_CE
 
 Significant: yes, part of the record above. An operator of the image gets a fixed set of authorities from nixpkgs that a new image updates, and can set `SSL_CERT_FILE` to a bundle of their own.
 
-`SSL_CERT_FILE` and `SSL_CERT_DIR` are the conventional variables of OpenSSL, which `rustls-native-certs` reads. They replace the store rather than add to it, so an operator's bundle has to contain the public authorities too if the mail server needs them. Adunata keeps these names instead of an `ADNT_` setting, because every TLS tool on the host reads the same ones. `docs/operating/configuration.md` names them as the one exception to the prefix `ADNT_`. The configuration module does not validate them. A wrong path shows up as failures of kind `encryption`, which the operating guide names under troubleshooting.
+`SSL_CERT_FILE` and `SSL_CERT_DIR` are the conventional variables of OpenSSL, which `rustls-native-certs` reads. They replace the store of the host rather than add to it, so an operator's bundle has to contain the public authorities too if the mail server needs them. If either is set, the library loads both, so in the image `SSL_CERT_DIR` alone adds to the bundle that the image's `SSL_CERT_FILE` names. Adunata keeps these names instead of an `ADNT_` setting, because every TLS tool on the host reads the same ones. `docs/operating/configuration.md` names them as the one exception to the prefix `ADNT_`. The configuration module does not validate them. A wrong path shows up as failures of kind `encryption`, which the operating guide names under troubleshooting.
 
 Alternatives: a typed setting `ADNT_SMTP_CA_FILE` that adds a file through lettre would be validated at start, but needs more code and still leaves `SSL_CERT_FILE` for the image. A bundle at `/etc/ssl/certs/ca-certificates.crt` that operators mount over still leaves the variables honored and undocumented.
 
@@ -64,13 +64,15 @@ Significant: no. Neither an operator nor a running instance notices where the st
 
 `cargo-deny` from nixpkgs checks the licenses of the crates. Crane's `cargoDeny` runs it offline with `cargoDenyChecks = "licenses"`. crane's `commonCargoSources` keeps every TOML file, so `serverSource` subtracts `server/deny.toml` with `lib.fileset.difference` and the check gets a source of its own that contains it. A change to the list then rebuilds neither the server nor its tests. Its configuration `server/deny.toml` allows only licenses approved by the OSI that a dependency needs, ignores the private crate `adunata` and includes dev dependencies. It sets `unused-allowed-license = "allow"`, because the shared list also holds licenses that only the client needs. A missing or unparsable license fails the check.
 
+Without Nix, the README installs `cargo-deny` in the release of nixpkgs. A check `cargoDenyVersion` in the target `lint` fails when the two differ, as the checks for Rust and `editorconfig-checker` do.
+
 Alternative: a script over `cargo metadata`. It would have to evaluate SPDX expressions with `OR`, `AND` and `WITH`, which `cargo-deny` already does correctly.
 
 Significant: no. It is a check in CI.
 
 ### Script for the npm packages
 
-`client/scripts/check-licenses.mjs` reads `client/package-lock.json` and takes the allowed licenses from `server/deny.toml`, so both checks use the same list. It skips the root entry `""`, which is the private client itself. It evaluates `OR`, `AND` and parentheses. Any other form, a missing field or an unknown identifier fails the check and names the package. The script has no npm dependencies. `npm run lint:licenses` runs it. The flake check `clientLicenses` is a `runCommand` with only Node.js, the script, `client/package-lock.json` and `server/deny.toml`, so the fileset of the client and with it the build of client and server stay unchanged.
+`client/scripts/check-licenses.mjs` reads `client/package-lock.json` and takes the allowed licenses from `server/deny.toml`, ignoring comments there, so both checks use the same list. It skips the root entry `""`, which is the private client itself. It evaluates `OR`, `AND` and parentheses. Any other form, a missing field or an unknown identifier fails the check and names the package. The script has no npm dependencies. `npm run lint:licenses` runs it. The flake check `clientLicenses` is a `runCommand` with only Node.js, the script, `client/package-lock.json` and `server/deny.toml`, so the fileset of the client and with it the build of client and server stay unchanged.
 
 Alternatives: the npm package `license-checker` adds dependencies to check dependencies. A scanner such as Trivy belongs to the later change on vulnerability scanning.
 
