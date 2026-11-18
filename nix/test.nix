@@ -168,7 +168,10 @@ pkgs.testers.runNixOSTest {
         binary.wait_for_open_port(8080)
         assert_serves_adunata(binary)
         assert_serves_notices(binary)
-        binary.succeed("curl --fail --silent http://127.0.0.1:8080/licenses.txt | cmp - ${release}/licenses.txt")
+        binary.succeed(
+            "curl --fail --silent http://127.0.0.1:8080/licenses.txt | cmp - ${release}/licenses.txt",
+            "curl --fail --silent http://127.0.0.1:8080/licenses-rust.html | cmp - ${release}/licenses-rust.html",
+        )
 
     with subtest("Mail over TLS from the release binary, trusted through the host's store"):
         request_sign_in(binary)

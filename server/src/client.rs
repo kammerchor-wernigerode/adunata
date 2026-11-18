@@ -55,6 +55,14 @@ mod integration {
         let response = get("/").await;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()[header::CONTENT_TYPE], "text/html");
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert!(
+            String::from_utf8_lossy(&body)
+                .contains(r#"<link rel="license" href="/licenses.txt" />"#),
+            "the client must link its license notices"
+        );
     }
 
     #[tokio::test]
@@ -95,6 +103,14 @@ mod integration {
         let text = String::from_utf8(body.to_vec()).unwrap();
         assert!(text.contains("\nreact "), "react must be listed");
         assert!(text.contains("\nshadcn "), "shadcn must be listed");
+        assert!(
+            text.contains("\ntailwindcss "),
+            "packages of the stylesheet must be listed"
+        );
+        assert!(
+            text.contains("\n@fontsource-variable/literata "),
+            "fonts must be listed"
+        );
         assert!(
             text.contains("Permission is hereby granted, free of charge"),
             "the MIT text must be included"
