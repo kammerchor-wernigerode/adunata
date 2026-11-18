@@ -36,11 +36,13 @@ async function pickDay(page: Page, label: string, day: string): Promise<void> {
   const grid = page.locator(`[role="grid"][aria-label="${label}"]`)
   await expect(grid).toBeVisible()
   const button = grid.locator(`[data-day="${day}"]:not([data-outside]) button`)
+  const nextMonth = page.locator('[data-slot="popover-content"]', { has: grid }).getByRole('button', { name: 'Go to the Next Month' })
   for (let month = 0; month < 3 && !(await button.isVisible()); month++) {
-    await page.getByRole('button', { name: 'Go to the Next Month' }).click()
+    await nextMonth.click()
   }
   await button.click()
   await page.keyboard.press('Escape')
+  await expect(grid).toBeHidden()
 }
 
 /** Waits until no finite CSS transition or animation runs any more, so that axe sees the final colors after a change of the color scheme. A transition that a newer one replaces rejects its promise, so the check repeats until none is left. Finished and paused animations do not count. */
