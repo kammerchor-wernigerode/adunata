@@ -5,7 +5,7 @@ Requires the change `license-compliance` on `main`, because it creates `server/d
 ## 1. Notices of the client
 
 - [x] 1.1 Set `build.license` in `client/vite.config.ts` with `fileName: 'licenses.txt'`. Add `client/notices.json` and `client/licenses/` with entries for `src/shadcn.css` and `src/components/ui/` (shadcn 4.23.0, MIT), `tailwindcss` and `tw-animate-css` from `node_modules`, and texts for `@fluent/bundle` (Apache-2.0) and `react-remove-scroll-bar` (MIT). Add a Vite plugin that appends one section per entry and fails the build on a bundled package without license text and on an entry whose path or package does not exist. Add `<link rel="license" href="/licenses.txt">` to `client/index.html`. Name in the README where copied code goes and that it needs an entry. Verify that `npm run build` writes `dist/licenses.txt` with texts for `react`, `tailwindcss`, `@fluent/bundle` and shadcn, that the build fails when the entry for `@fluent/bundle` is removed and when an entry names a missing path
-- [ ] 1.2 Send `text/plain; charset=utf-8` for `.txt` assets in `server/src/client.rs`. Add an integration test that requests `/licenses.txt` and asserts that content type, `react`, `shadcn` and the MIT text. Verify that it passes with `cargo test` after `npm run build` without Nix and in `nix build .#checks.<system>.integration`
+- [x] 1.2 Send `text/plain; charset=utf-8` for `.txt` assets in `server/src/client.rs`. Add an integration test that requests `/licenses.txt` and asserts that content type, `react`, `shadcn` and the MIT text. Verify that it passes with `cargo test` after `npm run build` without Nix and in `nix build .#checks.<system>.integration`
 
 ## 2. Notices of the crates and the standard library
 
