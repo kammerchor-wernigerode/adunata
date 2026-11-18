@@ -53,6 +53,10 @@ Install these tools:
 - Node.js 24
 - Docker or Podman with Compose
 
+### RustRover
+
+The repository tracks the project files of [RustRover](https://www.jetbrains.com/rust/) in `.idea/`. They exclude build output and linked worktrees from indexing, require the plugin NixIDEA and map the JSON schema of `rust-toolchain.toml`. Open the root of the checkout, not `server/`.
+
 ### Services
 
 Start PostgreSQL and Mailpit in the root of the checkout:
