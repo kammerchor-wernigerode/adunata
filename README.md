@@ -77,7 +77,7 @@ Compose, the server and the client each read their settings from files in their 
 |-|-|-|-|
 |root|Compose|none, defaults in `compose.yaml`|`.env` with `COMPOSE_PROJECT_NAME`, `POSTGRES_PORT`, `MAILPIT_SMTP_PORT` and `MAILPIT_UI_PORT`|
 |`server/`|server and its tests|`.env` with the settings for development|`.env.local`|
-|`client/`|Vite and Playwright|none, defaults in the configs|`.env.local`|
+|`client/`|Vite|none, defaults in the configs|`.env.local`|
 
 The server reads its files only in a debug build and only in its working directory, so run it and its tests in `server/`. The [configuration reference](docs/operating/configuration.md) explains each `ADNT_` variable. Without an untracked file, PostgreSQL listens on port 5432, Mailpit on 1025 and 8025, the server on 8080 and Vite on 5173.
 
@@ -124,17 +124,28 @@ A test run that is killed leaves its databases behind. Drop them in the root of 
 docker compose exec -T postgres psql -U adunata -tAc "select datname from pg_database where datname like 'adunata\_test\_%'" | xargs -rn1 docker compose exec -T postgres dropdb -U adunata --force
 ```
 
-The end-to-end tests run against a release build in Nix:
+### End-to-end tests
+
+The end-to-end tests drive Chromium against a release build of Adunata. They need Docker with Compose. Install Chromium once, then run them in `client/`:
 
 ```sh
-nix build .#checks.x86_64-linux.e2e
+cd client
+npx playwright install chromium
+npm run e2e
 ```
 
-On macOS this needs a Linux builder, as the [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes:
+Before the tests, Playwright builds the client and runs `cargo build --release` in `server/`. With `ADUNATA_E2E_SERVER` set to a binary, it starts that binary instead. It starts PostgreSQL and Mailpit from `compose.yaml` as a fresh Compose project `adunata-e2e-<hash>` on free ports, then the server with only the settings of the tests. No settings file and no variable of your shell reach the server. After the tests it removes the project with its volume. The development services and their data stay untouched.
+
+The server writes its output to `client/test-results/server.log`, and the services write theirs to `client/test-results/services.log`.
+
+One run per checkout is the limit, because a second run removes the services of the first. A run that is killed leaves its server running on a free port. Find and end it:
 
 ```sh
-nix build .#vmChecks.e2e
+pgrep -fl 'adunata serve'
+kill <pid>
 ```
+
+On NixOS the browsers of Playwright start only with [nix-ld](https://github.com/nix-community/nix-ld).
 
 ### API contract
 
@@ -184,7 +195,7 @@ Each worktree gets a slot `n` with the port base `b = port_base + 10n`. Slot 0 b
 
 For a new worktree, the plugin:
 
-- writes the root `.env` with the Compose project `adunata-<b>` and its ports, `server/.env.local` with the addresses of server, database and Mailpit as well as `client/.env.local` with the ports of Vite, the server and Mailpit
+- writes the root `.env` with the Compose project `adunata-<b>` and its ports, `server/.env.local` with the addresses of server, database and Mailpit as well as `client/.env.local` with the port of Vite and the address of the server
 - replaces only the lines of its own keys in these files and keeps every other line, so you can add your own settings there. It keeps the previous version of a file it changes as `<name>.bak`
 - installs and builds the client, inside `nix develop` if Nix is installed, so the server compiles right away
 
@@ -206,7 +217,7 @@ docker compose -p adunata exec -T postgres pg_dump -U adunata --no-owner adunata
 
 Set the option per repository with `git config worktree-init.port-base 19000`. After a change, an existing worktree keeps its Compose project under the old name. `git wt remove` then no longer finds it. Remove such a project with `docker compose -p adunata-<b> down --volumes`.
 
-Remove a worktree with `git wt remove`. It runs `docker compose -p adunata-<b> down --volumes`, which deletes the containers and the database of the worktree. While Docker is stopped, it prints a warning with that command and removes the worktree anyway. A worktree removed with plain `git worktree remove` keeps its Compose project until the next sweep. `git wt prune`, `git wt add` and `git wt refresh` each run one.
+Remove a worktree with `git wt remove`. It runs `docker compose -p adunata-<b> down --volumes`, which deletes the containers and the database of the worktree. It also removes the Compose project of the end-to-end tests that a killed run left behind. While Docker is stopped, it prints a warning with that command and removes the worktree anyway. A worktree removed with plain `git worktree remove` keeps its Compose project until the next sweep. `git wt prune`, `git wt add` and `git wt refresh` each run one.
 
 git-worktree-init skips the worktrees of Claude Code under `.claude/worktrees/` by default. Such a worktree gets no root `.env`, so `docker compose` there uses the project `adunata` of the main checkout and its services. `docker compose down --volumes` in such a worktree deletes the database of the main checkout. Include these worktrees by clearing the pattern:
 
