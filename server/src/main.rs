@@ -205,6 +205,7 @@ async fn serve(configuration: Configuration, development_mode: bool) {
         trusted_proxies: configuration.trusted_proxies,
         sign_in_limiter: access::SignInLimiter::default(),
         time_zone: configuration.time_zone,
+        development_mode,
     };
     tracing::info!(address = %listener.local_addr().expect("listener must have an address"), "accepting requests");
     serving::serve_until(listener, app(state), serving::termination_signal())

@@ -14,8 +14,8 @@
 
 ## 3. Link of each request in the log
 
-- [ ] 3.1 Add `development_mode: bool` to `api::AppState`, set it from the option in `serve` and to `false` in `api::testing::state`. Let `send_sign_in_link` log the link with the same message and field after the commit when it is set. Verify with integration tests using `test_logs::captured_logs()` that the secret of a requested link appears in the log with development mode and does not appear without it.
-- [ ] 3.2 Skip the count of recent links per member in `send_sign_in_link` when `development_mode` is set. Verify with an integration test that a fourth request within an hour puts a mail in the outbox with development mode, and with the existing test that it puts none without.
+- [x] 3.1 Add `development_mode: bool` to `api::AppState`, set it from the option in `serve` and to `false` in `api::testing::state`. Let `send_sign_in_link` log the link with the same message and field after the commit when it is set. Verify with integration tests using `test_logs::captured_logs()` that the secret of a requested link appears in the log with development mode and does not appear without it.
+- [x] 3.2 Skip the count of recent links per member in `send_sign_in_link` when `development_mode` is set. Verify with an integration test that a fourth request within an hour puts a mail in the outbox with development mode, and with the existing test that it puts none without.
 
 ## 4. Documentation and decision record
 

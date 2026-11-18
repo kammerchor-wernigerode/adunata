@@ -250,18 +250,31 @@ async fn send_sign_in_link(state: &AppState, mail_address: &str) -> Result<(), s
     else {
         return Ok(());
     };
-    let recent: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM sign_in_links WHERE member_id = $1 AND created_at > now() - interval '1 hour'",
-    )
-    .bind(organizer.id)
-    .fetch_one(&mut *transaction)
-    .await?;
-    if recent >= LINKS_PER_ADDRESS_AND_HOUR {
+    if !state.development_mode
+        && links_of_the_past_hour(&mut transaction, organizer.id).await?
+            >= LINKS_PER_ADDRESS_AND_HOUR
+    {
         return Ok(());
     }
     let link = store_sign_in_link(&mut transaction, &state.public_url, organizer.id).await?;
     mail::enqueue(&mut transaction, &sign_in_mail(&organizer, &link)).await?;
-    transaction.commit().await
+    transaction.commit().await?;
+    if state.development_mode {
+        tracing::info!(link, "sign-in link for development");
+    }
+    Ok(())
+}
+
+async fn links_of_the_past_hour(
+    connection: &mut PgConnection,
+    member_id: i64,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT count(*) FROM sign_in_links WHERE member_id = $1 AND created_at > now() - interval '1 hour'",
+    )
+    .bind(member_id)
+    .fetch_one(connection)
+    .await
 }
 
 /// Stores a sign-in link for a member that works once within one hour and returns the link.
@@ -884,6 +897,46 @@ mod tests {
                 }
                 assert_eq!(links(&pool).await, 3);
                 assert_eq!(count(&pool, "SELECT count(*) FROM mail_outbox").await, 3);
+            }
+
+            async fn request_link_in_development_mode(pool: &PgPool) {
+                let state = AppState {
+                    development_mode: true,
+                    ..api::testing::state(pool.clone())
+                };
+                let request = Request::post("/api/sign-in-requests")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(json!({ "mail": "ada@example.org" }).to_string()))
+                    .unwrap();
+                assert_eq!(call(state, request).await.status(), StatusCode::ACCEPTED);
+            }
+
+            #[tokio::test]
+            async fn requested_link_in_the_log_only_in_development_mode() {
+                let logs = crate::test_logs::captured_logs();
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+
+                request_link(&pool, "ada@example.org").await;
+                let secret = link_secret(&pool).await;
+                assert!(!logs.text().contains(&secret), "{}", logs.text());
+
+                request_link_in_development_mode(&pool).await;
+                let secret = link_secret(&pool).await;
+                assert!(logs.text().contains(&secret), "{}", logs.text());
+            }
+
+            #[tokio::test]
+            async fn no_limit_per_address_in_development_mode() {
+                let database = fresh_database().await;
+                let pool = database.pool();
+                organizer(&pool).await;
+                for _ in 0..4 {
+                    request_link_in_development_mode(&pool).await;
+                }
+                assert_eq!(links(&pool).await, 4);
+                assert_eq!(count(&pool, "SELECT count(*) FROM mail_outbox").await, 4);
             }
 
             #[tokio::test]
