@@ -46,7 +46,7 @@ function freePort(): Promise<number> {
 function serverBinary(): string {
   const given = process.env.ADUNATA_E2E_SERVER
   if (given) return path.resolve(given)
-  execFileSync('npm', ['run', 'build'], { cwd: client, stdio: 'inherit' })
+  execFileSync('pnpm', ['run', 'build'], { cwd: client, stdio: 'inherit' })
   execFileSync('cargo', ['build', '--release', '--locked'], { cwd: path.join(root, 'server'), stdio: 'inherit' })
   return path.join(root, 'server', 'target', 'release', 'adunata')
 }

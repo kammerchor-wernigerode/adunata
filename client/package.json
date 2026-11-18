@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "pnpm@11.27.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -13,7 +14,7 @@
     "generate": "orval",
     "e2e": "playwright test",
     "lint:editorconfig": "cd .. && EC_VERSION=v3.6.1 editorconfig-checker",
-    "lint:licenses": "node scripts/check-licenses.mjs",
+    "lint:licenses": "pnpm licenses list --json > node_modules/.licenses.json && node scripts/check-licenses.mjs node_modules/.licenses.json",
     "check:generated": "sh scripts/check-generated.sh"
   },
   "dependencies": {
@@ -42,7 +43,7 @@
     "@tailwindcss/vite": "^4.3.5",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.10",
-    "@types/node": "^24.19.2",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",

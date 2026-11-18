@@ -7,7 +7,7 @@ on:
     paths:
       - server/Cargo.lock
       - server/deny.toml
-      - client/package-lock.json
+      - client/pnpm-lock.yaml
       - client/audit-exceptions.json
       - client/scripts/check-advisories.mjs
       - .github/workflows/advisories.yaml
@@ -32,7 +32,7 @@ jobs:
       - name: Crates
         working-directory: server
         run: nix shell --inputs-from .. nixpkgs#cargo nixpkgs#rustc nixpkgs#cargo-deny --command cargo deny --locked check advisories
-      - name: npm packages
+      - name: Client packages
         if: ${{ !cancelled() }}
         working-directory: client
-        run: nix shell --inputs-from .. nixpkgs#nodejs_24 --command sh -c 'npm audit --json > "$RUNNER_TEMP/audit.json"; node scripts/check-advisories.mjs "$RUNNER_TEMP/audit.json"'
+        run: nix shell --inputs-from .. nixpkgs#pnpm nixpkgs#nodejs_26 --command sh -c 'pnpm audit --json > "$RUNNER_TEMP/audit.json"; node scripts/check-advisories.mjs "$RUNNER_TEMP/audit.json"'

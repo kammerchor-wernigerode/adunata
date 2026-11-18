@@ -33,7 +33,7 @@ Development needs PostgreSQL to store data and Mailpit to catch outgoing mail. B
 
 ### With Nix
 
-Install [Nix](https://nixos.org/download/) and enable flakes. Install Docker or Podman with Compose as well. The development shell provides Rust and Node.js 24. It compiles Rust through sccache, which shares compiled dependencies between checkouts.
+Install [Nix](https://nixos.org/download/) and enable flakes. Install Docker or Podman with Compose as well. The development shell provides Rust, Node.js 26 and pnpm. It compiles Rust through sccache, which shares compiled dependencies between checkouts.
 
 ```sh
 nix develop
@@ -50,7 +50,8 @@ direnv allow
 Install these tools:
 
 - [rustup](https://rustup.rs), which installs the version of Rust that [`server/rust-toolchain.toml`](server/rust-toolchain.toml) pins, with `clippy`, `rustfmt` and the sources of the standard library
-- Node.js 24
+- Node.js 26
+- [pnpm](https://pnpm.io/installation) in the version that `packageManager` in [`client/package.json`](client/package.json) names
 - Docker or Podman with Compose
 
 ### RustRover
@@ -91,8 +92,8 @@ Build the client once, then start the server:
 
 ```sh
 cd client
-npm ci
-npm run build
+pnpm install --frozen-lockfile
+pnpm run build
 cd ../server
 cargo run -- serve --dev
 ```
@@ -118,7 +119,7 @@ curl -s -b "$jar" "${link%%/sign-in#*}/api/session"
 To work on the client, keep the server running and start the Vite development server in `client/`:
 
 ```sh
-npm run dev
+pnpm run dev
 ```
 
 It serves the client on <http://localhost:5173> and reloads on every change. It forwards requests to `/api` to the server on port 8080. `ADUNATA_VITE_PORT` in `client/.env.local` changes the port of Vite. The forwarding follows `ADNT_HTTP_LISTEN_ADDRESS` there.
@@ -132,12 +133,12 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 |`server/`|`cargo clippy --all-targets -- --deny warnings`|Lints|
 |`server/`|`cargo fmt --check`|Formatting|
 |`server/`|`cargo deny check bans licenses sources`|Licenses of the crates against the list in `server/deny.toml`, version requirements without wildcards and crates.io as the only source. Needs `cargo-deny`, which `cargo install --locked cargo-deny@0.19.6` installs in the version of nixpkgs|
-|`server/`|`cargo about generate --frozen --fail about.hbs >> ../client/dist/licenses.txt`|Appends the notices of the crates to the notices of the client after `npm run build`, so the server embeds both. Needs `cargo-about`, which `cargo install --locked cargo-about@0.9.0` installs in the version of nixpkgs|
-|`client/`|`npm test`|Unit tests|
-|`client/`|`npm run test:integration`|Integration tests|
-|`client/`|`npm run lint`|Lints, failing on warnings|
-|`client/`|`npm run lint:editorconfig`|Rules of `.editorconfig` in the whole repository. Downloads `editorconfig-checker` on its first run|
-|`client/`|`npm run lint:licenses`|Licenses of the packages in `package-lock.json` against the list in `server/deny.toml`|
+|`server/`|`cargo about generate --frozen --fail about.hbs >> ../client/dist/licenses.txt`|Appends the notices of the crates to the notices of the client after `pnpm run build`, so the server embeds both. Needs `cargo-about`, which `cargo install --locked cargo-about@0.9.0` installs in the version of nixpkgs|
+|`client/`|`pnpm test`|Unit tests|
+|`client/`|`pnpm run test:integration`|Integration tests|
+|`client/`|`pnpm run lint`|Lints, failing on warnings|
+|`client/`|`pnpm run lint:editorconfig`|Rules of `.editorconfig` in the whole repository. Downloads `editorconfig-checker` on its first run|
+|`client/`|`pnpm run lint:licenses`|Licenses of the installed packages against the list in `server/deny.toml`|
 
 `cargo test` finds PostgreSQL through `ADNT_DATABASE_URL` and Mailpit through `ADNT_SMTP_PORT` and `MAILPIT_UI_PORT`. It creates a separate database for each test and drops it when the test ends, so the user in `ADNT_DATABASE_URL` needs the right to create databases.
 
@@ -153,8 +154,8 @@ The end-to-end tests drive Chromium against a release build of Adunata. They nee
 
 ```sh
 cd client
-npx playwright install chromium
-npm run e2e
+pnpm exec playwright install chromium
+pnpm run e2e
 ```
 
 Before the tests, Playwright builds the client and runs `cargo build --release` in `server/`. With `ADUNATA_E2E_SERVER` set to a binary, it starts that binary instead. It starts PostgreSQL and Mailpit from `compose.yaml` as a fresh Compose project `adunata-e2e-<hash>` on free ports, then the server with only the settings of the tests. No settings file and no variable of your shell reach the server. After the tests it removes the project with its volume. The development services and their data stay untouched.
@@ -178,7 +179,7 @@ The client calls the server through code that [Orval](https://orval.dev) generat
 cd server
 cargo run -- openapi > ../client/openapi.json
 cd ../client
-npm run generate
+pnpm run generate
 ```
 
 The contract check has two halves:
@@ -186,24 +187,24 @@ The contract check has two halves:
 |Directory|Command|Fails when|Fix|
 |-|-|-|-|
 |`server/`|`cargo test --bins -- api::integration::the_client_holds_the_current_document`|`client/openapi.json` differs from the document of the server, even in whitespace|`cargo run -- openapi > ../client/openapi.json` in `server/`|
-|`client/`|`npm run check:generated`|The code in `src/api/generated` differs from what Orval generates from `openapi.json`|`npm run generate` in `client/`|
+|`client/`|`pnpm run check:generated`|The code in `src/api/generated` differs from what Orval generates from `openapi.json`|`pnpm run generate` in `client/`|
 
-`cargo test` runs the first half among the integration tests. `npm run check:generated` regenerates the code in place and restores the code it found afterwards, also when it fails.
+`cargo test` runs the first half among the integration tests. `pnpm run check:generated` regenerates the code in place and restores the code it found afterwards, also when it fails.
 
 ### UI components
 
-The components in `client/src/components/ui/` and the stylesheet `client/src/shadcn.css` are copies from shadcn. The client does not depend on the package `shadcn`, because its command line tool pulls in a dependency whose license the OSI has not approved. Run the tool through `npx` when you add a component, with the version that the header of `shadcn.css` names:
+The components in `client/src/components/ui/` and the stylesheet `client/src/shadcn.css` are copies from shadcn. The client does not depend on the package `shadcn`, because its command line tool pulls in a dependency whose license the OSI has not approved. Run the tool through `pnpm dlx` when you add a component, with the version that the header of `shadcn.css` names:
 
 ```sh
 cd client
-npx shadcn@4.23.0 add <component>
+pnpm dlx shadcn@4.23.0 add <component>
 ```
 
-`npx` fetches the tool outside `package-lock.json` and outside the license check. The tool leaves `package.json` free of `shadcn` and adds only the packages the component needs, which `npm run lint:licenses` then checks. Commit the component together with those packages.
+`pnpm dlx` fetches the tool outside `pnpm-lock.yaml` and outside the license check. The tool leaves `package.json` free of `shadcn` and adds only the packages the component needs, which `pnpm run lint:licenses` then checks. Commit the component together with those packages.
 
 ### Third-party notices
 
-`npm run build` writes `client/dist/licenses.txt` with the license texts of every package in the client. Most texts come from the bundle. [`client/notices.json`](client/notices.json) adds what the bundle does not show. Each copy of third-party code needs an entry under `copied` with its path, source, version, license and a text under `client/licenses/`, and copies of components go into `client/src/components/ui/`, which already has one. A package that reaches the browser only through the stylesheet goes under `stylesheetPackages`, and a package that ships no license file gets a text under `licenseTexts`. The build fails when a bundled package has no license text or an entry names a path that does not exist.
+`pnpm run build` writes `client/dist/licenses.txt` with the license texts of every package in the client. Most texts come from the bundle. [`client/notices.json`](client/notices.json) adds what the bundle does not show. Each copy of third-party code needs an entry under `copied` with its path, source, version, license and a text under `client/licenses/`, and copies of components go into `client/src/components/ui/`, which already has one. A package that reaches the browser only through the stylesheet goes under `stylesheetPackages`, and a package that ships no license file gets a text under `licenseTexts`. The build fails when a bundled package has no license text or an entry names a path that does not exist.
 
 ### Checks before a push
 
@@ -219,48 +220,50 @@ Without Nix, run the same checks in the order of the lifecycle, with the service
 
 ```sh
 cd client
-npm ci
-npm run lint
-npm run lint:editorconfig
-npm run lint:licenses
+pnpm install --frozen-lockfile
+pnpm run lint
+pnpm run lint:editorconfig
+pnpm run lint:licenses
 cd ../server
 cargo fmt --check
 cargo clippy --all-targets -- --deny warnings
 cargo deny check bans licenses sources
 cd ../client
-npm run build
+pnpm run build
 cd ../server
 cargo about generate --frozen --fail about.hbs >> ../client/dist/licenses.txt
 cargo build
 cargo test --bins -- --skip integration::
 cd ../client
-npm test
+pnpm test
 cd ../server
 cargo test --bins -- integration::
 cargo test --test startup
 cd ../client
-npm run test:integration
-npm run check:generated
+pnpm run test:integration
+pnpm run check:generated
 ```
 
-CI also checks the formatting of Nix files, the linkage of the release binary, the GitHub workflows with zizmor and whether the pinned versions of Rust, `editorconfig-checker`, `cargo-deny` and `cargo-about` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
+CI also checks the formatting of Nix files, the linkage of the release binary, the GitHub workflows with zizmor and whether the pinned versions of Rust, pnpm, `editorconfig-checker`, `cargo-deny` and `cargo-about` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
 
 ### Dependency updates
 
-Dependabot opens pull requests once a week for the crates in `server/`, the npm packages in `client/`, the inputs in `flake.lock` and the GitHub actions, as [`.github/dependabot.yml`](.github/dependabot.yml) configures. Minor and patch updates come grouped. Each update waits seven days after its release. Dependabot opens its pull requests ready for review, so they run every CI job.
+Dependabot opens pull requests once a week for the crates in `server/`, the packages in `client/`, the inputs in `flake.lock` and the GitHub actions, as [`.github/dependabot.yml`](.github/dependabot.yml) configures. Minor and patch updates come grouped. Each update waits seven days after its release. Dependabot opens its pull requests ready for review, so they run every CI job.
 
-An update of `flake.lock` can bring new versions of Rust, `editorconfig-checker`, `cargo-deny` or `cargo-about`. The lint checks that compare the pins for work without Nix then fail and name the version of nixpkgs. Push one commit to the Dependabot branch that sets `channel` in `server/rust-toolchain.toml`, `EC_VERSION` in `client/package.json` and the versions of `cargo-deny` and `cargo-about` under [Tests and lints](#tests-and-lints) to those versions, together with fixes for new Clippy lints. Dependabot no longer rebases a branch with commits of someone else. If `main` moves before the merge, rebase the branch by hand or comment `@dependabot recreate`, which drops your commit. Dependabot moves only the revisions in `flake.lock`. Change the branch of `nixpkgs` and the tag of `crane` in `flake.nix` by hand.
+An update of `flake.lock` can bring new versions of Rust, pnpm, `editorconfig-checker`, `cargo-deny` or `cargo-about`. The lint checks that compare the pins for work without Nix then fail and name the version of nixpkgs. A new pnpm also changes the hash of the client dependencies, and the build names the new one. Push one commit to the Dependabot branch that sets `channel` in `server/rust-toolchain.toml`, `packageManager` and `EC_VERSION` in `client/package.json`, the hash in `client/pnpm-deps.hash` and the versions of `cargo-deny` and `cargo-about` under [Tests and lints](#tests-and-lints) to those versions, together with fixes for new Clippy lints. Dependabot no longer rebases a branch with commits of someone else. If `main` moves before the merge, rebase the branch by hand or comment `@dependabot recreate`, which drops your commit. Dependabot moves only the revisions in `flake.lock`. Change the branch of `nixpkgs` and the tag of `crane` in `flake.nix` by hand.
 
-`client/.npmrc` lets npm install only releases older than seven days and runs no install scripts. Dependabot security updates read the file too, so they cannot pick a fix younger than that. To take such a fix, override the age once. `npm update` also moves a package that comes in through another one, as long as the fixed version fits the range that the other package requires:
+[`client/pnpm-workspace.yaml`](client/pnpm-workspace.yaml) lets pnpm install only releases older than seven days, also those already in `pnpm-lock.yaml`. Only the packages under `allowBuilds` may run build scripts, and pnpm fails on a new package with a build script until it gets an entry there. To take a security fix younger than seven days, add its exact version to `minimumReleaseAgeExclude`, such as `picomatch@4.0.8`, then update it. `pnpm update` also moves a package that comes in through another one, as long as the fixed version fits the range that the other package requires. Remove the entry once the release is older than seven days. A version update whose fetch fails on a young release waits instead. Comment `@dependabot recreate` once the release is old enough.
 
 ```sh
 cd client
-npm update <package> --min-release-age=0
+pnpm update <package>
 ```
 
-If the fix lies outside that range, pin it under `overrides` in `client/package.json`.
+If the fix lies outside that range, pin it under `overrides` in `client/pnpm-workspace.yaml`.
 
-The workflow [`advisories`](.github/workflows/advisories.yaml) checks both lock files against the advisory databases every day and on pull requests that change them. It fails on any advisory of a crate and on an npm advisory of severity high or critical. If an npm advisory has no fix yet, add it to `client/audit-exceptions.json` with its GHSA ID, the reason and an expiry date. The run fails once the date has passed and, outside pull requests, once the exception matches no advisory. GitHub notifies only the person who last changed the schedule of a failed scheduled run, so check the workflow in the Actions tab. For a crate, add `{ id, reason }` to `ignore` under `[advisories]` in `server/deny.toml`.
+The Nix build fetches the client dependencies once for `pnpm-lock.yaml` and checks them against the hash in [`client/pnpm-deps.hash`](client/pnpm-deps.hash). Every change of `pnpm-lock.yaml` changes that hash. A change of `pnpm-workspace.yaml` makes the build fetch again, which also checks the release age again. After such a change, the build fails with `got: sha256-…`. Write that value to the file. Without Nix, the job `verify` of CI shows the same error. On pull requests of Dependabot, the workflow [`client-dependencies`](.github/workflows/client-dependencies.yaml) writes the hash and pushes it with the token of the GitHub App `adunata-client-dependencies`, so the push starts CI on the pull request. `[dependabot skip]` in its message lets Dependabot keep rebasing the branch.
+
+The workflow [`advisories`](.github/workflows/advisories.yaml) checks both lock files against the advisory databases every day and on pull requests that change them. It fails on any advisory of a crate and on an advisory of a client package of severity high or critical. If such an advisory has no fix yet, add it to `client/audit-exceptions.json` with its GHSA ID, the reason and an expiry date. The run fails once the date has passed and, outside pull requests, once the exception matches no advisory. GitHub notifies only the person who last changed the schedule of a failed scheduled run, so check the workflow in the Actions tab. For a crate, add `{ id, reason }` to `ignore` under `[advisories]` in `server/deny.toml`.
 
 The repository expects these settings, which no file holds:
 
@@ -270,6 +273,8 @@ The repository expects these settings, which no file holds:
 |Secret Protection with push protection|Settings, Advanced Security|
 |Ruleset for `main` that requires the check `Verify`, with a bypass for admins|Settings, Rules|
 |Ruleset for tags `v*` that restricts creation, update and deletion, with a bypass for admins|Settings, Rules|
+|GitHub App `adunata-client-dependencies` with the repository permission Contents read and write, installed on this repository only|Settings of the account, Developer settings, GitHub Apps|
+|Dependabot secrets `CLIENT_DEPENDENCIES_APP_CLIENT_ID` and `CLIENT_DEPENDENCIES_APP_PRIVATE_KEY` with the client ID and a private key of that App|Settings, Secrets and variables, Dependabot|
 
 ### Parallel worktrees
 
@@ -294,6 +299,8 @@ For a new worktree, the plugin:
 - writes the root `.env` with the Compose project `adunata-<b>` and its ports, `server/.env.local` with the addresses of server, database and Mailpit as well as `client/.env.local` with the port of Vite and the address of the server
 - replaces only the lines of its own keys in these files and keeps every other line, so you can add your own settings there. It keeps the previous version of a file it changes as `<name>.bak`
 - installs and builds the client, inside `nix develop` if Nix is installed, so the server compiles right away
+
+All checkouts share the global store of pnpm. `node_modules` of a worktree holds only links into it, so a new worktree installs in seconds and takes almost no disk space. The store keeps every version that any checkout installed. `pnpm store prune` removes those that no checkout uses any more.
 
 Start the services of a worktree in its root, as in the main checkout:
 

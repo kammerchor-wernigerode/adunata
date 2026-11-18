@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 
-const lockFile = new URL("../package-lock.json", import.meta.url);
 const denyFile = new URL("../../server/deny.toml", import.meta.url);
 
 function allowedLicenses() {
@@ -64,23 +63,26 @@ function satisfies(expression, allowed) {
   return result;
 }
 
-function problems() {
+/** Checks the output of `pnpm licenses list --json`, which groups the installed packages by their license. */
+function problems(report) {
   const allowed = allowedLicenses();
-  const { packages } = JSON.parse(readFileSync(lockFile, "utf8"));
-  return Object.entries(packages)
-    .filter(([path]) => path !== "")
-    .flatMap(([path, { license }]) => {
-      const name = path.replace(/^.*node_modules\//, "");
-      if (typeof license !== "string") return [`${name} (${path}) declares no license`];
-      try {
-        return satisfies(license, allowed) ? [] : [`${name} (${path}) has license ${license}, which deny.toml does not allow`];
-      } catch (error) {
-        return [`${name} (${path}): ${error.message}`];
-      }
-    });
+  return Object.entries(report).flatMap(([license, packages]) => {
+    const names = packages.map((entry) => `${entry.name} ${entry.versions.join(", ")}`);
+    if (license === "Unknown") return names.map((name) => `${name} declares no license`);
+    try {
+      return satisfies(license, allowed) ? [] : names.map((name) => `${name} has license ${license}, which deny.toml does not allow`);
+    } catch (error) {
+      return names.map((name) => `${name}: ${error.message}`);
+    }
+  });
 }
 
-const found = problems();
+const reportFile = process.argv[2];
+if (!reportFile) {
+  console.error("usage: check-licenses.mjs <output of pnpm licenses list --json>");
+  process.exit(2);
+}
+const found = problems(JSON.parse(readFileSync(reportFile, "utf8")));
 if (found.length > 0) {
   console.error(found.join("\n"));
   process.exit(1);

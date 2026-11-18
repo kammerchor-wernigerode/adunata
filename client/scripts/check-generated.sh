@@ -16,8 +16,8 @@ trap restore EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-npx orval
+pnpm exec orval
 if ! diff -ru "$found/generated" "$generated"; then
-  echo "Generated client code is out of date. Run: npm run generate" >&2
+  echo "Generated client code is out of date. Run: pnpm run generate" >&2
   exit 1
 fi

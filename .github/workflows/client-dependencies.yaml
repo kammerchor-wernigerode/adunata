@@ -1,0 +1,73 @@
+name: Client dependencies
+
+on:
+  pull_request:
+    paths:
+      - client/pnpm-lock.yaml
+
+concurrency:
+  group: client-dependencies-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  hash:
+    name: Hash of the client dependencies
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      hash: ${{ steps.hash.outputs.hash }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+      - name: Hash that the fetch produces
+        id: hash
+        run: |
+          if nix build --no-link .#checks.x86_64-linux.clientLint.pnpmDeps 2> build.log; then
+            echo "client/pnpm-deps.hash is current."
+            exit 0
+          fi
+          cat build.log
+          hash=$(sed --quiet 's/^ *got: *\(sha256-[A-Za-z0-9+/]*=\) *$/\1/p' build.log)
+          if ! [[ "$hash" =~ ^sha256-[A-Za-z0-9+/]{43}=$ ]]; then
+            echo "The fetch failed without naming a new hash."
+            exit 1
+          fi
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+
+  update:
+    name: Commit of the new hash
+    needs: hash
+    if: needs.hash.outputs.hash != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: token
+        with:
+          client-id: ${{ secrets.CLIENT_DEPENDENCIES_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CLIENT_DEPENDENCIES_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - name: Commit and push
+        env:
+          HASH: ${{ needs.hash.outputs.hash }}
+          BRANCH: ${{ github.head_ref }}
+          TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          [[ "$HASH" =~ ^sha256-[A-Za-z0-9+/]{43}=$ ]]
+          printf '%s\n' "$HASH" > client/pnpm-deps.hash
+          git config user.name "adunata-client-dependencies[bot]"
+          git config user.email "adunata-client-dependencies[bot]@users.noreply.github.com"
+          git commit --quiet --message "Update hash of client dependencies" --message "[dependabot skip]" client/pnpm-deps.hash
+          git push "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
 const exceptionsFile = new URL("../audit-exceptions.json", import.meta.url);
+const severities = new Set(["info", "low", "moderate", "high", "critical"]);
 const failingSeverities = new Set(["high", "critical"]);
 const staleExceptionsFail = process.env.GITHUB_EVENT_NAME !== "pull_request";
 
@@ -9,27 +10,31 @@ function readReport(path) {
   try {
     report = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    throw new Error(`npm audit wrote no JSON report to ${path}: ${error.message}`);
+    throw new Error(`pnpm audit wrote no JSON report to ${path}: ${error.message}`);
   }
   if (report.error) {
-    throw new Error(`npm audit failed: ${JSON.stringify(report.error)}`);
+    throw new Error(`pnpm audit failed: ${JSON.stringify(report.error)}`);
   }
-  if (typeof report.vulnerabilities !== "object" || report.vulnerabilities === null) {
-    throw new Error("npm audit reported no object vulnerabilities");
+  if (typeof report.advisories !== "object" || report.advisories === null) {
+    throw new Error("pnpm audit reported no object advisories");
   }
   return report;
 }
 
-/** Returns each advisory once with the packages it affects, ignoring entries that are listed only through a dependency. */
+/** Returns each advisory once with the packages it affects. Fails on an entry that misses the fields the check relies on. */
 function advisories(report) {
   const byId = new Map();
-  for (const entry of Object.values(report.vulnerabilities)) {
-    for (const advisory of entry.via.filter((via) => typeof via === "object")) {
-      const id = advisory.url.replace(/^.*\//, "");
-      const known = byId.get(id) ?? { id, severity: advisory.severity, title: advisory.title, packages: new Set() };
-      known.packages.add(advisory.name);
-      byId.set(id, known);
+  for (const advisory of Object.values(report.advisories)) {
+    const id = advisory.github_advisory_id;
+    if (typeof id !== "string" || !id.startsWith("GHSA-")) {
+      throw new Error(`pnpm audit reported an advisory without a GHSA ID: ${JSON.stringify(advisory)}`);
     }
+    if (!severities.has(advisory.severity)) {
+      throw new Error(`pnpm audit reported ${id} with the unknown severity ${JSON.stringify(advisory.severity)}`);
+    }
+    const known = byId.get(id) ?? { id, severity: advisory.severity, title: advisory.title, packages: new Set() };
+    known.packages.add(advisory.module_name);
+    byId.set(id, known);
   }
   return [...byId.values()];
 }

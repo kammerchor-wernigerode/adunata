@@ -39,9 +39,10 @@
           editorconfig-checker
           mailpit
           nixfmt
-          nodejs_24
+          nodejs_26
           openssl
           patchelf
+          pnpm
           postgresql_17
           rust-analyzer
           rustc
@@ -58,26 +59,57 @@
         let
           craneLib = crane.mkLib pkgs;
           tools = toolsOf pkgs;
-          npmDeps = pkgs.importNpmLock { npmRoot = ./client; };
+          clientSourceWith =
+            extraFiles:
+            pkgs.lib.fileset.toSource {
+              root = ./.;
+              fileset = pkgs.lib.fileset.intersection (pkgs.lib.fileset.gitTracked ./.) (
+                pkgs.lib.fileset.unions (
+                  [
+                    ./client
+                    ./server/locales
+                  ]
+                  ++ extraFiles
+                )
+              );
+            };
+          clientSource = clientSourceWith [ ];
+
+          pnpmFetcherVersion = 5;
+
+          pnpmDepsInputsDigest = builtins.substring 0 8 (
+            builtins.hashString "sha256" (
+              builtins.readFile ./client/pnpm-lock.yaml
+              + builtins.readFile ./client/pnpm-workspace.yaml
+              + tools.pnpm.version
+              + toString pnpmFetcherVersion
+            )
+          );
+
+          pnpmDeps = pkgs.fetchPnpmDeps {
+            pname = "adunata-client-${pnpmDepsInputsDigest}";
+            src = clientSource;
+            sourceRoot = "source/client";
+            inherit (tools) pnpm;
+            fetcherVersion = pnpmFetcherVersion;
+            hash = pkgs.lib.trim (builtins.readFile ./client/pnpm-deps.hash);
+          };
 
           clientPackage =
             args:
-            pkgs.buildNpmPackage (
+            pkgs.stdenv.mkDerivation (
               {
                 pname = "adunata-client";
                 version = "0.1.0";
-                src = pkgs.lib.fileset.toSource {
-                  root = ./.;
-                  fileset = pkgs.lib.fileset.intersection (pkgs.lib.fileset.gitTracked ./.) (
-                    pkgs.lib.fileset.unions [
-                      ./client
-                      ./server/locales
-                    ]
-                  );
-                };
+                src = clientSource;
                 sourceRoot = "source/client";
-                inherit npmDeps;
-                npmConfigHook = pkgs.importNpmLock.npmConfigHook;
+                nativeBuildInputs = [
+                  tools.nodejs_26
+                  tools.pnpm
+                  pkgs.pnpmConfigHook
+                ];
+                inherit pnpmDeps;
+                buildPhase = "pnpm run build";
               }
               // args
             );
@@ -433,19 +465,26 @@
 
           clientUnitTests = clientPackage {
             pname = "adunata-client-unit-tests";
-            buildPhase = "npm test";
+            buildPhase = "pnpm test";
             installPhase = "touch $out";
           };
 
           clientIntegrationTests = clientPackage {
             pname = "adunata-client-integration-tests";
-            buildPhase = "npm run test:integration";
+            buildPhase = "pnpm run test:integration";
+            installPhase = "touch $out";
+          };
+
+          clientLicenses = clientPackage {
+            pname = "adunata-client-licenses";
+            src = clientSourceWith [ ./server/deny.toml ];
+            buildPhase = "pnpm run lint:licenses";
             installPhase = "touch $out";
           };
 
           clientLint = clientPackage {
             pname = "adunata-client-lint";
-            buildPhase = "npm run lint";
+            buildPhase = "pnpm run lint";
             installPhase = "touch $out";
           };
         };
@@ -506,27 +545,28 @@
             editorconfigCheckerVersion = pkgs.runCommand "check-editorconfig-checker-version" { } ''
               pinned=$(sed --quiet 's/.*EC_VERSION=v\([0-9.]*\) .*/\1/p' ${./client/package.json})
               if [ "$pinned" != "${tools.editorconfig-checker.version}" ]; then
-                echo "npm run lint:editorconfig pins editorconfig-checker $pinned, but nixpkgs ships ${tools.editorconfig-checker.version}. Set EC_VERSION in client/package.json to the version of nixpkgs."
+                echo "pnpm run lint:editorconfig pins editorconfig-checker $pinned, but nixpkgs ships ${tools.editorconfig-checker.version}. Set EC_VERSION in client/package.json to the version of nixpkgs."
                 exit 1
               fi
               touch $out
             '';
 
-            clientLicenses =
+            pnpmVersion =
               let
-                source = pkgs.lib.fileset.toSource {
-                  root = ./.;
-                  fileset = pkgs.lib.fileset.unions [
-                    ./client/scripts/check-licenses.mjs
-                    ./client/package-lock.json
-                    ./server/deny.toml
-                  ];
-                };
+                pinned =
+                  (builtins.fromJSON (builtins.readFile ./client/package.json)).packageManager or "no version";
               in
-              pkgs.runCommand "check-client-licenses" { nativeBuildInputs = [ tools.nodejs_24 ]; } ''
-                node ${source}/client/scripts/check-licenses.mjs
-                touch $out
-              '';
+              pkgs.runCommand "check-pnpm-version" { } (
+                if pinned == "pnpm@${tools.pnpm.version}" then
+                  "touch $out"
+                else
+                  ''
+                    echo "packageManager in client/package.json pins ${pinned}, but nixpkgs ships pnpm ${tools.pnpm.version}. Set packageManager to pnpm@${tools.pnpm.version}."
+                    exit 1
+                  ''
+              );
+
+            inherit (built) clientLicenses;
 
             cargoDenyVersion = pkgs.runCommand "check-cargo-deny-version" { } ''
               pinned=$(sed --quiet 's/.*cargo-deny@\([0-9.]*\).*/\1/p' ${./README.md})
@@ -705,7 +745,8 @@
               tools.clippy
               tools.rustfmt
               tools.rust-analyzer
-              tools.nodejs_24
+              tools.nodejs_26
+              tools.pnpm
               tools.sccache
             ];
 
