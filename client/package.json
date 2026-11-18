@@ -39,7 +39,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
     "@faker-js/faker": "^10.6.0",
-    "@playwright/test": "^1.59.1",
+    "@playwright/test": "^1.65.0",
     "@tailwindcss/vite": "^4.3.5",
     "@tanstack/router-plugin": "^1.169.0",
     "@testing-library/react": "^16.3.3",
@@ -53,7 +53,7 @@
     "jsdom": "^31.0.1",
     "msw": "^3.0.5",
     "orval": "^8.47.0",
-    "oxc-transform-react": "^0.156.0",
+    "oxc-transform-react": "^0.158.0",
     "oxlint": "^1.90.0",
     "oxlint-tsgolint": "^7.0.2006",
     "shadcn": "^4.23.0",
