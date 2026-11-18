@@ -16,12 +16,12 @@ async function contrast(page: Page, foreground: string, background: string): Pro
           const channel = value / 255
           return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
         })
-        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+        return 0.2126 * red! + 0.7152 * green! + 0.0722 * blue!
       }
-      const [lighter, darker] = [luminance(first), luminance(second)].sort((a, b) => b - a)
-      return (lighter + 0.05) / (darker + 0.05)
+      const [lighter, darker] = [luminance(first), luminance(second)].toSorted((a, b) => b - a)
+      return (lighter! + 0.05) / (darker! + 0.05)
     },
-    [foreground, background],
+    [foreground, background] as const,
   )
 }
 
@@ -30,7 +30,7 @@ function ringColor(boxShadow: string): string {
   const colors = boxShadow.match(/(rgba?|oklch|oklab|lab|color)\([^)]*\)/g) ?? []
   const opaque = colors.filter((color) => !/[,/]\s*0\)$/.test(color))
   if (opaque.length !== 1) throw new Error(`expected one opaque ring in ${boxShadow}`)
-  return opaque[0]
+  return opaque[0]!
 }
 
 for (const colorScheme of ['light', 'dark'] as const) {

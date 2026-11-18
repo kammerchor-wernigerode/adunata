@@ -14,7 +14,7 @@
 |Constraint|Explanation|
 |-|-|
 |License|Adunata is open source under the AGPL-3.0, see [`LICENSE`](../../LICENSE).|
-|Licenses of dependencies|Every dependency of server and client, including tools for build and test, has a license approved by the OSI. Adunata meets the conditions of each license in every artifact it ships.|
+|Licenses of dependencies|Every dependency of server and client, including tools for build and test, has a license approved by the OSI. A package that only tools for build and test use may have another license if [`client/license-exceptions.json`](../../client/license-exceptions.json) names it with a reason. Adunata meets the conditions of each license in every artifact it ships.|
 |Team|One maintainer acts as architect. Coding agents write and review almost all code.|
 |Hosting of the project|The repository and its CI run on GitHub.|
 

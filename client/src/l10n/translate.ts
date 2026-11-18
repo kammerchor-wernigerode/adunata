@@ -3,7 +3,7 @@ import type { Locale, MessageArgs } from './bundle'
 
 export type Translate = (id: string, args?: MessageArgs) => string
 
-export interface Localization {
+export type Localization = {
   locale: Locale
   translate: Translate
   setLocale: (locale: Locale) => void

@@ -1,6 +1,8 @@
+/// <reference types="vitest/config" />
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import notices from './notices.json' with { type: 'json' }
@@ -9,7 +11,7 @@ const fonts = ['literata', 'source-sans-3']
 const bundledLicensesFile = '.vite/licenses.json'
 const noticesFile = 'licenses.txt'
 
-interface Notice {
+type Notice = {
   name: string
   version: string
   identifier?: string
@@ -29,12 +31,13 @@ function readOrFail(file: string, reason: string): string {
 
 function installedPackage(name: string): Notice {
   const directory = `node_modules/${name}`
-  const manifest = JSON.parse(readOrFail(`${directory}/package.json`, `client/notices.json names ${name}`))
+  const manifest = JSON.parse(readOrFail(`${directory}/package.json`, `client/notices.json names ${name}`)) as { version: string; license?: string }
+  const licenseFile = ['LICENSE', 'LICENSE.md'].map((file) => `${directory}/${file}`).find((file) => existsSync(fromClient(file)))
   return {
     name,
     version: manifest.version,
     identifier: manifest.license,
-    text: readOrFail(`${directory}/LICENSE`, `${name} reaches the browser through the stylesheet`),
+    text: readOrFail(licenseFile ?? `${directory}/LICENSE`, `${name} reaches the browser through the stylesheet`),
   }
 }
 
@@ -110,8 +113,21 @@ function fontLicenses(): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, import.meta.dirname, '')
   return {
-    plugins: [react(), tailwindcss(), fontLicenses(), thirdPartyNotices()],
+    plugins: [
+      tanstackRouter({
+        target: 'react',
+        autoCodeSplitting: mode !== 'test',
+        routeFileIgnorePattern: '\\.test\\.',
+        quoteStyle: 'single',
+        semicolons: false,
+      }),
+      react({ compiler: { logDiagnostics: true } }),
+      tailwindcss(),
+      fontLicenses(),
+      thirdPartyNotices(),
+    ],
     build: { license: { fileName: bundledLicensesFile } },
+    test: { setupFiles: ['src/testing/jsdom.ts'] },
     resolve: {
       alias: { '@': path.resolve(import.meta.dirname, './src') },
     },

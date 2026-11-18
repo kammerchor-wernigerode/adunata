@@ -5,6 +5,6 @@ reviews:
     - "!openspec/changes/archive/**"
     - "!client/openapi.json"
     - "!client/src/api/generated/**"
-    - "!client/src/shadcn.css"
+    - "!client/src/routeTree.gen.ts"
     - "!.agents/skills/openspec-*/**"
     - "!.claude/skills/openspec-*/**"

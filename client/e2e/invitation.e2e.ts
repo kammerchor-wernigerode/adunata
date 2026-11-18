@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import AxeBuilder from '@axe-core/playwright'
+import { AxeBuilder } from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 
 test.use({ locale: 'en-US' })
@@ -15,7 +15,7 @@ async function newestLink(kind: string): Promise<string> {
   for (let attempt = 0; attempt < 100; attempt++) {
     const list = (await (await fetch(`${mailpit()}/api/v1/messages?limit=1`)).json()) as { messages: { ID: string }[] }
     if (list.messages.length > 0) {
-      const message = (await (await fetch(`${mailpit()}/api/v1/message/${list.messages[0].ID}`)).json()) as { Text: string }
+      const message = (await (await fetch(`${mailpit()}/api/v1/message/${list.messages[0]!.ID}`)).json()) as { Text: string }
       const found = message.Text.match(new RegExp(`/${kind}#[0-9a-f]{64}`))
       if (found) return found[0]
     }
@@ -28,6 +28,21 @@ function isoDay(offset: number): string {
   const day = new Date()
   day.setDate(day.getDate() + offset)
   return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+}
+
+/** Opens the calendar of a day field, turns to the month of an ISO day and picks it. */
+async function pickDay(page: Page, label: string, day: string): Promise<void> {
+  await page.getByRole('button', { name: new RegExp(`^${label}`) }).click()
+  const grid = page.locator(`[role="grid"][aria-label="${label}"]`)
+  await expect(grid).toBeVisible()
+  const button = grid.locator(`[data-day="${day}"]:not([data-outside]) button`)
+  const nextMonth = page.locator('[data-slot="popover-content"]', { has: grid }).getByRole('button', { name: 'Go to the Next Month' })
+  for (let month = 0; month < 3 && !(await button.isVisible()); month++) {
+    await nextMonth.click()
+  }
+  await button.click()
+  await page.keyboard.press('Escape')
+  await expect(grid).toBeHidden()
 }
 
 /** Waits until no finite CSS transition or animation runs any more, so that axe sees the final colors after a change of the color scheme. A transition that a newer one replaces rejects its promise, so the check repeats until none is left. Finished and paused animations do not count. */
@@ -84,8 +99,8 @@ test('organizer invites and a member answers through the personal link', async (
   await page.getByRole('link', { name: 'Create gathering' }).click()
   await page.getByLabel('Title').fill('Rehearsal weekend')
   await page.getByLabel('Location').fill('Drübeck Abbey')
-  await page.getByLabel('First day').fill(isoDay(30))
-  await page.getByLabel('Last day').fill(isoDay(32))
+  await pickDay(page, 'First day', isoDay(30))
+  await pickDay(page, 'Last day', isoDay(32))
   await page.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Rehearsal weekend' })).toBeVisible()
   await page.getByRole('button', { name: 'Invite the one active member not invited yet' }).click()

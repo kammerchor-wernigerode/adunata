@@ -39,7 +39,7 @@ CI runs the checks up to `integration` in the job `verify` on every push to a pu
 ## Code style
 
 - Every file follows `.editorconfig`.
-- Every dependency of server and client, including fonts, icons and tools for build and test, has a license approved by the OSI. Adunata meets the conditions of each license, such as shipping a notice or license text with the artifacts that contain the dependency. The commit that adds a dependency names its license.
+- Every dependency of server and client, including fonts, icons and tools for build and test, has a license approved by the OSI. A package that only tools for build and test use may have another license if [`client/license-exceptions.json`](client/license-exceptions.json) names it with a reason. Adunata meets the conditions of each license, such as shipping a notice or license text with the artifacts that contain the dependency. The commit that adds a dependency names its license.
 
 ### Rust
 
@@ -52,6 +52,14 @@ Rust code stays plain, so that it is easy to read and to change.
 - Formatting and lints run in CI. Any warning fails the build.
 - Keep a string literal on one line. A backslash continuation keeps its leading spaces, which breaks the indentation rule of `.editorconfig`.
 - Each module of the server is one domain or technical concern. Other modules use only what it marks `pub`. Never widen visibility, for example with `pub(crate)`, to reach into another module. The compiler then rejects every use past a module's interface.
+
+### TypeScript and React
+
+- Each route has its own folder under `client/src/routes/`. Code that only one route uses sits next to it in a folder or file with the prefix `-`. Shared components, hooks and helpers live in `client/src/components/`, `client/src/hooks/`, `client/src/lib/` or a module of their own such as `client/src/l10n/`, never in the root of `client/src/routes/`.
+- Use what TanStack Router offers before writing a component for it. Layout routes wrap pages, `beforeLoad` guards them and loaders redirect with `redirect`.
+- Build every control from a shadcn component. If one is missing, add it with the command line tool of shadcn instead of styling a native element.
+- A file holds one component. Props and other object shapes are a `type`, never an `interface`, unless a library demands one.
+- `pnpm run build` and `pnpm run lint` finish without a warning. Fix a warning instead of raising a limit or silencing a rule.
 
 ## Language
 
