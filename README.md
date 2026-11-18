@@ -50,7 +50,7 @@ direnv allow
 Install these tools:
 
 - [rustup](https://rustup.rs), which installs the version of Rust that [`server/rust-toolchain.toml`](server/rust-toolchain.toml) pins, with `clippy`, `rustfmt` and the sources of the standard library
-- Node.js 26
+- Node.js in the version that [`client/.node-version`](client/.node-version) names. fnm, nodenv and mise read this file
 - [pnpm](https://pnpm.io/installation) in the version that `packageManager` in [`client/package.json`](client/package.json) names
 - Docker or Podman with Compose
 
