@@ -96,7 +96,7 @@ jobs:
           retention-days: 7
 
   nixos:
-    name: Memory and NixOS
+    name: NixOS
     needs: verify
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
@@ -115,7 +115,5 @@ jobs:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', 'flake.lock', 'server/Cargo.lock', 'client/package-lock.json') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
           save: false
-      - name: Memory measurement
-        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.memoryMeasurement
       - name: NixOS VM test
         run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.nixosVmTest

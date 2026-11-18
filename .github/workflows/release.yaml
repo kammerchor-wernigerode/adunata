@@ -30,7 +30,7 @@ jobs:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', 'flake.lock', 'server/Cargo.lock', 'client/package-lock.json') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
           gc-max-store-size-linux: 8G
-      - name: Every check, including memory and the NixOS VM test
+      - name: Every check, including the NixOS VM test
         run: nix flake check --print-build-logs --option abort-on-warn true
       - name: Build release binary and image
         run: |

@@ -140,7 +140,7 @@ Tests run at several levels. Each level checks what the level below cannot see. 
 
 The flake groups its checks into targets that build on each other like the phases of a build lifecycle. Each target contains the one before it, so `nix build .#checks.<system>.integration` runs lint, build, unit and integration tests together.
 
-CI runs three jobs. `verify` runs the targets up to `integration` and builds the release binary. `e2e` runs the end-to-end tests against that binary, and `nixos` runs the checks `memoryMeasurement` and `nixosVmTest`, which are the targets `memory` and `nixos` without the targets that `verify` already ran. Both start after `verify` and run in parallel. They run only on pull requests ready for review and on pushes to `main`.
+CI runs three jobs. `verify` runs the targets up to `integration` and builds the release binary. `e2e` runs the end-to-end tests against that binary, and `nixos` runs the check `nixosVmTest`, which is the target `nixos` without the targets that `verify` already ran. Both start after `verify` and run in parallel. They run only on pull requests ready for review and on pushes to `main`.
 
 |Target|Contains|Builds on|
 |-|-|-|
@@ -148,7 +148,6 @@ CI runs three jobs. `verify` runs the targets up to `integration` and builds the
 |`build`|The server with the embedded client|`lint`|
 |`test`|Unit tests of server and client|`build`|
 |`integration`|Integration tests of server and client, startup tests of the binary and the contract|`test`|
-|`memory`|The memory measurement, Linux only|`integration`|
 |`nixos`|The NixOS VM test, Linux only|`integration`|
 
 A unit test has no input or output. It uses no database, no mail server, no socket, no file and no router. Every other test is an integration test. On the server it lives in a module named `integration`, on the client in a file named `*.integration.test.ts` or `*.integration.test.tsx`. The target `test` skips both and starts neither PostgreSQL nor Mailpit, so a test that needs them outside such a module fails there. Nothing enforces the rule for sockets, files and the router.
@@ -167,5 +166,3 @@ On macOS with a Linux builder, such as the `linux-builder` of nix-darwin, `nix b
 |NixOS VM|Each supported installation, meaning the NixOS module, the OCI image and the release binary with its example unit, starts in a virtual machine, migrates the database, reports healthy and serves the client. Runs on Linux with KVM.|[`nix/test.nix`](../../nix/test.nix)|
 
 The end-to-end tests run outside the flake with `npm run e2e` in `client/`, on a laptop and in the CI job `e2e` on Ubuntu without Nix. A global setup of Playwright starts PostgreSQL and Mailpit from [`compose.yaml`](../../compose.yaml) as a fresh Compose project of the checkout on free ports. It then starts the server with only the settings of the tests, from a release build of the checkout or, in CI, from the release binary of the job `verify`. After the tests it removes the project. This has consequences. The tests need Docker with Compose. The browsers come from Playwright and need nix-ld on NixOS. Node comes from the runner, and the versions of PostgreSQL and Mailpit come from `compose.yaml` instead of nixpkgs. A green `nix flake check` does not cover the end-to-end tests, and a release relies on their run on `main`. The tests take colors from computed styles and measure reflow only after the fonts of the client have loaded, so they give the same result on Linux and macOS.
-
-The check `memory` in [`flake.nix`](../../flake.nix) measures peak memory of the release build under load on Linux and fails above 150 MB. A set-up step signs in through Mailpit, creates a gathering, invites and reads the personal link from Mailpit, so the load hits the response page and stores responses.

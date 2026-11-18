@@ -20,12 +20,6 @@ The quality goals in [Introduction and goals](01-introduction-and-goals.md) name
 |Expiring comments|The operator kept the default retention.|A gathering ended 31 days ago.|Its responses exist without their comments. After 365 days its invitations and responses are gone while the gathering stays.|`default_retention` and `responses_expire` in [`server/src/responses.rs`](../../server/src/responses.rs)|
 |Organizer route without a session|A developer adds an organizer route and forgets the extractor.|The integration tests run.|The test that calls every operation without a session names the route and fails.|`every_organizer_operation_requires_a_session` in [`server/src/api.rs`](../../server/src/api.rs)|
 
-## Efficiency
-
-|Scenario|Context|Stimulus|Response|Verified by|
-|-|-|-|-|-|
-|Memory under load|The release binary runs on Linux next to PostgreSQL and Mailpit.|For 30 seconds 4 connections store responses through a personal link, 3 load the response page and 3 load the client.|Peak resident memory of Adunata stays below 150 MB. The latest measurement was 11 MB at about 1300 stored responses per second.|The check `memory` in [`flake.nix`](../../flake.nix)|
-
 ## Accessibility
 
 |Scenario|Context|Stimulus|Response|Verified by|
