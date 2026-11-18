@@ -24,7 +24,7 @@ Requires the change `license-compliance` on `main`, because it creates `server/d
 
 ## 5. Decision record and risks
 
-- [ ] 5.1 Write `docs/decisions/0017-third-party-notices-in-every-artifact.md` from the draft in design.md and add it to `docs/arc42/09-architecture-decisions.md`. Remove the row on missing notices from `docs/arc42/11-risks-and-technical-debt.md`. Verify that every relative link resolves and that `nix build .#checks.<system>.integration` passes
+- [x] 5.1 Write `docs/decisions/0017-third-party-notices-in-every-artifact.md` from the draft in design.md and add it to `docs/arc42/09-architecture-decisions.md`. Remove the row on missing notices from `docs/arc42/11-risks-and-technical-debt.md`. Verify that every relative link resolves and that `nix build .#checks.<system>.integration` passes
 
 ## Workflow follow-up
 
