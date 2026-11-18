@@ -212,12 +212,11 @@
 
           rustFormatting = craneLib.cargoFmt { src = serverSource; };
 
-          rustLicenses = craneLib.cargoDeny {
+          rustDependencies = craneLib.cargoDeny {
             src = pkgs.lib.fileset.toSource {
               root = ./server;
               fileset = craneLib.fileset.commonCargoSources ./server;
             };
-            cargoDenyChecks = "licenses";
           };
 
           serverUnitTests =
@@ -298,7 +297,7 @@
             inherit (built)
               clippy
               rustFormatting
-              rustLicenses
+              rustDependencies
               clientLint
               ;
 
@@ -344,6 +343,18 @@
               fi
               touch $out
             '';
+
+            workflows =
+              let
+                source = pkgs.lib.fileset.toSource {
+                  root = ./.;
+                  fileset = ./.github;
+                };
+              in
+              pkgs.runCommand "check-workflows" { nativeBuildInputs = [ pkgs.zizmor ]; } ''
+                zizmor --offline --no-progress ${source}/.github
+                touch $out
+              '';
 
             nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
               find ${self} -name '*.nix' -exec nixfmt --check {} +

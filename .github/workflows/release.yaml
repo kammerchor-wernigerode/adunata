@@ -17,6 +17,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Allow virtual machines
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
@@ -26,7 +28,7 @@ jobs:
         with:
           extra_nix_config: system-features = nixos-test benchmark big-parallel kvm
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
-        with:
+        with: # zizmor: ignore[cache-poisoning] a tag restores only caches saved on main or for tags, and only tags publish
           primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', 'flake.lock', 'server/Cargo.lock', 'client/package-lock.json') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
           gc-max-store-size-linux: 8G
@@ -48,10 +50,10 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
-          nix run nixpkgs#skopeo -- copy \
+          nix run --inputs-from . nixpkgs#skopeo -- copy \
             --dest-creds "${GITHUB_ACTOR}:${GH_TOKEN}" \
             docker-archive:image "docker://${image}:${TAG}"
-          nix run nixpkgs#skopeo -- copy \
+          nix run --inputs-from . nixpkgs#skopeo -- copy \
             --dest-creds "${GITHUB_ACTOR}:${GH_TOKEN}" \
             docker-archive:image "docker://${image}:latest"
           gh release create "$TAG" adunata-x86_64-linux.tar.gz --generate-notes

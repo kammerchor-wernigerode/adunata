@@ -136,15 +136,17 @@ On SIGTERM, Adunata stops accepting connections, lets requests in progress finis
 
 ## Testing
 
-Tests run at several levels. Each level checks what the level below cannot see. Locally and in CI, every check except the end-to-end tests runs as a check of the flake, so both use the same entry point.
+Tests run at several levels. Each level checks what the level below cannot see. Locally and in CI, every check except the end-to-end tests and the scan for advisories runs as a check of the flake, so both use the same entry point.
 
 The flake groups its checks into targets that build on each other like the phases of a build lifecycle. Each target contains the one before it, so `nix build .#checks.<system>.integration` runs lint, build, unit and integration tests together.
 
 CI runs three jobs. `verify` runs the targets up to `integration` and builds the release binary. `e2e` runs the end-to-end tests against that binary, and `nixos` runs the check `nixosVmTest`, which is the target `nixos` without the targets that `verify` already ran. Both start after `verify` and run in parallel. They run only on pull requests ready for review and on pushes to `main`.
 
+The workflow `advisories` checks `server/Cargo.lock` with `cargo deny check advisories` and `client/package-lock.json` with `npm audit` against the advisory databases. It needs network access, so it runs outside the flake with the tools of its nixpkgs. It runs daily and on pull requests that change a lock file or its configuration. It fails on an advisory of a crate and on an npm advisory of severity high or critical that `client/audit-exceptions.json` does not except until a date.
+
 |Target|Contains|Builds on|
 |-|-|-|
-|`lint`|Formatting of Rust, Nix and every file per `.editorconfig`, Clippy, oxlint, the licenses of crates and npm packages against the approved list in `server/deny.toml` and whether the versions of Rust, `editorconfig-checker` and `cargo-deny` pinned for work without Nix match nixpkgs|nothing|
+|`lint`|Formatting of Rust, Nix and every file per `.editorconfig`, Clippy, oxlint, the licenses of crates and npm packages against the approved list in `server/deny.toml`, crates only from crates.io and with a version requirement, zizmor over the GitHub workflows and the Dependabot configuration and whether the versions of Rust, `editorconfig-checker` and `cargo-deny` pinned for work without Nix match nixpkgs|nothing|
 |`build`|The server with the embedded client|`lint`|
 |`test`|Unit tests of server and client|`build`|
 |`integration`|Integration tests of server and client, startup tests of the binary and the contract|`test`|

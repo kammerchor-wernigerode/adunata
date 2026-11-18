@@ -33,6 +33,7 @@ CI runs the checks up to `integration` in the job `verify` on every push to a pu
 - Before each push, run the checks up to integration locally with `nix build .#checks.<system>.integration`, where `<system>` is the local Nix system such as `aarch64-linux`. Without Nix, run the commands that the [README](README.md#checks-before-a-push) lists. Never push a state that fails them.
 - Push once per round of feedback. Collect every remark of a review, fix them together and then push.
 - An approval covers the commit the reviewer saw. A push after it needs a new review, so mention in the pull request what changed and why.
+- Dependabot opens its pull requests ready for review without the local checks above. Such a pull request may fail its checks, for example after an update of `flake.lock`. A maintainer then pushes the fix to its branch.
 
 ## Code style
 

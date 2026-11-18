@@ -1,0 +1,38 @@
+name: Advisories
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  pull_request:
+    paths:
+      - server/Cargo.lock
+      - server/deny.toml
+      - client/package-lock.json
+      - client/audit-exceptions.json
+      - client/scripts/check-advisories.mjs
+      - .github/workflows/advisories.yaml
+  workflow_dispatch:
+
+concurrency:
+  group: advisories-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan lock files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+      - name: Crates
+        working-directory: server
+        run: nix shell --inputs-from .. nixpkgs#cargo nixpkgs#rustc nixpkgs#cargo-deny --command cargo deny --locked check advisories
+      - name: npm packages
+        if: ${{ !cancelled() }}
+        working-directory: client
+        run: nix shell --inputs-from .. nixpkgs#nodejs_24 --command sh -c 'npm audit --json > "$RUNNER_TEMP/audit.json"; node scripts/check-advisories.mjs "$RUNNER_TEMP/audit.json"'
