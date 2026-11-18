@@ -49,7 +49,7 @@ function withSuppliedText(notice: Notice): Notice {
 
 function copiedCode(): string[] {
   return notices.copied.map((copy) => {
-    readOrFail(copy.text, `client/notices.json names it for ${copy.path}`)
+    const text = readOrFail(copy.text, `client/notices.json names it for ${copy.path}`)
     if (!existsSync(fromClient(copy.path))) {
       throw new Error(`client/notices.json names the copied code ${copy.path}, which does not exist`)
     }
@@ -57,7 +57,7 @@ function copiedCode(): string[] {
       `${copy.name} ${copy.version} (${copy.license}), copied into client/${copy.path}`,
       `Source: ${copy.source}`,
       '',
-      readFileSync(fromClient(copy.text), 'utf-8').trim(),
+      text,
     ].join('\n')
   })
 }

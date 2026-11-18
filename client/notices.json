@@ -17,7 +17,7 @@
       "text": "licenses/shadcn.txt"
     }
   ],
-  "stylesheetPackages": ["tailwindcss", "tw-animate-css"],
+  "stylesheetPackages": ["tailwindcss", "tw-animate-css", "@fontsource-variable/literata", "@fontsource-variable/source-sans-3"],
   "licenseTexts": {
     "@fluent/bundle": "licenses/fluent-bundle.txt",
     "react-remove-scroll-bar": "licenses/react-remove-scroll-bar.txt"
