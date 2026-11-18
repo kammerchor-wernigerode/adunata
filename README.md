@@ -133,7 +133,7 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 |`server/`|`cargo clippy --all-targets -- --deny warnings`|Lints|
 |`server/`|`cargo fmt --check`|Formatting|
 |`server/`|`cargo deny check bans licenses sources`|Licenses of the crates against the list in `server/deny.toml`, version requirements without wildcards and crates.io as the only source. Needs `cargo-deny`, which the development shell provides. Without Nix, `cargo install --locked cargo-deny@0.19.6` installs it in the version of nixpkgs|
-|`server/`|`cargo about generate --frozen --fail about.hbs >> ../client/dist/licenses.txt`|Appends the notices of the crates to the notices of the client after `pnpm run build`, so the server embeds both. Needs `cargo-about`, which the development shell provides. Without Nix, `cargo install --locked cargo-about@0.9.0` installs it in the version of nixpkgs|
+|`server/`|`cargo about generate --frozen --fail about.hbs >> ../client/dist/licenses.txt`|Appends the notices of the crates to the notices of the client after `pnpm run build`, so the server embeds both. Needs `cargo-about`, which the development shell provides. Without Nix, `cargo install --locked cargo-about@0.9.0 --features cli` installs it in the version of nixpkgs|
 |`client/`|`pnpm test`|Unit tests|
 |`client/`|`pnpm run test:integration`|Integration tests|
 |`client/`|`pnpm run lint`|Lints, failing on warnings|
