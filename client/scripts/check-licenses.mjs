@@ -4,7 +4,8 @@ const lockFile = new URL("../package-lock.json", import.meta.url);
 const denyFile = new URL("../../server/deny.toml", import.meta.url);
 
 function allowedLicenses() {
-  const list = readFileSync(denyFile, "utf8").match(/^allow = \[([^\]]*)\]/m);
+  const withoutComments = readFileSync(denyFile, "utf8").replace(/#.*$/gm, "");
+  const list = withoutComments.match(/^allow = \[([^\]]*)\]/m);
   if (!list) {
     throw new Error(`${denyFile.pathname} has no list "allow"`);
   }
