@@ -38,7 +38,7 @@ Significant: yes. An operator notices which certificate authorities the instance
 
 ### Failure kind `encryption` for a rejected certificate
 
-lettre reports a failed TLS handshake as a connection error, so `failure_kind` in `server/src/mail.rs` logs `connection` for an untrusted certificate, the same as for a closed port. `failure_kind` walks the chain of `std::error::Error::source()` and reports `encryption` when it finds a `std::io::Error` of kind `InvalidData`, which is how tokio-rustls hands on an error of rustls. The text of that error stays out of the log, as for every other kind. This needs no new dependency. A unit test is not possible without a handshake, so the VM test covers it.
+lettre reports a failed TLS handshake as a connection error, so `failure_kind` in `server/src/mail.rs` logs `connection` for an untrusted certificate, the same as for a closed port. `failure_kind` walks the chain of `std::error::Error::source()` and reports `encryption` when it finds a `std::io::Error` of kind `InvalidData`, which is how tokio-rustls hands on an error of rustls. The text of that error stays out of the log, as for every other kind. An I/O error of that kind without an inner error, such as invalid UTF-8 in a reply of the server, stays `connection`. This needs no new dependency. Unit tests cover the walk through the chain with plain I/O errors. Only the VM test shows that lettre and tokio-rustls actually produce that chain for a rejected certificate.
 
 Significant: no. The log already names a failure kind, and this makes it accurate.
 

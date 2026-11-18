@@ -155,12 +155,12 @@ fn failure_kind(error: &lettre::transport::smtp::Error) -> String {
     }
 }
 
-/// lettre reports a failed TLS handshake, such as a rejected certificate, as a connection error. tokio-rustls hands the error of rustls on as an I/O error of kind `InvalidData`.
+/// lettre reports a failed TLS handshake, such as a rejected certificate, as a connection error. tokio-rustls hands the error of rustls on inside an I/O error of kind `InvalidData`. An I/O error of that kind without an inner error, such as invalid UTF-8 in a reply of the mail server, is no handshake.
 fn failed_handshake(error: &(dyn std::error::Error + 'static)) -> bool {
     std::iter::successors(error.source(), |cause| cause.source()).any(|cause| {
-        cause
-            .downcast_ref::<std::io::Error>()
-            .is_some_and(|io| io.kind() == std::io::ErrorKind::InvalidData)
+        cause.downcast_ref::<std::io::Error>().is_some_and(|io| {
+            io.kind() == std::io::ErrorKind::InvalidData && io.get_ref().is_some()
+        })
     })
 }
 
@@ -223,6 +223,12 @@ mod tests {
             "invalid peer certificate",
         ));
         assert!(failed_handshake(&rejected));
+    }
+
+    #[test]
+    fn invalid_data_without_inner_error_is_no_failed_handshake() {
+        let garbled = Wrapped(std::io::Error::from(std::io::ErrorKind::InvalidData));
+        assert!(!failed_handshake(&garbled));
     }
 
     #[test]
