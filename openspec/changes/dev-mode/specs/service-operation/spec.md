@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Logs for operators
-Adunata SHALL write its logs to standard output in a structured format. Logs SHALL contain no secrets, no invitation links and no message bodies. In development mode logs SHALL contain sign-in links, as the capability development-mode describes.
+Adunata SHALL write its logs to standard output in a structured format. Logs SHALL contain no secrets, no invitation links and no message bodies. Development mode SHALL be the only exception. It SHALL add sign-in links with their secrets to the logs, as the capability development-mode describes, and nothing else.
 
 #### Scenario: Log a failed mail delivery
 - **WHEN** a mail delivery fails
