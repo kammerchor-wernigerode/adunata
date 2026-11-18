@@ -193,14 +193,14 @@ The contract check has two halves:
 
 ### UI components
 
-The components in `client/src/components/ui/` and the stylesheet `client/src/shadcn.css` are copies from shadcn. The client does not depend on the package `shadcn`, because its command line tool pulls in a dependency whose license the OSI has not approved. Run the tool through `pnpm dlx` when you add a component, with the version that the header of `shadcn.css` names:
+The components in `client/src/components/ui/` are copies from shadcn. The client depends on the package `shadcn`, whose stylesheet it imports. Its command line tool adds a component together with the packages it needs:
 
 ```sh
 cd client
-pnpm dlx shadcn@4.23.0 add <component>
+pnpm exec shadcn add <component>
 ```
 
-`pnpm dlx` fetches the tool outside `pnpm-lock.yaml` and outside the license check. The tool leaves `package.json` free of `shadcn` and adds only the packages the component needs, which `pnpm run lint:licenses` then checks. Commit the component together with those packages.
+Commit the component together with those packages.
 
 ### Third-party notices
 
