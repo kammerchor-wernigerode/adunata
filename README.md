@@ -167,6 +167,17 @@ The contract check has two halves:
 
 `cargo test` runs the first half among the integration tests. `npm run check:generated` regenerates the code in place and restores the code it found afterwards, also when it fails.
 
+### UI components
+
+The components in `client/src/components/ui/` and the stylesheet `client/src/shadcn.css` are copies from shadcn. The client does not depend on the package `shadcn`, because its command line tool pulls in a dependency whose license the OSI has not approved. Run the tool through `npx` when you add a component, with the version that the header of `shadcn.css` names:
+
+```sh
+cd client
+npx shadcn@4.23.0 add <component>
+```
+
+`npx` fetches the tool outside `package-lock.json` and outside the license check. Commit only the copied component.
+
 ### Checks before a push
 
 Run the checks up to `integration` locally before each push. CI runs them in the job `verify` and runs the end-to-end tests, the memory measurement and the NixOS VM test once a pull request is ready for review. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target and job.

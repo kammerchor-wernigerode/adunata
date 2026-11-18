@@ -10,7 +10,7 @@
 ## 2. Client without the package `shadcn`
 
 - [x] 2.1 Copy `shadcn/tailwind.css` from the installed version to `client/src/shadcn.css` with a header that names source, version, copyright notice and the text of the MIT license. Import it in `client/src/index.css` instead of the package and remove `shadcn` with `npm uninstall shadcn`. Verify that `npm ls caniuse-lite` finds nothing, that `npm run build` produces the same CSS rules as before and that `nix build .#checks.<system>.integration` passes
-- [ ] 2.2 Name in the README how to add a UI component with `npx shadcn@4.23.0` without a dependency, and that the tool runs outside the lock file and the license check. Verify that `npx shadcn@4.23.0 --help` runs and that `client/package.json` and `client/package-lock.json` gain no entry for `shadcn` afterwards
+- [x] 2.2 Name in the README how to add a UI component with `npx shadcn@4.23.0` without a dependency, and that the tool runs outside the lock file and the license check. Verify that `npx shadcn@4.23.0 --help` runs and that `client/package.json` and `client/package-lock.json` gain no entry for `shadcn` afterwards
 
 ## 3. License check in the target `lint`
 
