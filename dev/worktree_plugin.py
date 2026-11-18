@@ -4,6 +4,7 @@ A plugin for git-worktree-init. Enable it in the main worktree with
 `git config worktree-init.plugin dev/worktree_plugin.py`.
 """
 
+import hashlib
 import re
 import shutil
 from pathlib import Path
@@ -93,7 +94,11 @@ def next_steps(ctx) -> list[str]:
 
 
 def teardown(ctx) -> None:
-    project = project_of(ctx)
+    remove_project(ctx, project_of(ctx))
+    remove_project(ctx, end_to_end_project_of(ctx))
+
+
+def remove_project(ctx, project: str) -> None:
     command = ["docker", "compose", "-p", project, "down", "--volumes"]
     try:
         result = ctx.run(command, cwd=ctx.main, check=False, capture=True)
@@ -128,8 +133,6 @@ def settings_of(ctx) -> dict[str, dict[str, str]]:
             "ADUNATA_VITE_PORT": str(base + 1),
             "ADNT_HTTP_LISTEN_ADDRESS": f"127.0.0.1:{base}",
             "ADNT_HTTP_PUBLIC_URL": server,
-            "ADUNATA_E2E_URL": server,
-            "ADUNATA_E2E_MAILPIT_URL": f"http://127.0.0.1:{base + 4}",
         },
     }
 
@@ -194,6 +197,20 @@ def port_base_of(ctx) -> int:
 
 def project_of(ctx) -> str:
     return f"adunata-{port_base_of(ctx)}"
+
+
+def end_to_end_project_of(ctx) -> str:
+    """The Compose project of the end-to-end tests, named as client/e2e/global-setup.ts names it."""
+    return f"adunata-e2e-{hashlib.sha256(root_of(ctx).encode()).hexdigest()[:12]}"
+
+
+def root_of(ctx) -> str:
+    """The root of the worktree as git prints it, or the recorded path once the worktree is gone."""
+    if ctx.target.is_dir():
+        shown = ctx.run(["git", "rev-parse", "--show-toplevel"], cwd=ctx.target, check=False, capture=True)
+        if shown.returncode == 0:
+            return shown.stdout.strip()
+    return str(ctx.target)
 
 
 def has_tracked_server_settings(ctx) -> bool:
