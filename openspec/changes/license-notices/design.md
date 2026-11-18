@@ -28,6 +28,7 @@ The flake and `nix/test.nix` name tools from nixpkgs one by one. After `license-
 - A machine-readable software bill of materials in CycloneDX or SPDX.
 - Notices for tools that build or test Adunata and never ship. The license check for them is in scope, the notices are not.
 - The transitive build closure of nixpkgs, such as the compilers of stdenv, and the base system of the NixOS test nodes. The license check covers the set of tools the flake takes from nixpkgs.
+- An automatic license check of tools outside nixpkgs, such as GitHub Actions, the container images in `compose.yaml` and the browsers of Playwright, and of what they bundle. All of them are under licenses approved by the OSI today, and review covers new ones.
 - A check that finds new copies of third-party code. Review catches them.
 - A visible link to the notices in the user interface.
 

@@ -21,7 +21,16 @@
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
-      # Every tool the flake takes from nixpkgs.
+      # Licenses approved by the OSI that only packages from nixpkgs may use, on top of the allowed list in server/deny.toml.
+      nixpkgsOnlyLicenses = [
+        "GPL-2.0-or-later"
+        "GPL-3.0-or-later"
+        "LGPL-2.0-or-later"
+        "LGPL-3.0-or-later"
+        "PostgreSQL"
+      ];
+
+      # Every tool the flake takes from nixpkgs. The check toolLicenses compares their licenses with the allowed lists.
       toolsOf = pkgs: {
         inherit (pkgs)
           binutils
@@ -376,6 +385,7 @@
             releaseLinkage
             image
             imageClosure
+            imagePackages
             ;
 
           clippy = craneLib.cargoClippy (
@@ -467,6 +477,11 @@
         pkgs:
         let
           built = build pkgs;
+          builtForLinux =
+            build
+              nixpkgs.legacyPackages.${
+                builtins.replaceStrings [ "darwin" ] [ "linux" ] pkgs.stdenv.hostPlatform.system
+              };
           tools = toolsOf pkgs;
         in
         let
@@ -571,6 +586,40 @@
                 else
                   ''
                     echo "accepted in server/about.toml differs from licenses.allow in server/deny.toml. Keep both lists equal."
+                    exit 1
+                  ''
+              );
+
+            toolLicenses =
+              let
+                allowed = (fromTOML (builtins.readFile ./server/deny.toml)).licenses.allow ++ nixpkgsOnlyLicenses;
+                packages = builtins.attrValues tools ++ map (entry: entry.package) builtForLinux.imagePackages;
+                problemsOf =
+                  package:
+                  let
+                    licenses = pkgs.lib.toList (package.meta.license or [ ]);
+                  in
+                  if licenses == [ ] then
+                    [ "${package.name} declares no license" ]
+                  else
+                    pkgs.lib.concatMap (
+                      license:
+                      if !(license ? spdxId) then
+                        [ "${package.name} declares ${license.shortName or "a license"} without an SPDX identifier" ]
+                      else if builtins.elem license.spdxId allowed then
+                        [ ]
+                      else
+                        [ "${package.name} is under ${license.spdxId}, which no allowed list names" ]
+                    ) licenses;
+                problems = pkgs.lib.concatMap problemsOf packages;
+              in
+              pkgs.runCommand "check-tool-licenses" { } (
+                if problems == [ ] then
+                  "touch $out"
+                else
+                  ''
+                    printf '%s\n' ${pkgs.lib.escapeShellArgs problems}
+                    echo "Every tool from nixpkgs needs a license from server/deny.toml or from nixpkgsOnlyLicenses in flake.nix."
                     exit 1
                   ''
               );
