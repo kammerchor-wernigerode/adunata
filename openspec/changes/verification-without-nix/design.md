@@ -99,7 +99,7 @@ Not architecturally significant, because it changes where tests run and not what
 
 `e2e` and `nixos` run only on pull requests ready for review and on pushes to `main`, as their steps do today. `verify` uploads the binary only then. The artifact keeps one day. New actions are pinned by commit SHA like the existing ones. `e2e` caches npm by `package-lock.json` and the browsers by the version of Playwright. The teardown of the global setup writes `docker compose logs` of the project to `test-results/services.log` before it removes the project. On a failure the job prints that file and the output of the server and uploads `test-results`. `verify` saves the Nix cache, and `nixos` only restores it, so both use one key without a race.
 
-The end-to-end job runs the release binary on Ubuntu, a distribution without Nix. That covers the release archive outside a simulated distribution as well.
+The end-to-end job runs the release binary on Ubuntu 24.04, a distribution without Nix. Playwright 1.59 has no browsers for Ubuntu 26.04, which `ubuntu-latest` resolves to, so the job names the release until Playwright supports the newer one. That covers the release archive outside a simulated distribution as well.
 
 Alternatives considered: a separate workflow started by `workflow_run`, which runs in the context of the default branch, does not show as a check of the pull request in the usual way and needs the run id for the artifact. One job with `needs` after all checks, which runs the end-to-end tests last instead of in parallel. A job `e2e` that builds the binary itself, which builds it twice when the cache misses.
 
