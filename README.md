@@ -112,6 +112,7 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 |`server/`|`cargo clippy --all-targets -- --deny warnings`|Lints|
 |`server/`|`cargo fmt --check`|Formatting|
 |`server/`|`cargo deny check bans licenses sources`|Licenses of the crates against the list in `server/deny.toml`, version requirements without wildcards and crates.io as the only source. Needs `cargo-deny`, which `cargo install --locked cargo-deny@0.19.6` installs in the version of nixpkgs|
+|`server/`|`cargo about generate --frozen --fail about.hbs >> ../client/dist/licenses.txt`|Appends the notices of the crates to the notices of the client after `npm run build`, so the server embeds both. Needs `cargo-about`, which `cargo install --locked cargo-about@0.9.0` installs in the version of nixpkgs|
 |`client/`|`npm test`|Unit tests|
 |`client/`|`npm run test:integration`|Integration tests|
 |`client/`|`npm run lint`|Lints, failing on warnings|
@@ -209,6 +210,7 @@ cargo deny check bans licenses sources
 cd ../client
 npm run build
 cd ../server
+cargo about generate --frozen --fail about.hbs >> ../client/dist/licenses.txt
 cargo build
 cargo test --bins -- --skip integration::
 cd ../client
@@ -221,13 +223,13 @@ npm run test:integration
 npm run check:generated
 ```
 
-CI also checks the formatting of Nix files, the linkage of the release binary, the GitHub workflows with zizmor and whether the pinned versions of Rust, `editorconfig-checker` and `cargo-deny` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
+CI also checks the formatting of Nix files, the linkage of the release binary, the GitHub workflows with zizmor and whether the pinned versions of Rust, `editorconfig-checker`, `cargo-deny` and `cargo-about` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
 
 ### Dependency updates
 
 Dependabot opens pull requests once a week for the crates in `server/`, the npm packages in `client/`, the inputs in `flake.lock` and the GitHub actions, as [`.github/dependabot.yml`](.github/dependabot.yml) configures. Minor and patch updates come grouped. Each update waits seven days after its release. Dependabot opens its pull requests ready for review, so they run every CI job.
 
-An update of `flake.lock` can bring new versions of Rust, `editorconfig-checker` or `cargo-deny`. The lint checks that compare the pins for work without Nix then fail and name the version of nixpkgs. Push one commit to the Dependabot branch that sets `channel` in `server/rust-toolchain.toml`, `EC_VERSION` in `client/package.json` and the version of `cargo-deny` under [Tests and lints](#tests-and-lints) to those versions, together with fixes for new Clippy lints. Dependabot no longer rebases a branch with commits of someone else. If `main` moves before the merge, rebase the branch by hand or comment `@dependabot recreate`, which drops your commit. Dependabot moves only the revisions in `flake.lock`. Change the branch of `nixpkgs` and the tag of `crane` in `flake.nix` by hand.
+An update of `flake.lock` can bring new versions of Rust, `editorconfig-checker`, `cargo-deny` or `cargo-about`. The lint checks that compare the pins for work without Nix then fail and name the version of nixpkgs. Push one commit to the Dependabot branch that sets `channel` in `server/rust-toolchain.toml`, `EC_VERSION` in `client/package.json` and the versions of `cargo-deny` and `cargo-about` under [Tests and lints](#tests-and-lints) to those versions, together with fixes for new Clippy lints. Dependabot no longer rebases a branch with commits of someone else. If `main` moves before the merge, rebase the branch by hand or comment `@dependabot recreate`, which drops your commit. Dependabot moves only the revisions in `flake.lock`. Change the branch of `nixpkgs` and the tag of `crane` in `flake.nix` by hand.
 
 `client/.npmrc` lets npm install only releases older than seven days and runs no install scripts. Dependabot security updates read the file too, so they cannot pick a fix younger than that. To take such a fix, override the age once. `npm update` also moves a package that comes in through another one, as long as the fixed version fits the range that the other package requires:
 

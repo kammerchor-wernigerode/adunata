@@ -1,0 +1,15 @@
+
+Third-party notices of the Adunata server
+
+The server is written in Rust. The copyright notices of the Rust standard library are in licenses-rust.html next to this file.
+{{#each licenses}}
+
+========================================================================
+
+{{{name}}} ({{id}}), used by:
+{{#each used_by}}
+- {{crate.name}} {{crate.version}}{{#if crate.repository}}, {{{crate.repository}}}{{/if}}
+{{/each}}
+
+{{{text}}}
+{{/each}}

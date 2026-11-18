@@ -53,10 +53,40 @@
             installPhase = "cp -r dist $out";
           };
 
+          cargoSources = pkgs.lib.fileset.difference (craneLib.fileset.commonCargoSources ./server) (
+            pkgs.lib.fileset.unions [
+              ./server/deny.toml
+              ./server/about.toml
+            ]
+          );
+
+          crateNotices = craneLib.mkCargoDerivation {
+            src = pkgs.lib.fileset.toSource {
+              root = ./server;
+              fileset = pkgs.lib.fileset.unions [
+                cargoSources
+                ./server/about.toml
+                ./server/about.hbs
+              ];
+            };
+            pnameSuffix = "-crate-notices";
+            cargoArtifacts = null;
+            doInstallCargoArtifacts = false;
+            nativeBuildInputs = [ pkgs.cargo-about ];
+            buildPhaseCargoCommand = "cargo about generate --frozen --fail about.hbs --output-file licenses.txt";
+            installPhaseCommand = "install -D licenses.txt $out/licenses.txt";
+          };
+
+          clientWithNotices = pkgs.runCommand "adunata-client-with-notices" { } ''
+            cp -r ${client} $out
+            chmod -R u+w $out
+            cat ${crateNotices}/licenses.txt >> $out/licenses.txt
+          '';
+
           serverSource = pkgs.lib.fileset.toSource {
             root = ./server;
             fileset = pkgs.lib.fileset.unions [
-              (pkgs.lib.fileset.difference (craneLib.fileset.commonCargoSources ./server) ./server/deny.toml)
+              cargoSources
               ./server/migrations
               ./server/locales
             ];
@@ -67,7 +97,7 @@
             meta.mainProgram = "adunata";
             preBuild = ''
               mkdir -p ../client
-              ln -sfn ${client} ../client/dist
+              ln -sfn ${clientWithNotices} ../client/dist
             '';
           };
           testServices = {
@@ -144,6 +174,7 @@
             cp ${./deploy/systemd/adunata.service} $out/adunata.service
             cp ${./deploy/systemd/adunata.env.example} $out/adunata.env.example
             cp ${./LICENSE} $out/LICENSE
+            cp ${clientWithNotices}/licenses.txt $out/licenses.txt
           '';
 
           releaseLinkage =
@@ -355,6 +386,36 @@
                 zizmor --offline --no-progress ${source}/.github
                 touch $out
               '';
+
+            cargoAboutVersion = pkgs.runCommand "check-cargo-about-version" { } ''
+              pinned=$(sed --quiet 's/.*cargo-about@\([0-9.]*\).*/\1/p' ${./README.md})
+              if [ "$pinned" != "${pkgs.cargo-about.version}" ]; then
+                echo "The README pins cargo-about $pinned, but nixpkgs ships ${pkgs.cargo-about.version}. Set the version in the README to the version of nixpkgs."
+                exit 1
+              fi
+              touch $out
+            '';
+
+            crateNoticeLicenses =
+              let
+                allowed =
+                  file: key:
+                  pkgs.lib.sort pkgs.lib.lessThan (pkgs.lib.attrByPath key [ ] (fromTOML (builtins.readFile file)));
+              in
+              pkgs.runCommand "check-crate-notice-licenses" { } (
+                if
+                  allowed ./server/about.toml [ "accepted" ] == allowed ./server/deny.toml [
+                    "licenses"
+                    "allow"
+                  ]
+                then
+                  "touch $out"
+                else
+                  ''
+                    echo "accepted in server/about.toml differs from licenses.allow in server/deny.toml. Keep both lists equal."
+                    exit 1
+                  ''
+              );
 
             nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
               find ${self} -name '*.nix' -exec nixfmt --check {} +
