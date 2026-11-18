@@ -136,9 +136,11 @@ On SIGTERM, Adunata stops accepting connections, lets requests in progress finis
 
 ## Testing
 
-Tests run at several levels. Each level checks what the level below cannot see. Locally and in CI, every check runs as a check of the flake, so both use the same entry point.
+Tests run at several levels. Each level checks what the level below cannot see. Locally and in CI, every check except the end-to-end tests runs as a check of the flake, so both use the same entry point.
 
-The flake groups its checks into targets that build on each other like the phases of a build lifecycle. Each target contains the one before it, so `nix build .#checks.<system>.integration` runs lint, build, unit and integration tests together. CI runs each target in a step of its own.
+The flake groups its checks into targets that build on each other like the phases of a build lifecycle. Each target contains the one before it, so `nix build .#checks.<system>.integration` runs lint, build, unit and integration tests together.
+
+CI runs three jobs. `verify` runs the targets up to `integration` and builds the release binary. `e2e` runs the end-to-end tests against that binary, and `nixos` runs the targets `memory` and `nixos`. Both start after `verify` and run in parallel. They run only on pull requests ready for review and on pushes to `main`.
 
 |Target|Contains|Builds on|
 |-|-|-|
@@ -146,7 +148,6 @@ The flake groups its checks into targets that build on each other like the phase
 |`build`|The server with the embedded client|`lint`|
 |`test`|Unit tests of server and client|`build`|
 |`integration`|Integration tests of server and client, startup tests of the binary and the contract|`test`|
-|`e2e`|End-to-end tests, Linux only|`integration`|
 |`memory`|The memory measurement, Linux only|`integration`|
 |`nixos`|The NixOS VM test, Linux only|`integration`|
 
@@ -154,15 +155,17 @@ A unit test has no input or output. It uses no database, no mail server, no sock
 
 Each check inside a target is also a check of its own, such as `clippy` or `serverIntegrationTests`, so a failing one runs again alone.
 
-On macOS with a Linux builder, such as the `linux-builder` of nix-darwin, `nix build .#vmChecks.e2e` and `nix build .#vmChecks.nixos` run the targets `e2e` and `nixos`. The builder builds their Linux artifacts for the same architecture. QEMU starts the virtual machines of `nixos` on the Mac with HVF. `nix flake check` leaves both out, so it needs no Linux builder.
+On macOS with a Linux builder, such as the `linux-builder` of nix-darwin, `nix build .#vmChecks.nixos` runs the target `nixos`. The builder builds its Linux artifacts for the same architecture. QEMU starts the virtual machines on the Mac with HVF. `nix flake check` leaves it out, so it needs no Linux builder.
 
 |Level|What it checks|Example|
 |-|-|-|
 |Unit|Logic without any input or output, such as formatting a message.|`plural_forms_in_german` in [`server/src/localization.rs`](../../server/src/localization.rs)|
 |Server integration|An API handler called in process with real routing against a real PostgreSQL. Each test gets its own empty database with all migrations applied and drops it afterwards. Mail goes to a real Mailpit.|`duplicate_address` in [`server/src/members.rs`](../../server/src/members.rs)|
 |Client integration|A component against the API mocks that Orval generates, driven like a user would. Accessibility checks with axe run on rendered components.|[`client/src/members/Members.integration.test.tsx`](../../client/src/members/Members.integration.test.tsx)|
-|Contract|The committed OpenAPI document matches the server. The generated client code matches the document.|The check `contract` in [`flake.nix`](../../flake.nix)|
-|End to end|A few complete flows in a browser against the real binary, PostgreSQL and Mailpit, with accessibility checks by axe in light and dark mode, contrast of controls and reflow at 390 px with 200 % text. Runs on Linux.|[`client/e2e/invitation.e2e.ts`](../../client/e2e/invitation.e2e.ts)|
+|Contract|The committed OpenAPI document matches the server. The generated client code matches the document.|`the_client_holds_the_current_document` in [`server/src/api.rs`](../../server/src/api.rs) and `npm run check:generated` in `client/`|
+|End to end|A few complete flows in a browser against the real binary, PostgreSQL and Mailpit, with accessibility checks by axe in light and dark mode, contrast of controls and reflow at 390 px with 200 % text.|[`client/e2e/invitation.e2e.ts`](../../client/e2e/invitation.e2e.ts)|
 |NixOS VM|Each supported installation, meaning the NixOS module, the OCI image and the release binary with its example unit, starts in a virtual machine, migrates the database, reports healthy and serves the client. Runs on Linux with KVM.|[`nix/test.nix`](../../nix/test.nix)|
+
+The end-to-end tests run outside the flake with `npm run e2e` in `client/`, on a laptop and in the CI job `e2e` on Ubuntu without Nix. A global setup of Playwright starts PostgreSQL and Mailpit from [`compose.yaml`](../../compose.yaml) as a fresh Compose project of the checkout on free ports. It then starts the server with only the settings of the tests, from a release build of the checkout or, in CI, from the release binary of the job `verify`. After the tests it removes the project. This has consequences. The tests need Docker with Compose. The browsers come from Playwright and need nix-ld on NixOS. Node comes from the runner, and the versions of PostgreSQL and Mailpit come from `compose.yaml` instead of nixpkgs. A green `nix flake check` no longer covers the end-to-end tests, and a release relies on their run on `main`. The tests take colors from computed styles and measure reflow only after the fonts of the client have loaded, so they give the same result on Linux and macOS.
 
 The check `memory` in [`flake.nix`](../../flake.nix) measures peak memory of the release build under load on Linux and fails above 150 MB. A set-up step signs in through Mailpit, creates a gathering, invites and reads the personal link from Mailpit, so the load hits the response page and stores responses.
