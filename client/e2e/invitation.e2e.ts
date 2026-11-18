@@ -4,14 +4,18 @@ import { expect, test, type Page } from '@playwright/test'
 
 test.use({ locale: 'en-US' })
 
-const mailpit = process.env.ADUNATA_E2E_MAILPIT_URL ?? 'http://127.0.0.1:8025'
+function mailpit(): string {
+  const url = process.env.ADUNATA_E2E_MAILPIT_URL
+  if (!url) throw new Error('ADUNATA_E2E_MAILPIT_URL is missing, run the tests with npm run e2e')
+  return url
+}
 
 /** The path of the newest link of a kind in Mailpit, such as /invitation#3f9a…, waiting until its mail arrives. */
 async function newestLink(kind: string): Promise<string> {
   for (let attempt = 0; attempt < 100; attempt++) {
-    const list = (await (await fetch(`${mailpit}/api/v1/messages?limit=1`)).json()) as { messages: { ID: string }[] }
+    const list = (await (await fetch(`${mailpit()}/api/v1/messages?limit=1`)).json()) as { messages: { ID: string }[] }
     if (list.messages.length > 0) {
-      const message = (await (await fetch(`${mailpit}/api/v1/message/${list.messages[0].ID}`)).json()) as { Text: string }
+      const message = (await (await fetch(`${mailpit()}/api/v1/message/${list.messages[0].ID}`)).json()) as { Text: string }
       const found = message.Text.match(new RegExp(`/${kind}#[0-9a-f]{64}`))
       if (found) return found[0]
     }
@@ -48,12 +52,13 @@ async function violations(page: Page): Promise<string[]> {
   return results.violations.map((violation) => `${violation.id}: ${violation.help}`)
 }
 
-/** Whether the page fits a phone 390 px wide with the text at 200 % without scrolling sideways. */
+/** Whether the page fits a phone 390 px wide with the text at 200 % without scrolling sideways. Measures only once the fonts of the client have loaded, so that no font of the system decides the widths of text. */
 async function reflowsAt200Percent(page: Page): Promise<boolean> {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '200%'
   })
+  await page.evaluate(() => document.fonts.ready)
   const fits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)
   await page.evaluate(() => {
     document.documentElement.style.fontSize = ''

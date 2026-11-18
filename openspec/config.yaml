@@ -8,7 +8,7 @@ context: |
 rules:
   design:
     - Name the arc42 sections in docs/arc42/ that this change affects and what changes in each, as the skill arc42 describes.
-    - For each decision, judge whether it is architecturally significant as docs/decisions/0001-record-architecture-decisions.md defines it, and give the reason in one sentence. The development environment is not architecture. That covers services for development, the development shell, direnv and tooling for worktrees.
+    - For each decision, judge whether it is architecturally significant as docs/decisions/0001-record-architecture-decisions.md defines it, and give the reason in one sentence. A decision is significant only if an operator or a running instance of Adunata notices it. The development environment, tests, CI and linters are not architecture, even where an existing record mentions them. That covers services for development, the development shell, direnv, tooling for worktrees, where and how tests run and how CI splits its jobs.
     - Draft only the architecturally significant decisions so that each can become a record in docs/decisions/ following docs/decisions/_decision_template.md. Name the records it supersedes. A change with no significant decision drafts no record.
   tasks:
     - Include tasks that update the affected arc42 sections and that write or supersede the decision records drafted in design.md. Add no task for a record that design.md does not draft.

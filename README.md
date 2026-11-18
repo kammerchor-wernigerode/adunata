@@ -49,7 +49,7 @@ direnv allow
 
 Install these tools:
 
-- Rust, stable, with `clippy` and `rustfmt`
+- [rustup](https://rustup.rs), which installs the version of Rust that [`server/rust-toolchain.toml`](server/rust-toolchain.toml) pins, with `clippy` and `rustfmt`
 - Node.js 24
 - Docker or Podman with Compose
 
@@ -77,7 +77,7 @@ Compose, the server and the client each read their settings from files in their 
 |-|-|-|-|
 |root|Compose|none, defaults in `compose.yaml`|`.env` with `COMPOSE_PROJECT_NAME`, `POSTGRES_PORT`, `MAILPIT_SMTP_PORT` and `MAILPIT_UI_PORT`|
 |`server/`|server and its tests|`.env` with the settings for development|`.env.local`|
-|`client/`|Vite and Playwright|none, defaults in the configs|`.env.local`|
+|`client/`|Vite|none, defaults in the configs|`.env.local`|
 
 The server reads its files only in a debug build and only in its working directory, so run it and its tests in `server/`. The [configuration reference](docs/operating/configuration.md) explains each `ADNT_` variable. Without an untracked file, PostgreSQL listens on port 5432, Mailpit on 1025 and 8025, the server on 8080 and Vite on 5173.
 
@@ -113,7 +113,8 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 |`server/`|`cargo fmt --check`|Formatting|
 |`client/`|`npm test`|Unit tests|
 |`client/`|`npm run test:integration`|Integration tests|
-|`client/`|`npm run lint`|Lints|
+|`client/`|`npm run lint`|Lints, failing on warnings|
+|`client/`|`npm run lint:editorconfig`|Rules of `.editorconfig` in the whole repository. Downloads `editorconfig-checker` on its first run|
 
 `cargo test` finds PostgreSQL through `ADNT_DATABASE_URL` and Mailpit through `ADNT_SMTP_PORT` and `MAILPIT_UI_PORT`. It creates a separate database for each test and drops it when the test ends, so the user in `ADNT_DATABASE_URL` needs the right to create databases.
 
@@ -123,17 +124,28 @@ A test run that is killed leaves its databases behind. Drop them in the root of 
 docker compose exec -T postgres psql -U adunata -tAc "select datname from pg_database where datname like 'adunata\_test\_%'" | xargs -rn1 docker compose exec -T postgres dropdb -U adunata --force
 ```
 
-The end-to-end tests run against a release build in Nix:
+### End-to-end tests
+
+The end-to-end tests drive Chromium against a release build of Adunata. They need Docker with Compose. Install Chromium once, then run them in `client/`:
 
 ```sh
-nix build .#checks.x86_64-linux.e2e
+cd client
+npx playwright install chromium
+npm run e2e
 ```
 
-On macOS this needs a Linux builder, as the [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes:
+Before the tests, Playwright builds the client and runs `cargo build --release` in `server/`. With `ADUNATA_E2E_SERVER` set to a binary, it starts that binary instead. It starts PostgreSQL and Mailpit from `compose.yaml` as a fresh Compose project `adunata-e2e-<hash>` on free ports, then the server with only the settings of the tests. No settings file and no variable of your shell reach the server. After the tests it removes the project with its volume. The development services and their data stay untouched.
+
+The server writes its output to `client/test-results/server.log`, and the services write theirs to `client/test-results/services.log`.
+
+One run per checkout is the limit, because a second run removes the services of the first. A run that is killed leaves its server running on a free port. Find and end it:
 
 ```sh
-nix build .#vmChecks.e2e
+pgrep -fl 'adunata serve'
+kill <pid>
 ```
+
+On NixOS the browsers of Playwright start only with [nix-ld](https://github.com/nix-community/nix-ld).
 
 ### API contract
 
@@ -146,13 +158,51 @@ cd ../client
 npm run generate
 ```
 
+The contract check has two halves:
+
+|Directory|Command|Fails when|Fix|
+|-|-|-|-|
+|`server/`|`cargo test --bins -- api::integration::the_client_holds_the_current_document`|`client/openapi.json` differs from the document of the server, even in whitespace|`cargo run -- openapi > ../client/openapi.json` in `server/`|
+|`client/`|`npm run check:generated`|The code in `src/api/generated` differs from what Orval generates from `openapi.json`|`npm run generate` in `client/`|
+
+`cargo test` runs the first half among the integration tests. `npm run check:generated` regenerates the code in place and restores the code it found afterwards, also when it fails.
+
 ### Checks before a push
 
-CI runs the checks of the flake. Run the checks up to `integration` locally before each push. Replace `x86_64-linux` with your system, such as `aarch64-darwin`. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target.
+Run the checks up to `integration` locally before each push. CI runs them in the job `verify` and runs the end-to-end tests, the memory measurement and the NixOS VM test once a pull request is ready for review. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target and job.
+
+With Nix, one command runs them. Replace `x86_64-linux` with your system, such as `aarch64-darwin`:
 
 ```sh
 nix build .#checks.x86_64-linux.integration
 ```
+
+Without Nix, run the same checks in the order of the lifecycle, with the services running:
+
+```sh
+cd client
+npm ci
+npm run lint
+npm run lint:editorconfig
+cd ../server
+cargo fmt --check
+cargo clippy --all-targets -- --deny warnings
+cd ../client
+npm run build
+cd ../server
+cargo build
+cargo test --bins -- --skip integration::
+cd ../client
+npm test
+cd ../server
+cargo test --bins -- integration::
+cargo test --test startup
+cd ../client
+npm run test:integration
+npm run check:generated
+```
+
+CI also checks the formatting of Nix files, the linkage of the release binary and whether the pinned versions of Rust and `editorconfig-checker` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
 
 ### Parallel worktrees
 
@@ -174,7 +224,7 @@ Each worktree gets a slot `n` with the port base `b = port_base + 10n`. Slot 0 b
 
 For a new worktree, the plugin:
 
-- writes the root `.env` with the Compose project `adunata-<b>` and its ports, `server/.env.local` with the addresses of server, database and Mailpit as well as `client/.env.local` with the ports of Vite, the server and Mailpit
+- writes the root `.env` with the Compose project `adunata-<b>` and its ports, `server/.env.local` with the addresses of server, database and Mailpit as well as `client/.env.local` with the port of Vite and the address of the server
 - replaces only the lines of its own keys in these files and keeps every other line, so you can add your own settings there. It keeps the previous version of a file it changes as `<name>.bak`
 - installs and builds the client, inside `nix develop` if Nix is installed, so the server compiles right away
 
@@ -196,7 +246,7 @@ docker compose -p adunata exec -T postgres pg_dump -U adunata --no-owner adunata
 
 Set the option per repository with `git config worktree-init.port-base 19000`. After a change, an existing worktree keeps its Compose project under the old name. `git wt remove` then no longer finds it. Remove such a project with `docker compose -p adunata-<b> down --volumes`.
 
-Remove a worktree with `git wt remove`. It runs `docker compose -p adunata-<b> down --volumes`, which deletes the containers and the database of the worktree. While Docker is stopped, it prints a warning with that command and removes the worktree anyway. A worktree removed with plain `git worktree remove` keeps its Compose project until the next sweep. `git wt prune`, `git wt add` and `git wt refresh` each run one.
+Remove a worktree with `git wt remove`. It runs `docker compose -p adunata-<b> down --volumes`, which deletes the containers and the database of the worktree. It also removes the Compose project of the end-to-end tests that a killed run left behind. While Docker is stopped, it prints a warning with that command and removes the worktree anyway. A worktree removed with plain `git worktree remove` keeps its Compose project until the next sweep. `git wt prune`, `git wt add` and `git wt refresh` each run one.
 
 git-worktree-init skips the worktrees of Claude Code under `.claude/worktrees/` by default. Such a worktree gets no root `.env`, so `docker compose` there uses the project `adunata` of the main checkout and its services. `docker compose down --volumes` in such a worktree deletes the database of the main checkout. Include these worktrees by clearing the pattern:
 

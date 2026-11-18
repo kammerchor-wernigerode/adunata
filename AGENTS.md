@@ -19,17 +19,17 @@ This file routes. It names where things live and the rules that apply everywhere
 - New features start with `/openspec-propose <name>`. Open ideas start with `/openspec-explore`.
 - A person may have a change reviewed before its tasks with `/review-change [change] [model] [effort]`. Agents never start it on their own.
 - Small fixes need no change proposal.
-- An architecturally significant decision gets a record in `docs/decisions/`. [ADR 0001](docs/decisions/0001-record-architecture-decisions.md) defines what counts. The development environment is not architecture. The README documents it.
+- An architecturally significant decision gets a record in `docs/decisions/`. Significant means that an operator or a running instance notices it. Tooling for development, tests and CI never is, even where a record mentions it. [ADR 0001](docs/decisions/0001-record-architecture-decisions.md) defines what counts. The development environment is not architecture. The README documents it.
 - Plan each change from its own problem and the current code. Archived changes are no template.
 - Archive a merged OpenSpec change directly on `main`, never through a pull request. Pull `main` first. The commit subject ends with `[skip ci]`, because the archive changes no code.
 - When an agent repeats a mistake, add a rule here.
 
 ## Pull requests
 
-CI runs the checks up to `integration` on every push to a pull request. Pull requests that are ready for review and pushes to `main` also run `e2e`, `memory` and `nixos`, which take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes the checks.
+CI runs the checks up to `integration` in the job `verify` on every push to a pull request. Pull requests that are ready for review and pushes to `main` also run the jobs `e2e` and `nixos`, which take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes the checks.
 
 - Open a pull request as a draft. Pushing to a draft needs no approval.
-- Before each push, run the checks up to integration locally with `nix build .#checks.<system>.integration`, where `<system>` is the local Nix system such as `aarch64-linux`. Never push a state that fails them.
+- Before each push, run the checks up to integration locally with `nix build .#checks.<system>.integration`, where `<system>` is the local Nix system such as `aarch64-linux`. Without Nix, run the commands that the [README](README.md#checks-before-a-push) lists. Never push a state that fails them.
 - Push once per round of feedback. Collect every remark of a review, fix them together and then push.
 - Mark the pull request ready for review once the work is complete.
 - After an approval, push only after asking.

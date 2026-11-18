@@ -133,7 +133,6 @@
                 doInstallCargoArtifacts = false;
               }
             );
-          openapi = pkgs.runCommand "adunata-openapi" { } "${server}/bin/adunata openapi > $out";
 
           system = pkgs.stdenv.hostPlatform.system;
 
@@ -234,25 +233,24 @@
             serverTests serverArgs "-unit-tests"
               "cargoWithProfile test --locked --bins -- --skip integration::";
 
-          serverIntegrationTests = serverTests (serverArgs // testServices) "-integration-tests" ''
-            cargoWithProfile test --locked --bins -- integration::
-            ADUNATA_TEST_BINARY=${server}/bin/adunata cargoWithProfile test --locked --test startup
-          '';
+          serverIntegrationTests =
+            serverTests
+              (
+                serverArgs
+                // testServices
+                // {
+                  ADUNATA_OPENAPI_DOCUMENT = ./client/openapi.json;
+                }
+              )
+              "-integration-tests"
+              ''
+                cargoWithProfile test --locked --bins -- integration::
+                ADUNATA_TEST_BINARY=${server}/bin/adunata cargoWithProfile test --locked --test startup
+              '';
 
           contract = clientPackage {
             pname = "adunata-contract";
-            buildPhase = ''
-              if ! diff -u openapi.json ${openapi}; then
-                echo "client/openapi.json differs from the server. Run: cargo run -- openapi > ../client/openapi.json"
-                exit 1
-              fi
-              cp -r src/api/generated "$TMPDIR/committed"
-              npx orval
-              if ! diff -ru "$TMPDIR/committed" src/api/generated; then
-                echo "Generated client code is out of date. Run: npm run generate"
-                exit 1
-              fi
-            '';
+            buildPhase = "sh scripts/check-generated.sh";
             installPhase = "touch $out";
           };
 
@@ -326,33 +324,9 @@
                 echo "$peak" > $out
               '';
 
-          endToEnd = clientPackage {
-            pname = "adunata-end-to-end";
-            nativeBuildInputs = [
-              pkgs.postgresql_17
-              pkgs.mailpit
-            ];
-            PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
-            PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
-            FONTCONFIG_FILE = pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; };
-            ADUNATA_E2E_URL = "http://localhost:18080";
-            ADUNATA_E2E_MAILPIT_URL = "http://127.0.0.1:18025";
-            buildPhase = ''
-              export HOME="$TMPDIR"
-              ${startInstance}
-              if ! npx playwright test; then
-                find test-results -name '*.md' -exec cat {} +
-                exit 1
-              fi
-              kill "$adunataPid"
-              pg_ctl stop --wait --silent
-            '';
-            installPhase = "touch $out";
-          };
-
           clientLint = clientPackage {
             pname = "adunata-client-lint";
-            buildPhase = "npm run lint -- --deny-warnings";
+            buildPhase = "npm run lint";
             installPhase = "touch $out";
           };
         };
@@ -389,6 +363,24 @@
         let
           lintChecks = {
             inherit (built) clippy rustFormatting clientLint;
+
+            rustToolchain = pkgs.runCommand "check-rust-toolchain" { nativeBuildInputs = [ pkgs.rustc ]; } ''
+              pinned=$(sed --quiet 's/^channel = "\(.*\)"$/\1/p' ${./server/rust-toolchain.toml})
+              if [ "$(rustc --version | cut --delimiter=' ' --fields=2)" != "$pinned" ]; then
+                echo "server/rust-toolchain.toml pins Rust $pinned, but nixpkgs ships $(rustc --version). Set the channel to the version of nixpkgs."
+                exit 1
+              fi
+              touch $out
+            '';
+
+            editorconfigCheckerVersion = pkgs.runCommand "check-editorconfig-checker-version" { } ''
+              pinned=$(sed --quiet 's/.*EC_VERSION=v\([0-9.]*\) .*/\1/p' ${./client/package.json})
+              if [ "$pinned" != "${pkgs.editorconfig-checker.version}" ]; then
+                echo "npm run lint:editorconfig pins editorconfig-checker $pinned, but nixpkgs ships ${pkgs.editorconfig-checker.version}. Set EC_VERSION in client/package.json to the version of nixpkgs."
+                exit 1
+              fi
+              touch $out
+            '';
 
             nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
               find ${self} -name '*.nix' -exec nixfmt --check {} +
@@ -428,10 +420,8 @@
             ;
         }
         // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          e2e = pkgs.linkFarm "e2e" {
-            inherit integration;
-            inherit (built) endToEnd;
-          };
+          memoryMeasurement = built.memory;
+          nixosVmTest = vmTest pkgs built;
           memory = pkgs.linkFarm "memory" {
             inherit integration;
             inherit (built) memory;
@@ -454,10 +444,6 @@
         in
         pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
           vmChecks = {
-            e2e = pkgs.linkFarm "e2e" {
-              inherit integration;
-              inherit (builtForLinux) endToEnd;
-            };
             nixos = pkgs.linkFarm "nixos" {
               inherit integration;
               vm = vmTest pkgs builtForLinux;
