@@ -111,10 +111,12 @@ It serves the client on <http://localhost:5173> and reloads on every change. It 
 |`server/`|`cargo test --bins -- --skip integration::`|Unit tests only, without any service|
 |`server/`|`cargo clippy --all-targets -- --deny warnings`|Lints|
 |`server/`|`cargo fmt --check`|Formatting|
+|`server/`|`cargo deny check licenses`|Licenses of the crates against the list in `server/deny.toml`. Needs `cargo-deny`, which `cargo install --locked cargo-deny` installs|
 |`client/`|`npm test`|Unit tests|
 |`client/`|`npm run test:integration`|Integration tests|
 |`client/`|`npm run lint`|Lints, failing on warnings|
 |`client/`|`npm run lint:editorconfig`|Rules of `.editorconfig` in the whole repository. Downloads `editorconfig-checker` on its first run|
+|`client/`|`npm run lint:licenses`|Licenses of the packages in `package-lock.json` against the list in `server/deny.toml`|
 
 `cargo test` finds PostgreSQL through `ADNT_DATABASE_URL` and Mailpit through `ADNT_SMTP_PORT` and `MAILPIT_UI_PORT`. It creates a separate database for each test and drops it when the test ends, so the user in `ADNT_DATABASE_URL` needs the right to create databases.
 
@@ -195,9 +197,11 @@ cd client
 npm ci
 npm run lint
 npm run lint:editorconfig
+npm run lint:licenses
 cd ../server
 cargo fmt --check
 cargo clippy --all-targets -- --deny warnings
+cargo deny check licenses
 cd ../client
 npm run build
 cd ../server

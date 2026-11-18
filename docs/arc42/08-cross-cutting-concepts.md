@@ -144,7 +144,7 @@ CI runs three jobs. `verify` runs the targets up to `integration` and builds the
 
 |Target|Contains|Builds on|
 |-|-|-|
-|`lint`|Formatting of Rust, Nix and every file per `.editorconfig`, Clippy, oxlint and whether the versions of Rust and `editorconfig-checker` pinned for work without Nix match nixpkgs|nothing|
+|`lint`|Formatting of Rust, Nix and every file per `.editorconfig`, Clippy, oxlint, the licenses of crates and npm packages against the approved list in `server/deny.toml` and whether the versions of Rust and `editorconfig-checker` pinned for work without Nix match nixpkgs|nothing|
 |`build`|The server with the embedded client|`lint`|
 |`test`|Unit tests of server and client|`build`|
 |`integration`|Integration tests of server and client, startup tests of the binary and the contract|`test`|
