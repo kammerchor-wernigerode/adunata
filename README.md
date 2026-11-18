@@ -219,6 +219,30 @@ npm run check:generated
 
 CI also checks the formatting of Nix files, the linkage of the release binary, the GitHub workflows with zizmor and whether the pinned versions of Rust, `editorconfig-checker` and `cargo-deny` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
 
+### Dependency updates
+
+Dependabot opens pull requests once a week for the crates in `server/`, the npm packages in `client/`, the inputs in `flake.lock` and the GitHub actions, as [`.github/dependabot.yml`](.github/dependabot.yml) configures. Minor and patch updates come grouped. Each update waits seven days after its release. Dependabot opens its pull requests ready for review, so they run every CI job.
+
+An update of `flake.lock` can bring new versions of Rust, `editorconfig-checker` or `cargo-deny`. The lint checks that compare the pins for work without Nix then fail and name the version of nixpkgs. Push one commit to the Dependabot branch that sets `channel` in `server/rust-toolchain.toml`, `EC_VERSION` in `client/package.json` and the version of `cargo-deny` under [Tests and lints](#tests-and-lints) to those versions, together with fixes for new Clippy lints. Dependabot no longer rebases a branch with commits of someone else. If `main` moves before the merge, rebase the branch by hand or comment `@dependabot recreate`, which drops your commit. Dependabot moves only the revisions in `flake.lock`. Change the branch of `nixpkgs` and the tag of `crane` in `flake.nix` by hand.
+
+`client/.npmrc` lets npm install only releases older than seven days and runs no install scripts. To install a security fix that is younger, override the age once:
+
+```sh
+cd client
+npm install <package>@<version> --min-release-age=0
+```
+
+The workflow [`advisories`](.github/workflows/advisories.yaml) checks both lock files against the advisory databases every day and on pull requests that change them. It fails on any advisory of a crate and on an npm advisory of severity high or critical. If an npm advisory has no fix yet, add it to `client/audit-exceptions.json` with its GHSA ID, the reason and an expiry date. The run fails once the date has passed and, outside pull requests, once the exception matches no advisory. GitHub notifies only the person who last changed the schedule of a failed scheduled run, so check the workflow in the Actions tab. For a crate, add `{ id, reason }` to `ignore` under `[advisories]` in `server/deny.toml`.
+
+The repository expects these settings, which no file holds:
+
+|Setting|Where|
+|-|-|
+|Dependabot alerts and security updates|Settings, Advanced Security|
+|Secret scanning with push protection|Settings, Advanced Security|
+|Ruleset for `main` that requires the check `Verify`, with a bypass for admins|Settings, Rules|
+|Ruleset for tags `v*` that restricts creation, update and deletion, with a bypass for admins|Settings, Rules|
+
 ### Parallel worktrees
 
 Several worktrees run side by side when each one has its own ports and its own services. The plugin [`dev/worktree_plugin.py`](dev/worktree_plugin.py) for [git-worktree-init](https://github.com/V1ncNet/git-worktree-init) sets them up for every new linked worktree and again on `git wt refresh`. It touches no service, so it works while Docker is stopped. Install git-worktree-init as its README describes, then enable the plugin once in the main checkout:
