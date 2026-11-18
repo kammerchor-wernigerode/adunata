@@ -5,7 +5,12 @@ const failingSeverities = new Set(["high", "critical"]);
 const staleExceptionsFail = process.env.GITHUB_EVENT_NAME !== "pull_request";
 
 function readReport(path) {
-  const report = JSON.parse(readFileSync(path, "utf8"));
+  let report;
+  try {
+    report = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    throw new Error(`npm audit wrote no JSON report to ${path}: ${error.message}`);
+  }
   if (report.error) {
     throw new Error(`npm audit failed: ${JSON.stringify(report.error)}`);
   }
@@ -29,6 +34,12 @@ function advisories(report) {
   return [...byId.values()];
 }
 
+function malformedExceptions(exceptions) {
+  return exceptions
+    .filter((exception) => typeof exception.reason !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(exception.expires ?? ""))
+    .map((exception) => `exception for ${exception.id} needs a reason and an expiry date as YYYY-MM-DD`);
+}
+
 function problems(found, exceptions, today) {
   const excepted = new Map(exceptions.map((exception) => [exception.id, exception]));
   const unexcepted = found
@@ -37,7 +48,7 @@ function problems(found, exceptions, today) {
   const expired = exceptions
     .filter((exception) => exception.expires < today)
     .map((exception) => `exception for ${exception.id} expired on ${exception.expires}`);
-  return [...unexcepted, ...expired];
+  return [...malformedExceptions(exceptions), ...unexcepted, ...expired];
 }
 
 function staleExceptions(found, exceptions) {
