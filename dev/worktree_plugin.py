@@ -5,6 +5,7 @@ A plugin for git-worktree-init. Enable it in the main worktree with
 """
 
 import hashlib
+import os
 import re
 import shutil
 from pathlib import Path
@@ -205,12 +206,12 @@ def end_to_end_project_of(ctx) -> str:
 
 
 def root_of(ctx) -> str:
-    """The root of the worktree as git prints it, or the recorded path once the worktree is gone."""
+    """The root of the worktree as git prints it, or the recorded path with its symlinks resolved as git resolves them once the worktree is gone."""
     if ctx.target.is_dir():
         shown = ctx.run(["git", "rev-parse", "--show-toplevel"], cwd=ctx.target, check=False, capture=True)
         if shown.returncode == 0:
             return shown.stdout.strip()
-    return str(ctx.target)
+    return os.path.realpath(ctx.target)
 
 
 def has_tracked_server_settings(ctx) -> bool:
