@@ -21,10 +21,43 @@
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
+      nixpkgsOnlyLicenses = [
+        "GPL-2.0-or-later"
+        "GPL-3.0-or-later"
+        "LGPL-2.0-or-later"
+        "LGPL-3.0-or-later"
+        "PostgreSQL"
+      ];
+
+      toolsOf = pkgs: {
+        inherit (pkgs)
+          binutils
+          cargo
+          cargo-about
+          cargo-deny
+          clippy
+          editorconfig-checker
+          mailpit
+          nixfmt
+          nodejs_24
+          openssl
+          patchelf
+          postgresql_17
+          rust-analyzer
+          rustc
+          rustfmt
+          sccache
+          skopeo
+          zizmor
+          ;
+        rustc-prebuilt = pkgs.rust.packages.prebuilt.rustc;
+      };
+
       build =
         pkgs:
         let
           craneLib = crane.mkLib pkgs;
+          tools = toolsOf pkgs;
           npmDeps = pkgs.importNpmLock { npmRoot = ./client; };
 
           clientPackage =
@@ -53,10 +86,46 @@
             installPhase = "cp -r dist $out";
           };
 
+          cargoSources = pkgs.lib.fileset.difference (craneLib.fileset.commonCargoSources ./server) (
+            pkgs.lib.fileset.unions [
+              ./server/deny.toml
+              ./server/about.toml
+            ]
+          );
+
+          crateNotices = craneLib.mkCargoDerivation {
+            src = pkgs.lib.fileset.toSource {
+              root = ./server;
+              fileset = pkgs.lib.fileset.unions [
+                ./server/Cargo.toml
+                ./server/Cargo.lock
+                ./server/about.toml
+                ./server/about.hbs
+              ];
+            };
+            postPatch = "mkdir src && touch src/main.rs";
+            pnameSuffix = "-crate-notices";
+            cargoArtifacts = null;
+            doInstallCargoArtifacts = false;
+            nativeBuildInputs = [ tools.cargo-about ];
+            buildPhaseCargoCommand = "cargo about generate --frozen --fail about.hbs --output-file licenses.txt";
+            installPhaseCommand = "install -D licenses.txt $out/licenses.txt";
+          };
+
+          clientWithNotices = pkgs.runCommand "adunata-client-with-notices" { } ''
+            cp -r ${client} $out
+            chmod -R u+w $out
+            cat ${crateNotices}/licenses.txt >> $out/licenses.txt
+            printf '\nThe binary was built with Rust %s. licenses-rust.html next to this file holds the copyright notices of its standard library.\n' ${tools.rustc.version} >> $out/licenses.txt
+            cp ${rustStandardLibraryNotices} $out/licenses-rust.html
+          '';
+
+          rustStandardLibraryNotices = "${tools.rustc-prebuilt.unwrapped}/share/doc/rust/COPYRIGHT-library.html";
+
           serverSource = pkgs.lib.fileset.toSource {
             root = ./server;
             fileset = pkgs.lib.fileset.unions [
-              (pkgs.lib.fileset.difference (craneLib.fileset.commonCargoSources ./server) ./server/deny.toml)
+              cargoSources
               ./server/migrations
               ./server/locales
             ];
@@ -67,15 +136,15 @@
             meta.mainProgram = "adunata";
             preBuild = ''
               mkdir -p ../client
-              ln -sfn ${client} ../client/dist
+              ln -sfn ${clientWithNotices} ../client/dist
             '';
           };
           testServices = {
             # The tests bind PostgreSQL and Mailpit to the loopback address, which the macOS sandbox forbids otherwise.
             __darwinAllowLocalNetworking = true;
             nativeCheckInputs = [
-              pkgs.postgresql_17
-              pkgs.mailpit
+              tools.postgresql_17
+              tools.mailpit
             ];
             preCheck = ''
               export PGDATA="$TMPDIR/pgdata" PGHOST="$TMPDIR/pgsocket" PGUSER=adunata PGDATABASE=postgres
@@ -136,7 +205,7 @@
 
           system = pkgs.stdenv.hostPlatform.system;
 
-          release = pkgs.runCommand "adunata-release-${system}" { nativeBuildInputs = [ pkgs.patchelf ]; } ''
+          release = pkgs.runCommand "adunata-release-${system}" { nativeBuildInputs = [ tools.patchelf ]; } ''
             mkdir $out
             cp ${server}/bin/adunata $out/adunata
             chmod u+w $out/adunata
@@ -144,10 +213,11 @@
             cp ${./deploy/systemd/adunata.service} $out/adunata.service
             cp ${./deploy/systemd/adunata.env.example} $out/adunata.env.example
             cp ${./LICENSE} $out/LICENSE
+            cp ${clientWithNotices}/licenses.txt ${clientWithNotices}/licenses-rust.html $out/
           '';
 
           releaseLinkage =
-            pkgs.runCommand "check-release-linkage" { nativeBuildInputs = [ pkgs.binutils ]; }
+            pkgs.runCommand "check-release-linkage" { nativeBuildInputs = [ tools.binutils ]; }
               ''
                 binary=${release}/adunata
                 readelf --dynamic $binary > dynamic
@@ -175,9 +245,124 @@
                 touch $out
               '';
 
+          imagePackages = [
+            {
+              name = "glibc";
+              package = pkgs.glibc;
+              licenseFiles = [
+                "LGPL-2.1.txt"
+                "GPL-2.0.txt"
+                "glibc-LICENSES.txt"
+              ];
+            }
+            {
+              name = "gcc";
+              package = pkgs.stdenv.cc.cc;
+              licenseFiles = [
+                "GPL-3.0.txt"
+                "GCC-exception-3.1.txt"
+              ];
+            }
+            {
+              name = "xgcc";
+              package = pkgs.stdenv.cc.cc;
+              licenseFiles = [
+                "GPL-3.0.txt"
+                "GCC-exception-3.1.txt"
+              ];
+            }
+            {
+              name = "libidn2";
+              package = pkgs.libidn2;
+              licenseFiles = [
+                "LGPL-3.0.txt"
+                "GPL-3.0.txt"
+                "GPL-2.0.txt"
+              ];
+              source = {
+                version = "2.3.8";
+                url = "https://ftp.gnu.org/gnu/libidn/libidn2-2.3.8.tar.gz";
+                outputHash = "sha256-9VeRG/YXFiHh9y/zX1sYJbs1tS7UUyXc3ukx5dPAeHo=";
+              };
+            }
+            {
+              name = "libunistring";
+              package = pkgs.libunistring;
+              licenseFiles = [
+                "LGPL-3.0.txt"
+                "GPL-3.0.txt"
+              ];
+            }
+            {
+              name = "nss-cacert";
+              package = pkgs.cacert;
+              licenseFiles = [ "MPL-2.0.txt" ];
+            }
+          ];
+
+          versionOf = entry: (builtins.parseDrvName entry.package.name).version;
+          licenseIdsOf = entry: map (license: license.spdxId) (pkgs.lib.toList entry.package.meta.license);
+
+          imagePackageNotice =
+            entry:
+            let
+              source = entry.source or entry.package.src;
+              url = source.url or (builtins.head source.urls);
+            in
+            assert pkgs.lib.assertMsg ((source.version or (versionOf entry)) == versionOf entry)
+              "The source of ${entry.name} in imagePackages names version ${source.version or ""}, but the image contains ${versionOf entry}. Update url, outputHash and version of the source.";
+            ''
+              mkdir -p "$dir/${entry.name}"
+              ${pkgs.lib.concatMapStrings (file: ''
+                cp ${./nix/licenses}/${file} "$dir/${entry.name}/"
+              '') entry.licenseFiles}
+              cat > "$dir/${entry.name}/SOURCE" <<'EOF'
+              Package: ${entry.name} ${versionOf entry}
+              Licenses: ${pkgs.lib.concatStringsSep ", " (licenseIdsOf entry)}
+              Built by nixpkgs revision ${nixpkgs.rev} from the source
+              ${url}
+              with the hash ${source.outputHash}.
+              The revision of nixpkgs names every patch applied to that source.
+              EOF
+            '';
+
+          imageNotices = pkgs.runCommand "adunata-image-notices" { } ''
+            dir=$out/share/licenses
+            mkdir -p "$dir"
+            cp ${clientWithNotices}/licenses.txt ${clientWithNotices}/licenses-rust.html "$dir/"
+            ${pkgs.lib.concatMapStrings imagePackageNotice imagePackages}
+          '';
+
+          imageRoots = [
+            server
+            pkgs.cacert
+          ];
+
+          imageClosure =
+            pkgs.runCommand "check-image-closure"
+              {
+                closure = pkgs.closureInfo { rootPaths = imageRoots; };
+                expected = pkgs.lib.concatMapStrings (entry: "${entry.name}-${versionOf entry}\n") imagePackages;
+              }
+              ''
+                sed --regexp-extended 's|^/nix/store/[a-z0-9]+-||; s/^(.*-[0-9][^-]*)-[a-z]+$/\1/' $closure/store-paths \
+                  | grep --invert-match '^adunata-' | sort --unique > actual
+                printf '%s' "$expected" | sort --unique > expected
+                if ! diff expected actual; then
+                  echo "The packages from nixpkgs in the image differ from imagePackages in flake.nix. Lines with > are in the image without an entry, lines with < are entries that the image no longer contains."
+                  exit 1
+                fi
+                touch $out
+              '';
+
           image = pkgs.dockerTools.buildLayeredImage {
             name = "adunata";
             tag = "latest";
+            extraCommands = ''
+              mkdir share
+              cp --recursive ${imageNotices}/share/licenses share/licenses
+              chmod --recursive u+w share/licenses
+            '';
             config = {
               Cmd = [
                 "adunata"
@@ -200,6 +385,8 @@
             release
             releaseLinkage
             image
+            imageClosure
+            imagePackages
             ;
 
           clippy = craneLib.cargoClippy (
@@ -266,13 +453,13 @@
       vmTest =
         pkgs: built:
         import ./nix/test.nix {
-          inherit pkgs;
+          inherit pkgs toolsOf;
           inherit (built) release image;
           module = self.nixosModules.default;
         };
     in
     {
-      formatter = forAllSystems (pkgs: pkgs.nixfmt);
+      formatter = forAllSystems (pkgs: (toolsOf pkgs).nixfmt);
 
       packages = forAllSystems (
         pkgs:
@@ -291,6 +478,12 @@
         pkgs:
         let
           built = build pkgs;
+          builtForLinux =
+            build
+              nixpkgs.legacyPackages.${
+                builtins.replaceStrings [ "darwin" ] [ "linux" ] pkgs.stdenv.hostPlatform.system
+              };
+          tools = toolsOf pkgs;
         in
         let
           lintChecks = {
@@ -301,7 +494,7 @@
               clientLint
               ;
 
-            rustToolchain = pkgs.runCommand "check-rust-toolchain" { nativeBuildInputs = [ pkgs.rustc ]; } ''
+            rustToolchain = pkgs.runCommand "check-rust-toolchain" { nativeBuildInputs = [ tools.rustc ]; } ''
               pinned=$(sed --quiet 's/^channel = "\(.*\)"$/\1/p' ${./server/rust-toolchain.toml})
               if [ "$(rustc --version | cut --delimiter=' ' --fields=2)" != "$pinned" ]; then
                 echo "server/rust-toolchain.toml pins Rust $pinned, but nixpkgs ships $(rustc --version). Set the channel to the version of nixpkgs."
@@ -312,8 +505,8 @@
 
             editorconfigCheckerVersion = pkgs.runCommand "check-editorconfig-checker-version" { } ''
               pinned=$(sed --quiet 's/.*EC_VERSION=v\([0-9.]*\) .*/\1/p' ${./client/package.json})
-              if [ "$pinned" != "${pkgs.editorconfig-checker.version}" ]; then
-                echo "npm run lint:editorconfig pins editorconfig-checker $pinned, but nixpkgs ships ${pkgs.editorconfig-checker.version}. Set EC_VERSION in client/package.json to the version of nixpkgs."
+              if [ "$pinned" != "${tools.editorconfig-checker.version}" ]; then
+                echo "npm run lint:editorconfig pins editorconfig-checker $pinned, but nixpkgs ships ${tools.editorconfig-checker.version}. Set EC_VERSION in client/package.json to the version of nixpkgs."
                 exit 1
               fi
               touch $out
@@ -330,15 +523,15 @@
                   ];
                 };
               in
-              pkgs.runCommand "check-client-licenses" { nativeBuildInputs = [ pkgs.nodejs_24 ]; } ''
+              pkgs.runCommand "check-client-licenses" { nativeBuildInputs = [ tools.nodejs_24 ]; } ''
                 node ${source}/client/scripts/check-licenses.mjs
                 touch $out
               '';
 
             cargoDenyVersion = pkgs.runCommand "check-cargo-deny-version" { } ''
               pinned=$(sed --quiet 's/.*cargo-deny@\([0-9.]*\).*/\1/p' ${./README.md})
-              if [ "$pinned" != "${pkgs.cargo-deny.version}" ]; then
-                echo "The README pins cargo-deny $pinned, but nixpkgs ships ${pkgs.cargo-deny.version}. Set the version in the README to the version of nixpkgs."
+              if [ "$pinned" != "${tools.cargo-deny.version}" ]; then
+                echo "The README pins cargo-deny $pinned, but nixpkgs ships ${tools.cargo-deny.version}. Set the version in the README to the version of nixpkgs."
                 exit 1
               fi
               touch $out
@@ -351,18 +544,94 @@
                   fileset = ./.github;
                 };
               in
-              pkgs.runCommand "check-workflows" { nativeBuildInputs = [ pkgs.zizmor ]; } ''
+              pkgs.runCommand "check-workflows" { nativeBuildInputs = [ tools.zizmor ]; } ''
                 zizmor --offline --no-progress ${source}/.github
                 touch $out
               '';
 
-            nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
+            cargoAboutVersion = pkgs.runCommand "check-cargo-about-version" { } ''
+              pinned=$(sed --quiet 's/.*cargo-about@\([0-9.]*\).*/\1/p' ${./README.md})
+              if [ "$pinned" != "${tools.cargo-about.version}" ]; then
+                echo "The README pins cargo-about $pinned, but nixpkgs ships ${tools.cargo-about.version}. Set the version in the README to the version of nixpkgs."
+                exit 1
+              fi
+              touch $out
+            '';
+
+            rustStandardLibraryNoticesVersion =
+              pkgs.runCommand "check-rust-standard-library-notices-version" { }
+                (
+                  if tools.rustc-prebuilt.version == tools.rustc.version then
+                    "touch $out"
+                  else
+                    ''
+                      echo "The notices of the Rust standard library come from the prebuilt rustc ${tools.rustc-prebuilt.version}, but the server is built with Rust ${tools.rustc.version}. Take COPYRIGHT-library.html of the release of Rust ${tools.rustc.version} instead."
+                      exit 1
+                    ''
+                );
+
+            crateNoticeLicenses =
+              let
+                allowed =
+                  file: key:
+                  pkgs.lib.sort pkgs.lib.lessThan (pkgs.lib.attrByPath key [ ] (fromTOML (builtins.readFile file)));
+              in
+              pkgs.runCommand "check-crate-notice-licenses" { } (
+                if
+                  allowed ./server/about.toml [ "accepted" ] == allowed ./server/deny.toml [
+                    "licenses"
+                    "allow"
+                  ]
+                then
+                  "touch $out"
+                else
+                  ''
+                    echo "accepted in server/about.toml differs from licenses.allow in server/deny.toml. Keep both lists equal."
+                    exit 1
+                  ''
+              );
+
+            toolLicenses =
+              let
+                allowed = (fromTOML (builtins.readFile ./server/deny.toml)).licenses.allow ++ nixpkgsOnlyLicenses;
+                packages = builtins.attrValues tools ++ map (entry: entry.package) builtForLinux.imagePackages;
+                problemsOf =
+                  package:
+                  let
+                    licenses = pkgs.lib.toList (package.meta.license or [ ]);
+                  in
+                  if licenses == [ ] then
+                    [ "${package.name} declares no license" ]
+                  else
+                    pkgs.lib.concatMap (
+                      license:
+                      if !(license ? spdxId) then
+                        [ "${package.name} declares ${license.shortName or "a license"} without an SPDX identifier" ]
+                      else if builtins.elem license.spdxId allowed then
+                        [ ]
+                      else
+                        [ "${package.name} is under ${license.spdxId}, which no allowed list names" ]
+                    ) licenses;
+                problems = pkgs.lib.concatMap problemsOf packages;
+              in
+              pkgs.runCommand "check-tool-licenses" { } (
+                if problems == [ ] then
+                  "touch $out"
+                else
+                  ''
+                    printf '%s\n' ${pkgs.lib.escapeShellArgs problems}
+                    echo "Every tool from nixpkgs needs a license from server/deny.toml or from nixpkgsOnlyLicenses in flake.nix."
+                    exit 1
+                  ''
+              );
+
+            nixFormatting = pkgs.runCommand "check-nix-formatting" { nativeBuildInputs = [ tools.nixfmt ]; } ''
               find ${self} -name '*.nix' -exec nixfmt --check {} +
               touch $out
             '';
 
             editorconfig =
-              pkgs.runCommand "check-editorconfig" { nativeBuildInputs = [ pkgs.editorconfig-checker ]; }
+              pkgs.runCommand "check-editorconfig" { nativeBuildInputs = [ tools.editorconfig-checker ]; }
                 ''
                   cd ${self}
                   editorconfig-checker
@@ -372,7 +641,9 @@
           buildChecks = {
             inherit (built) server;
           }
-          // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux { inherit (built) releaseLinkage; };
+          // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+            inherit (built) releaseLinkage imageClosure;
+          };
           testChecks = { inherit (built) serverUnitTests clientUnitTests; };
           integrationChecks = { inherit (built) serverIntegrationTests clientIntegrationTests contract; };
 
@@ -421,20 +692,26 @@
         }
       );
 
-      devShells = forAllSystems (pkgs: {
-        default = pkgs.mkShell {
-          packages = [
-            pkgs.cargo
-            pkgs.rustc
-            pkgs.clippy
-            pkgs.rustfmt
-            pkgs.rust-analyzer
-            pkgs.nodejs_24
-            pkgs.sccache
-          ];
+      devShells = forAllSystems (
+        pkgs:
+        let
+          tools = toolsOf pkgs;
+        in
+        {
+          default = pkgs.mkShell {
+            packages = [
+              tools.cargo
+              tools.rustc
+              tools.clippy
+              tools.rustfmt
+              tools.rust-analyzer
+              tools.nodejs_24
+              tools.sccache
+            ];
 
-          RUSTC_WRAPPER = "sccache";
-        };
-      });
+            RUSTC_WRAPPER = "sccache";
+          };
+        }
+      );
     };
 }

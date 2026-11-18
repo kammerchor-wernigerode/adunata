@@ -4,6 +4,7 @@ use axum::response::{IntoResponse, Response};
 use rust_embed::Embed;
 
 const INDEX: &str = "index.html";
+const PLAIN_TEXT: &str = "text/plain; charset=utf-8";
 
 #[derive(Embed)]
 #[folder = "../client/dist"]
@@ -23,7 +24,11 @@ async fn serve(uri: Uri) -> Response {
 fn asset(path: &str) -> Option<Response> {
     let path = if path.is_empty() { INDEX } else { path };
     let file = Assets::get(path)?;
-    let mime = file.metadata.mimetype().to_owned();
+    let mime = match file.metadata.mimetype() {
+        "text/plain" => PLAIN_TEXT,
+        other => other,
+    }
+    .to_owned();
     Some(([(header::CONTENT_TYPE, mime)], file.data).into_response())
 }
 
@@ -50,6 +55,14 @@ mod integration {
         let response = get("/").await;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()[header::CONTENT_TYPE], "text/html");
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert!(
+            String::from_utf8_lossy(&body)
+                .contains(r#"<link rel="license" href="/licenses.txt" />"#),
+            "the client must link its license notices"
+        );
     }
 
     #[tokio::test]
@@ -77,6 +90,31 @@ mod integration {
             assert!(text.contains("Copyright"), "{text}");
             assert!(text.contains("SIL OPEN FONT LICENSE Version 1.1"), "{text}");
         }
+    }
+
+    #[tokio::test]
+    async fn third_party_notices_are_served_as_utf8_text() {
+        let response = get("/licenses.txt").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()[header::CONTENT_TYPE], PLAIN_TEXT);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let text = String::from_utf8(body.to_vec()).unwrap();
+        assert!(text.contains("\nreact "), "react must be listed");
+        assert!(text.contains("\nshadcn "), "shadcn must be listed");
+        assert!(
+            text.contains("\ntailwindcss "),
+            "packages of the stylesheet must be listed"
+        );
+        assert!(
+            text.contains("\n@fontsource-variable/literata "),
+            "fonts must be listed"
+        );
+        assert!(
+            text.contains("Permission is hereby granted, free of charge"),
+            "the MIT text must be included"
+        );
     }
 
     #[tokio::test]

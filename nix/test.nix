@@ -1,12 +1,13 @@
 {
   pkgs,
+  toolsOf,
   module,
   release,
   image,
 }:
 let
   testAuthorityAndMailpitCertificate =
-    pkgs.runCommand "adunata-test-certificates" { nativeBuildInputs = [ pkgs.openssl ]; }
+    pkgs.runCommand "adunata-test-certificates" { nativeBuildInputs = [ (toolsOf pkgs).openssl ]; }
       ''
         mkdir $out
         openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 3650 \
@@ -23,7 +24,7 @@ let
     {
       systemd.services.mailpit = {
         wantedBy = [ "multi-user.target" ];
-        serviceConfig.ExecStart = "${pkgs.mailpit}/bin/mailpit --smtp 127.0.0.1:1465 --listen 127.0.0.1:8025 --smtp-tls-cert ${testAuthorityAndMailpitCertificate}/mailpit.crt --smtp-tls-key ${testAuthorityAndMailpitCertificate}/mailpit.key --smtp-require-tls";
+        serviceConfig.ExecStart = "${(toolsOf pkgs).mailpit}/bin/mailpit --smtp 127.0.0.1:1465 --listen 127.0.0.1:8025 --smtp-tls-cert ${testAuthorityAndMailpitCertificate}/mailpit.crt --smtp-tls-key ${testAuthorityAndMailpitCertificate}/mailpit.key --smtp-require-tls";
       };
     };
 
@@ -85,7 +86,6 @@ pkgs.testers.runNixOSTest {
           ];
           authentication = "host adunata adunata 127.0.0.1/32 trust";
         };
-        environment.systemPackages = [ pkgs.curl ];
       };
 
     container =
@@ -106,7 +106,6 @@ pkgs.testers.runNixOSTest {
           ];
           authentication = "host adunata adunata 127.0.0.1/32 trust";
         };
-        environment.systemPackages = [ pkgs.curl ];
       };
   };
 
@@ -118,6 +117,13 @@ pkgs.testers.runNixOSTest {
         assert health == {"status": "ready"}, health
         page = machine.succeed("curl --fail --silent http://127.0.0.1:8080/")
         assert "<title>Adunata</title>" in page, page
+
+    def assert_serves_notices(machine):
+        notices = machine.succeed("curl --fail --silent http://127.0.0.1:8080/licenses.txt")
+        assert "\n- axum " in notices, "the notices lack the crates"
+        assert "\nreact " in notices, "the notices lack the client"
+        rust = machine.succeed("curl --fail --silent http://127.0.0.1:8080/licenses-rust.html")
+        assert "hashbrown" in rust, "the notices lack the standard library"
 
     def request_sign_in(machine):
         machine.wait_for_open_port(1465)
@@ -137,6 +143,7 @@ pkgs.testers.runNixOSTest {
         nixos.wait_for_unit("adunata.service")
         nixos.wait_for_open_port(8080)
         assert_serves_adunata(nixos)
+        assert_serves_notices(nixos)
         applied = nixos.succeed("sudo -u postgres psql -d adunata -tAc 'SELECT count(*) FROM _sqlx_migrations WHERE success'")
         assert int(applied) >= 2, applied
         exposure = nixos.succeed("systemd-analyze security adunata.service | tail -1")
@@ -160,6 +167,11 @@ pkgs.testers.runNixOSTest {
         )
         binary.wait_for_open_port(8080)
         assert_serves_adunata(binary)
+        assert_serves_notices(binary)
+        binary.succeed(
+            "curl --fail --silent http://127.0.0.1:8080/licenses.txt | cmp - ${release}/licenses.txt",
+            "curl --fail --silent http://127.0.0.1:8080/licenses-rust.html | cmp - ${release}/licenses-rust.html",
+        )
 
     with subtest("Mail over TLS from the release binary, trusted through the host's store"):
         request_sign_in(binary)
@@ -185,6 +197,7 @@ pkgs.testers.runNixOSTest {
         container.succeed("podman run --detach --name untrusting" + container_settings + " adunata:latest")
         container.wait_for_open_port(8080)
         assert_serves_adunata(container)
+        assert_serves_notices(container)
 
     with subtest("Image ships a bundle of certificate authorities"):
         bundle = container.succeed(
@@ -194,6 +207,10 @@ pkgs.testers.runNixOSTest {
         assert bundle, "the image sets no SSL_CERT_FILE"
         root = container.succeed("podman image mount adunata:latest").strip()
         container.succeed(f"test -s {root}{bundle}")
+
+    with subtest("Image ships the notices of its system packages"):
+        licenses = f"{root}/share/licenses"
+        container.succeed(f"test -s {licenses}/licenses.txt", f"test -s {licenses}/glibc/SOURCE", f"test -s {licenses}/glibc/LGPL-2.1.txt")
 
     with subtest("Image rejects a mail server outside its bundle"):
         request_sign_in(container)
