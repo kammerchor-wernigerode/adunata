@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { formatWallClock, wallClock } from '@/l10n/dates'
 import { useLocale, useTranslate, type Translate } from '@/l10n/translate'
+import { orFallback } from '@/lib/succeeded'
 
 const formFields = ['status', 'arrival', 'departure', 'beds', 'bedCount', 'comment']
 const statuses: Status[] = ['accepted', 'tentative', 'declined']
@@ -27,14 +28,6 @@ function moment(value: string | null | undefined): Moment {
 
 function combined({ day, time }: Moment): string | null {
   return day && time ? `${day}T${time}` : null
-}
-
-async function failedOnError(save: () => Promise<SaveResult>): Promise<SaveResult> {
-  try {
-    return await save()
-  } catch {
-    return { status: 'failed' }
-  }
 }
 
 function message(translate: Translate, error: ServerFieldError): string {
@@ -110,16 +103,15 @@ export function ResponseForm({
     const found = incomplete()
     if (Object.keys(found).length === 0) {
       setBusy(true)
-      const result = await failedOnError(() =>
-        onSave({
-          status,
-          arrival: coming ? combined(arrival) : null,
-          departure: coming ? combined(departure) : null,
-          beds: coming && beds !== '' ? beds : null,
-          bedCount: coming && (beds === 'need' || beds === 'offer') ? Number(bedCount) : null,
-          comment: comment.trim() === '' ? null : comment,
-        }),
-      )
+      const values: ResponseValues = {
+        status,
+        arrival: coming ? combined(arrival) : null,
+        departure: coming ? combined(departure) : null,
+        beds: coming && beds !== '' ? beds : null,
+        bedCount: coming && (beds === 'need' || beds === 'offer') ? Number(bedCount) : null,
+        comment: comment.trim() === '' ? null : comment,
+      }
+      const result = await orFallback(() => onSave(values), { status: 'failed' })
       setBusy(false)
       if (result.status === 'saved') {
         setErrors({})

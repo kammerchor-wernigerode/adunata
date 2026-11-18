@@ -8,7 +8,9 @@ export type RouterContext = { queryClient: QueryClient }
 
 export function createAppRouter(queryClient: QueryClient, history?: RouterHistory) {
   const router = createRouter({ routeTree, history, context: { queryClient }, defaultErrorComponent: RouteError })
-  onExpiredSession(queryClient, () => void router.navigate({ to: '/sign-in' }))
+  onExpiredSession(queryClient, () => {
+    if (router.state.location.pathname !== '/sign-in') void router.navigate({ to: '/sign-in' })
+  })
   return router
 }
 

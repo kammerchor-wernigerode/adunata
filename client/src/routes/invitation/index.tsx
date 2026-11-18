@@ -5,6 +5,7 @@ import { PageTitle } from '@/components/PageTitle'
 import { ResponseForm, type SaveResult } from '@/components/ResponseForm'
 import { formatDay } from '@/l10n/dates'
 import { useLocale, useTranslate } from '@/l10n/translate'
+import { dataOf } from '@/lib/dataOf'
 import { Attendees } from './-components/Attendees'
 import { DayStrip } from './-components/DayStrip'
 import { authorization, invitationQueryKey, useInvitationPage, usePersonalLinkSecret } from './-personalLink'
@@ -27,8 +28,10 @@ function ResponsePage() {
       </>
     )
   }
-  if (page.data?.status !== 200) return null
-  const { gathering, state, firstName, response, attendees } = page.data.data
+  if (page.isError) throw page.error
+  const data = dataOf(page.data)
+  if (!data) return null
+  const { gathering, state, firstName, response, attendees } = data
 
   return (
     <>

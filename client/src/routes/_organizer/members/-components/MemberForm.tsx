@@ -10,6 +10,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/c
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { useTranslate } from '@/l10n/translate'
+import { finished } from '@/lib/succeeded'
 import { DeleteMember } from './DeleteMember'
 import { memberErrorMessage } from './memberErrorMessage'
 
@@ -42,6 +43,10 @@ export function MemberForm({ member }: { member?: Member }) {
     if (first) form.setFocus(first)
   }
 
+  async function saveOrRefuse(values: MemberChange) {
+    if (!(await finished(() => save(values)))) setRefusal(translate('error-unexpected'))
+  }
+
   async function save(values: MemberChange) {
     setRefusal('')
     const result = member ? await changeMember(member.id, values) : await addMember(values)
@@ -58,7 +63,7 @@ export function MemberForm({ member }: { member?: Member }) {
     }
   }
 
-  function checkbox(name: 'active' | 'organizer', description: ComponentProps<typeof Checkbox>) {
+  function checkbox(name: 'active' | 'organizer', description: Pick<ComponentProps<typeof Checkbox>, 'aria-invalid' | 'aria-describedby'>) {
     return (
       <Controller
         control={form.control}
@@ -82,7 +87,7 @@ export function MemberForm({ member }: { member?: Member }) {
   }
 
   return (
-    <form noValidate onSubmit={form.handleSubmit(save)} className="max-w-xl">
+    <form noValidate onSubmit={form.handleSubmit(saveOrRefuse)} className="max-w-xl">
       <FieldGroup>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field data-invalid={errors.firstName ? true : undefined}>

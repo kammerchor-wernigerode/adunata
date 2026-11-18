@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useTranslate } from '@/l10n/translate'
+import { dataOf } from '@/lib/dataOf'
 
 export const Route = createFileRoute('/_organizer/members/')({
   loader: ({ context: { queryClient } }) => queryClient.query(getListMembersQueryOptions()),
@@ -31,7 +32,8 @@ function MemberListPage() {
   const [filter, setFilter] = useState<Filter>('all')
   const members = useListMembers()
 
-  const shown = members.data?.status === 200 ? members.data.data.filter((member) => matches(member, search, filter)) : []
+  const list = dataOf(members.data)
+  const shown = list?.filter((member) => matches(member, search, filter)) ?? []
 
   return (
     <>
@@ -59,9 +61,9 @@ function MemberListPage() {
         ))}
       </ToggleGroup>
       <p role="status" className="mb-2 text-sm text-muted-foreground">
-        {members.data ? translate('members-count', { count: shown.length }) : ''}
+        {list ? translate('members-count', { count: shown.length }) : ''}
       </p>
-      {members.data && shown.length === 0 ? (
+      {list && shown.length === 0 ? (
         <p>{translate('members-empty')}</p>
       ) : (
         <Table className="overflow-hidden rounded-lg border border-border">

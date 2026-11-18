@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, screen, within } from '@testing-library/react'
+import { cleanup, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
@@ -82,6 +82,17 @@ function names(): string[] {
 }
 
 describe('overview', () => {
+  it('recovers from a failed overview once the server answers again', async () => {
+    let failing = true
+    organizerPage()
+    server.use(http.get('*/api/gatherings/5/overview', () => (failing ? new HttpResponse(null, { status: 500 }) : HttpResponse.json(overview))))
+    const retry = await screen.findByRole('button', { name: 'Try again' })
+    failing = false
+    await userEvent.click(retry)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Rehearsal weekend' })).toBeTruthy()
+    expect(await screen.findByText('Sophie Graf')).toBeTruthy()
+  })
+
   it('plans beds with the totals and the balance', async () => {
     const { container } = organizerPage()
     const offered = (await screen.findByText('Beds offered')).parentElement!
@@ -124,6 +135,17 @@ describe('overview', () => {
     expect(within(sophie).getByText(/mail failed/)).toBeTruthy()
     await userEvent.click(within(sophie).getByRole('button', { name: 'Resend: Sophie Graf' }))
     expect(resent).toBe(true)
+    await waitFor(() => expect(within(sophie).queryByRole('button', { name: 'Resend: Sophie Graf' })).toBeNull())
+    expect(within(sophie).getByRole('alert').textContent).toBe('')
+  })
+
+  it('keeps the resend action and names the failure when the server refuses it', async () => {
+    server.use(http.post('*/api/invitations/5/resend', () => HttpResponse.json({ errors: [] }, { status: 422 })))
+    organizerPage()
+    const sophie = (await screen.findByText('Sophie Graf')).closest('tr')!
+    await userEvent.click(within(sophie).getByRole('button', { name: 'Resend: Sophie Graf' }))
+    await waitFor(() => expect(within(sophie).getByRole('alert').textContent).toBe('Something went wrong. Try again.'))
+    expect(within(sophie).getByRole('button', { name: 'Resend: Sophie Graf' })).toBeTruthy()
   })
 
   it('names every column of a member in the cell, so the narrow layout keeps them all', async () => {

@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link, Navigate, redirect } from '@tanstack/react-router'
 import { useState } from 'react'
 import {
   answerForMember,
@@ -15,12 +15,14 @@ import { ResponseForm, type SaveResult } from '@/components/ResponseForm'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { useTranslate } from '@/l10n/translate'
+import { useSubmission } from '@/hooks/useSubmission'
+import { dataOf } from '@/lib/dataOf'
 
 export const Route = createFileRoute('/_organizer/gatherings/$gatheringId/invitations/$invitationId/')({
   loader: async ({ context: { queryClient }, params: { gatheringId, invitationId } }) => {
     const overview = await queryClient.query(getOverviewQueryOptions(Number(gatheringId)))
-    const unknown = overview.status === 200 && !overview.data.rows.some((row) => String(row.invitationId) === invitationId)
-    if (unknown) throw redirect({ to: '/gatherings/$gatheringId', params: { gatheringId } })
+    const rows = dataOf(overview)?.rows
+    if (rows && !rows.some((row) => String(row.invitationId) === invitationId)) throw redirect({ to: '/gatherings/$gatheringId', params: { gatheringId } })
   },
   component: InvitationPage,
 })
@@ -33,19 +35,32 @@ function InvitationPage() {
   const gathering = useGetGathering(Number(gatheringId))
   const overview = useOverview(Number(gatheringId))
   const [notice, setNotice] = useState('')
-  if (gathering.data?.status !== 200 || overview.data?.status !== 200) return null
-  const row = overview.data.data.rows.find((candidate) => String(candidate.invitationId) === invitationId)
-  if (!row) return null
-  const { firstDay, lastDay, cancelled, ended } = gathering.data.data
+  const { pending, failed, submit } = useSubmission()
+  const gatheringData = dataOf(gathering.data)
+  const overviewData = dataOf(overview.data)
+  if (!gatheringData || !overviewData) return null
+  const row = overviewData.rows.find((candidate) => String(candidate.invitationId) === invitationId)
+  if (!row) return <Navigate to="/gatherings/$gatheringId" params={{ gatheringId }} />
+  const { firstDay, lastDay, cancelled, ended } = gatheringData
   const name = `${row.firstName} ${row.lastName}`
   const refresh = () => queryClient.invalidateQueries({ queryKey: getOverviewQueryKey(Number(gatheringId)) })
+
+  function act(action: () => Promise<boolean>, success: string) {
+    setNotice('')
+    return submit(async () => {
+      if (!(await action())) return false
+      await refresh()
+      setNotice(success)
+      return true
+    })
+  }
 
   return (
     <>
       <PageTitle title={translate('invitation-page-title', { name })} />
       <p className="-mt-2 mb-4">
         <Link to="/gatherings/$gatheringId" params={{ gatheringId }} className="underline underline-offset-4">
-          {gathering.data.data.title}
+          {gatheringData.title}
         </Link>
       </p>
       <p className="mb-6 flex flex-wrap items-center gap-2">
@@ -86,22 +101,20 @@ function InvitationPage() {
           <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
-              onClick={async () => {
-                await resend(row.invitationId)
-                await refresh()
-                setNotice(translate('invitation-resent', { name: row.firstName }))
-              }}
+              disabled={pending}
+              onClick={() =>
+                act(async () => (await resend(row.invitationId)).status === 204, translate('invitation-resent', { name: row.firstName }))
+              }
             >
               {translate('invitation-resend')}
             </Button>
             {row.linkActive && (
               <Button
                 variant="outline"
-                onClick={async () => {
-                  await revoke(row.invitationId)
-                  await refresh()
-                  setNotice(translate('invitation-revoked', { name: row.firstName }))
-                }}
+                disabled={pending}
+                onClick={() =>
+                  act(async () => (await revoke(row.invitationId)).status === 204, translate('invitation-revoked', { name: row.firstName }))
+                }
               >
                 {translate('invitation-revoke')}
               </Button>
@@ -109,6 +122,9 @@ function InvitationPage() {
           </div>
           <p role="status" className="mt-3 text-sm">
             {notice}
+          </p>
+          <p role="alert" className="text-sm">
+            {failed ? translate('error-unexpected') : ''}
           </p>
         </section>
       )}

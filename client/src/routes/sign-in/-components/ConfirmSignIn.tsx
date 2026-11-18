@@ -1,11 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import { signIn } from '@/api/generated/api'
+import { getCurrentSessionQueryKey, signIn } from '@/api/generated/api'
 import { PageTitle } from '@/components/PageTitle'
 import { Button } from '@/components/ui/button'
+import { useSubmission } from '@/hooks/useSubmission'
 import { useTranslate } from '@/l10n/translate'
-import { isUnauthorized } from '@/lib/expiredSession'
 
 export function ConfirmSignIn({ secret, onRequestNew }: { secret: string; onRequestNew: () => void }) {
   const translate = useTranslate()
@@ -13,15 +13,22 @@ export function ConfirmSignIn({ secret, onRequestNew }: { secret: string; onRequ
   const queryClient = useQueryClient()
   const [invalid, setInvalid] = useState(false)
 
-  async function confirm() {
-    const result = await signIn({ headers: { Authorization: `Bearer ${secret}` } })
-    if (result.status !== 201) {
-      setInvalid(true)
-      return
-    }
-    window.history.replaceState(null, '', window.location.pathname)
-    await queryClient.resetQueries({ predicate: (query) => isUnauthorized(query.state.data) })
-    await navigate({ to: '/gatherings' })
+  const { pending, failed, submit } = useSubmission()
+
+  function confirm() {
+    return submit(async () => {
+      const result: { status: number } = await signIn({ headers: { Authorization: `Bearer ${secret}` } })
+      if (result.status === 401) {
+        setInvalid(true)
+        return true
+      }
+      if (result.status !== 201) return false
+      window.history.replaceState(null, '', window.location.pathname)
+      queryClient.removeQueries({ type: 'inactive' })
+      await queryClient.resetQueries({ queryKey: getCurrentSessionQueryKey() })
+      await navigate({ to: '/gatherings' })
+      return true
+    })
   }
 
   function requestNew() {
@@ -41,7 +48,10 @@ export function ConfirmSignIn({ secret, onRequestNew }: { secret: string; onRequ
         ) : (
           <>
             <p>{translate('sign-in-confirm-text')}</p>
-            <Button onClick={confirm}>{translate('sign-in-confirm')}</Button>
+            <Button disabled={pending} onClick={confirm}>
+              {translate('sign-in-confirm')}
+            </Button>
+            <p role="alert">{failed ? translate('error-unexpected') : ''}</p>
           </>
         )}
       </div>

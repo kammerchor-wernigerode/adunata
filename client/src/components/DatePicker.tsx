@@ -57,11 +57,12 @@ export function DatePicker({
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="single"
+          required
           locale={locale === 'de' ? de : enUS}
           weekStartsOn={1}
           defaultMonth={selected ?? first}
           selected={selected}
-          onSelect={(day) => onChange(day ? format(day, 'yyyy-MM-dd') : '')}
+          onSelect={(day) => onChange(format(day, 'yyyy-MM-dd'))}
           disabled={first && last ? { before: first, after: last } : undefined}
           labels={{ labelGrid: () => gridLabel, labelNav: () => navigationLabel }}
         />

@@ -82,6 +82,19 @@ describe('invitation actions', () => {
     await waitFor(() => expect(body).toEqual({ memberIds: [2] }))
   })
 
+  it('sends an organizer whose session ended to the sign-in page when an action fails', async () => {
+    let expired = false
+    server.use(http.post('*/api/gatherings/5/cancellation', () => {
+      expired = true
+      return new HttpResponse(null, { status: 401 })
+    }))
+    const { router } = organizerPage()
+    server.use(http.get('*/api/session', () => (expired ? new HttpResponse(null, { status: 401 }) : HttpResponse.json(ada))))
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel gathering' }))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Cancel gathering' })[0]!)
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sign-in'))
+  })
+
   it('asks before it cancels the gathering', async () => {
     let cancelled = false
     server.use(

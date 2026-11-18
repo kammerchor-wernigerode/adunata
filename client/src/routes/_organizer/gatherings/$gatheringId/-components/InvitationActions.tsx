@@ -9,6 +9,7 @@ import {
 } from '@/api/generated/api'
 import type { Gathering } from '@/api/generated/model'
 import { useTranslate } from '@/l10n/translate'
+import { dataOf } from '@/lib/dataOf'
 import { CancelGathering } from './CancelGathering'
 import { InviteMembers } from './InviteMembers'
 
@@ -19,7 +20,7 @@ export function InvitationActions({ gathering }: { gathering: Gathering }) {
   const invitations = useListInvitations(gathering.id)
   const [notice, setNotice] = useState('')
   const open = !gathering.cancelled && !gathering.ended
-  const list = invitations.data?.status === 200 ? invitations.data.data : []
+  const list = dataOf(invitations.data)
 
   async function refresh(message: string) {
     await queryClient.invalidateQueries({ queryKey: getListInvitationsQueryKey(gathering.id) })
@@ -32,7 +33,7 @@ export function InvitationActions({ gathering }: { gathering: Gathering }) {
       <h2 id="invitations-heading" className="mb-3 font-heading text-lg font-semibold">
         {translate('invitations-title')}
       </h2>
-      {open && <InviteMembers gathering={gathering} invited={list} onInvited={refresh} />}
+      {open && list && <InviteMembers gathering={gathering} invited={list} onInvited={refresh} />}
       <p role="status" className="my-3 text-sm">
         {notice}
       </p>

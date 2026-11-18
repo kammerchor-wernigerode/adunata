@@ -3,6 +3,7 @@ import { getListGatheringsQueryOptions, useListGatherings } from '@/api/generate
 import { PageTitle } from '@/components/PageTitle'
 import { Button } from '@/components/ui/button'
 import { useTranslate } from '@/l10n/translate'
+import { dataOf } from '@/lib/dataOf'
 import { GatheringSection } from './-components/GatheringSection'
 
 export const Route = createFileRoute('/_organizer/gatherings/')({
@@ -13,7 +14,7 @@ export const Route = createFileRoute('/_organizer/gatherings/')({
 function GatheringListPage() {
   const translate = useTranslate()
   const gatherings = useListGatherings()
-  const list = gatherings.data?.status === 200 ? gatherings.data.data : null
+  const list = dataOf(gatherings.data)
 
   return (
     <>

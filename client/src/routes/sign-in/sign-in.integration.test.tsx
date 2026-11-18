@@ -158,6 +158,6 @@ describe('sign-in page', () => {
     window.location.hash = 'new'
     window.dispatchEvent(new HashChangeEvent('hashchange'))
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy()
-    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toBe('')
   })
 })

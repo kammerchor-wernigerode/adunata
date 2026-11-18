@@ -15,6 +15,7 @@ import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useTranslate, type Translate } from '@/l10n/translate'
+import { finished } from '@/lib/succeeded'
 
 const fields = ['title', 'location', 'description', 'firstDay', 'lastDay'] as const
 
@@ -52,6 +53,10 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
       : { title: '', location: '', description: '', firstDay: '', lastDay: '' },
   })
   const { errors, isSubmitting } = form.formState
+
+  async function saveOrRefuse(values: GatheringInput) {
+    if (!(await finished(() => save(values)))) setRefusal(translate('error-unexpected'))
+  }
 
   async function save(values: GatheringInput) {
     setRefusal('')
@@ -120,7 +125,7 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
   }
 
   return (
-    <form noValidate onSubmit={form.handleSubmit(save)} className="max-w-xl">
+    <form noValidate onSubmit={form.handleSubmit(saveOrRefuse)} className="max-w-xl">
       <FieldGroup>
         {field('title', translate('gathering-title'), <Input autoComplete="off" {...control('title')} />)}
         {field('location', translate('gathering-location'), <Input autoComplete="off" {...control('location')} />)}

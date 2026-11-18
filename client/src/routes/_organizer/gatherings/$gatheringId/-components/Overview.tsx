@@ -4,6 +4,7 @@ import { useOverview } from '@/api/generated/api'
 import type { Gathering, InvitationStatus } from '@/api/generated/model'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useTranslate, type Translate } from '@/l10n/translate'
+import { dataOf } from '@/lib/dataOf'
 import { OverviewTable } from './OverviewTable'
 
 type Filter = 'all' | InvitationStatus
@@ -26,8 +27,9 @@ export function Overview({ gathering }: { gathering: Gathering }) {
   const translate = useTranslate()
   const overview = useOverview(gathering.id)
   const [filter, setFilter] = useState<Filter>('all')
-  if (overview.data?.status !== 200) return null
-  const { rows, totals } = overview.data.data
+  const data = dataOf(overview.data)
+  if (!data) return null
+  const { rows, totals } = data
   const shown = filter === 'all' ? rows : rows.filter((row) => row.status === filter)
 
   return (

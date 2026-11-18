@@ -4,6 +4,7 @@ import { PageTitle } from '@/components/PageTitle'
 import { Button } from '@/components/ui/button'
 import { formatSpan } from '@/l10n/dates'
 import { useLocale, useTranslate } from '@/l10n/translate'
+import { dataOf } from '@/lib/dataOf'
 import { InvitationActions } from './-components/InvitationActions'
 import { Overview } from './-components/Overview'
 
@@ -15,8 +16,9 @@ function GatheringPage() {
   const { locale } = useLocale()
   const { gatheringId } = Route.useParams()
   const gathering = useGetGathering(Number(gatheringId))
-  if (gathering.data?.status !== 200) return null
-  const { title, firstDay, lastDay, location, description, cancelled, ended } = gathering.data.data
+  const data = dataOf(gathering.data)
+  if (!data) return null
+  const { title, firstDay, lastDay, location, description, cancelled, ended } = data
 
   return (
     <>
@@ -37,8 +39,8 @@ function GatheringPage() {
           </Button>
         )}
       </div>
-      <Overview gathering={gathering.data.data} />
-      <InvitationActions gathering={gathering.data.data} />
+      <Overview gathering={data} />
+      <InvitationActions gathering={data} />
     </>
   )
 }

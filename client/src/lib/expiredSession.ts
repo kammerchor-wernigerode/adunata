@@ -1,17 +1,21 @@
 import { hashKey, type QueryClient } from '@tanstack/react-query'
 import { getCurrentSessionQueryKey } from '@/api/generated/api'
+import { statusOf } from '@/lib/dataOf'
 
-/** Whether a response of the API says that the session is missing or has ended. */
-export function isUnauthorized(response: unknown): boolean {
-  return typeof response === 'object' && response !== null && 'status' in response && response.status === 401
-}
-
-/** Calls `signIn` whenever a query other than the session itself answers 401, such as a refetch after the session ended while a page was open. */
+/** Calls `signIn` whenever the session ends while the client is open. A query other than the session that answers 401 shows it, and so does the session itself once it turns from 200 to 401. */
 export function onExpiredSession(queryClient: QueryClient, signIn: () => void) {
   const sessionHash = hashKey(getCurrentSessionQueryKey())
+  let signedIn = false
   queryClient.getQueryCache().subscribe((event) => {
     if (event.type !== 'updated' || event.action.type !== 'success') return
-    if (event.query.queryHash === sessionHash || !isUnauthorized(event.action.data)) return
+    const status = statusOf(event.action.data)
+    if (event.query.queryHash === sessionHash) {
+      const ended = signedIn && status === 401
+      signedIn = status === 200
+      if (ended) signIn()
+      return
+    }
+    if (status !== 401) return
     void queryClient.invalidateQueries({ queryKey: getCurrentSessionQueryKey() })
     signIn()
   })

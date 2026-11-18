@@ -72,6 +72,13 @@ describe('member list', () => {
     expect(names()).toEqual(['Lovelace, Ada', 'Schumann, Clara'])
   })
 
+  it('names a failed load of the list instead of showing an empty list', async () => {
+    server.use(getLegalLinksMockHandler({}), getCurrentSessionMockHandler(ada), http.get('*/api/members', () => new HttpResponse(null, { status: 500 })))
+    renderApp('/members')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Page unavailable' })).toBeTruthy()
+    expect(screen.queryByText('No member matches.')).toBeNull()
+  })
+
   it('names the organizer pages in the navigation and marks the current one', async () => {
     signedIn()
     renderApp('/members')

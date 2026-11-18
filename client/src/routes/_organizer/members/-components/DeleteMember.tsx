@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { deleteMember } from '@/api/generated/api'
 import type { Member } from '@/api/generated/model'
 import { Button } from '@/components/ui/button'
+import { useSubmission } from '@/hooks/useSubmission'
 import { useTranslate } from '@/l10n/translate'
 import { memberErrorMessage } from './memberErrorMessage'
 
@@ -21,12 +22,20 @@ export function DeleteMember({
     if (asking) document.getElementById('delete-member-question')?.focus()
   }, [asking])
 
-  async function remove() {
-    const result = await deleteMember(member.id)
-    if (result.status === 204) return onDeleted()
-    setAsking(false)
-    const [reason] = result.status === 422 ? result.data.errors : []
-    onRefused(reason ? memberErrorMessage(translate, reason) : translate('error-unexpected'))
+  const { pending, failed, submit } = useSubmission()
+
+  function remove() {
+    return submit(async () => {
+      const result = await deleteMember(member.id)
+      if (result.status === 204) {
+        await onDeleted()
+        return true
+      }
+      setAsking(false)
+      const [reason] = result.status === 422 ? result.data.errors : []
+      onRefused(reason ? memberErrorMessage(translate, reason) : translate('error-unexpected'))
+      return true
+    })
   }
 
   return (
@@ -37,13 +46,14 @@ export function DeleteMember({
             {translate('member-delete-confirm', { name })}
           </p>
           <div className="flex flex-wrap gap-3">
-            <Button type="button" variant="destructive" onClick={remove}>
+            <Button type="button" variant="destructive" disabled={pending} onClick={remove}>
               {translate('member-delete-yes')}
             </Button>
             <Button type="button" variant="outline" onClick={() => setAsking(false)}>
               {translate('member-cancel')}
             </Button>
           </div>
+          <p role="alert">{failed ? translate('error-unexpected') : ''}</p>
         </div>
       ) : (
         <Button type="button" variant="outline" onClick={() => setAsking(true)}>
