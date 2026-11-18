@@ -99,11 +99,13 @@
             src = pkgs.lib.fileset.toSource {
               root = ./server;
               fileset = pkgs.lib.fileset.unions [
-                cargoSources
+                ./server/Cargo.toml
+                ./server/Cargo.lock
                 ./server/about.toml
                 ./server/about.hbs
               ];
             };
+            postPatch = "mkdir src && touch src/main.rs";
             pnameSuffix = "-crate-notices";
             cargoArtifacts = null;
             doInstallCargoArtifacts = false;
