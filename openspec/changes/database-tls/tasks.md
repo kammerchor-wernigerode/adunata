@@ -2,7 +2,7 @@
 
 ## 1. TLS and the check of the URL
 
-- [ ] 1.1 Add the sqlx feature `tls-rustls-ring-native-roots` in `server/Cargo.toml` and update `server/Cargo.lock`. Verify that `cargo tree -i webpki-roots` finds nothing, that `cargo deny check licenses` passes and that the notices still build. The commit says that the feature adds no crate.
+- [x] 1.1 Add the sqlx feature `tls-rustls-ring-native-roots` in `server/Cargo.toml` and update `server/Cargo.lock`. Verify that `cargo tree -i webpki-roots` finds nothing, that `cargo deny check licenses` passes and that the notices still build. The commit says that the feature adds no crate.
 - [ ] 1.2 Add the check of design.md decision 2 to `server/src/configuration.rs`, with `url` as a direct dependency. Verify with the unit tests of design.md decision 3. The commit says what `url` does and why the check needs it, and names its license.
 - [ ] 1.3 Extend `nix/test.nix` as design.md decision 3 lists. Verify by running `nixosVmTest` with its output in a log file.
 
