@@ -18,6 +18,7 @@ Environment=ADNT_DATABASE_PASSWORD_FILE=%d/database-password
 Environment=ADNT_SMTP_PASSWORD_FILE=%d/smtp-password
 Restart=on-failure
 RestartSec=5
+RestartPreventExitStatus=65 78
 DynamicUser=yes
 UMask=0077
 NoNewPrivileges=yes

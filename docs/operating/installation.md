@@ -43,6 +43,15 @@ By default the module creates a local PostgreSQL database named `adunata` and co
 
 The service runs as a dynamic user with a hardened sandbox. `systemctl status adunata` shows its state and `journalctl -u adunata` its logs.
 
+systemd restarts the service five seconds after a failure, but not after status 65 or 78, see [Commands](#commands). The module sets this policy, so override it with `lib.mkForce`. For example, add this module to `modules` to restart after 65 too:
+
+```nix
+{ lib, ... }:
+{
+  systemd.services.adunata.serviceConfig.RestartPreventExitStatus = lib.mkForce "78";
+}
+```
+
 ## Container
 
 Each release publishes an image to `ghcr.io/kammerchor-wernigerode/adunata`. The image listens on port 8080 and runs as an unprivileged user. It sets `ADNT_HTTP_LISTEN_ADDRESS` to `0.0.0.0:8080`, which wins over `listen-address` in a configuration file, so change the port with that variable. A Compose file with PostgreSQL could look like this:
@@ -51,6 +60,7 @@ Each release publishes an image to `ghcr.io/kammerchor-wernigerode/adunata`. The
 services:
   adunata:
     image: ghcr.io/kammerchor-wernigerode/adunata:latest
+    restart: on-failure
     ports:
       - "127.0.0.1:8080:8080"
     networks:
@@ -98,6 +108,8 @@ volumes:
 
 The reverse proxy on the host reaches Adunata through the published port. Docker forwards these connections from the gateway of the network `adunata`, so `ADNT_HTTP_TRUSTED_PROXIES` names that gateway. A proxy that runs as a container in the same network needs its own address there instead.
 
+With `restart: on-failure` Docker restarts the container after every failure, also after status 65 or 78, because it cannot leave out single statuses. Read the log if the container keeps restarting.
+
 The image carries the license notices in `/share/licenses`. Next to the notices of the binary it holds, for each system package in the image such as glibc and the CA bundle, the license texts and the source the package was built from. The image has no shell, so copy the directory out of it:
 
 ```sh
@@ -124,6 +136,14 @@ Edit `/etc/adunata/adunata.env` and write the two passwords into their files. Le
 ```sh
 systemctl daemon-reload
 systemctl enable --now adunata
+```
+
+The example unit restarts the service five seconds after a failure, but not after status 65 or 78, see [Commands](#commands). To change that policy, run `systemctl edit adunata`, clear the list with an empty assignment and set another one, for example to restart after 65 too:
+
+```ini
+[Service]
+RestartPreventExitStatus=
+RestartPreventExitStatus=78
 ```
 
 ## First organizer
