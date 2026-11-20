@@ -31,7 +31,7 @@ Architecturally significant, because operators run the command. Drafted below as
 
 ### 2. No healthcheck in the image
 
-The image config declares no `Healthcheck`. The operating guide shows `healthcheck:` in Compose with `adunata healthcheck` and `--health-cmd` for Podman, and it says that a container started with `--config` needs `ADNT_CONFIG_FILE` instead, because a healthcheck runs without the arguments of the command. It names that a start period covers migrations at start and that some tools act on an unhealthy container.
+The image config declares no `Healthcheck`. The operating guide shows `healthcheck:` in Compose with `test: ["CMD", "adunata", "healthcheck"]` and `--health-cmd '["adunata","healthcheck"]'` for Podman. Both use the exec form, because the image has no shell and a command given as a string runs through `/bin/sh -c`. The guide and it says that a container started with `--config` needs `ADNT_CONFIG_FILE` instead, because a healthcheck runs without the arguments of the command. It names that a start period covers migrations at start and that some tools act on an unhealthy container.
 
 A healthcheck in the image would impose an interval, a start period and their effect on tools such as Traefik and Docker Swarm, which only the operator can judge.
 
@@ -42,7 +42,7 @@ Architecturally significant, because operators wire the healthcheck themselves. 
 - Unit tests cover the mapping of `0.0.0.0` and `::` to loopback.
 - Integration tests in `server/src/health.rs` serve the router on `127.0.0.1:0` and call the function: 200 against a fresh database, 503 against an unreachable pool, and a listener that accepts and never answers with a short deadline. A port chosen by the system keeps parallel worktrees apart.
 - Process tests in `server/tests/startup.rs` run `healthcheck` against `127.0.0.1:1` and with a required setting missing, and expect status 1 both times.
-- The NixOS VM test runs the container with Podman and `--health-cmd 'adunata healthcheck'`, checks that `podman healthcheck run` succeeds and that it fails after PostgreSQL stops.
+- The NixOS VM test runs the container with Podman and `--health-cmd '["adunata","healthcheck"]'`, checks that `podman healthcheck run` succeeds and that it fails after PostgreSQL stops.
 - The image start in `e2e` waits until `docker exec` of `adunata healthcheck` in the container exits with 0, on both architectures.
 
 Not architecturally significant, because tests are tooling.
