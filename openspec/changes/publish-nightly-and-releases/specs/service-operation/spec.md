@@ -27,16 +27,23 @@ Adunata SHALL be installable as a NixOS module, as an OCI image and as a release
 
 ## ADDED Requirements
 
+### Requirement: Image per commit
+Every push to `main` that builds Adunata and passes all checks SHALL publish the OCI image for `linux/amd64` and `linux/arm64` as an index under the tag `sha-<commit>`, with the commit as the annotation `org.opencontainers.image.revision`. A push that changes only planning artifacts under `openspec/` builds nothing and SHALL get no index. Anyone SHALL be able to pull the index without credentials.
+
+#### Scenario: Pull a specific commit
+- **WHEN** an operator pulls `sha-<commit>` for a commit on `main` whose checks passed
+- **THEN** the container runtime receives the image built from that commit for the architecture of the host
+
+#### Scenario: Planning-only commit
+- **WHEN** a commit that changes only files under `openspec/` lands on `main`
+- **THEN** no index `sha-<commit>` exists for it
+
 ### Requirement: Nightly image
-Every push to `main` that passes all checks SHALL publish the OCI image for `linux/amd64` and `linux/arm64` as an index under the tag `sha-<commit>`. The tag `nightly` SHALL point to the index of the newest commit on `main` whose checks passed. Each index SHALL carry the commit as the annotation `org.opencontainers.image.revision`. Anyone SHALL be able to pull it without credentials.
+The tag `nightly` SHALL point to the index of the newest commit on `main` that has an index `sha-<commit>`.
 
 #### Scenario: Pull nightly
 - **WHEN** an operator pulls `ghcr.io/kammerchor-wernigerode/adunata:nightly` on a `linux/arm64` or `linux/amd64` host without signing in to the registry
 - **THEN** the container runtime receives the image for the architecture of the host
-
-#### Scenario: Pull a specific commit
-- **WHEN** an operator pulls `sha-<commit>` for a commit on `main` whose checks passed
-- **THEN** the container runtime receives the image built from that commit
 
 #### Scenario: Failed checks
 - **WHEN** a check fails for a push to `main`
@@ -51,7 +58,7 @@ Every push to `main` that passes all checks SHALL publish the OCI image for `lin
 - **THEN** the tag `nightly` stays on the newer commit
 
 ### Requirement: Releases
-A release SHALL publish, under the version of the project, exactly the image and the archives that passed every check for its commit, without building them again. It SHALL attach the archives of both architectures with their SHA-256 checksums. Its version SHALL be the same in its tag, in the tags and the annotation `org.opencontainers.image.version` of its image and in the output of `adunata --version`. The tag `latest` SHALL move only for a version without a pre-release part.
+A release SHALL publish, under the version of the project, exactly the image and the archives that passed every check for its commit, without building them again. It SHALL attach the archives of both architectures with their SHA-256 checksums. Its version SHALL be the same in its tag, in the tags and the annotation `org.opencontainers.image.version` of its image and in the output of `adunata --version`.
 
 #### Scenario: Version of a release
 - **WHEN** an operator installs the release `v1.2.0` and runs `adunata --version`
@@ -80,6 +87,13 @@ A release SHALL publish, under the version of the project, exactly the image and
 #### Scenario: Artifacts expired
 - **WHEN** someone pushes a tag on a commit whose verified archives are no longer kept
 - **THEN** nothing is published and the release workflow says that a new commit that raises the version is needed
+
+### Requirement: Tag latest
+The tag `latest` SHALL move to a release only if its version has no pre-release part and a higher SemVer precedence than the version `latest` names.
+
+#### Scenario: Older stable release
+- **WHEN** `latest` names `1.2.0` and someone pushes the tag `v1.1.0` on the commit that raised the version to `1.1.0`
+- **THEN** the release `1.1.0` is published and the release workflow says that `latest` stays on `1.2.0`
 
 #### Scenario: Pre-release
 - **WHEN** a release has the version `1.3.0-rc.1`
