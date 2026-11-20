@@ -4,57 +4,241 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to check without publishing anything
+        required: true
+        type: string
+      commit:
+        description: Commit to check under that tag, if the tag does not exist yet
+        required: false
+        type: string
 
-permissions:
-  contents: read
+permissions: {}
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
-  build:
-    name: Build and publish
-    runs-on: ubuntu-latest
+  check:
+    name: Conditions and archives
+    runs-on: ubuntu-24.04
     permissions:
-      contents: write
-      packages: write
+      actions: read
+      contents: read
+      packages: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      commit: ${{ steps.main.outputs.commit }}
+      index: ${{ steps.run.outputs.index }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Allow virtual machines
+          fetch-depth: 0
+      - name: Commit on main
+        id: main
+        env:
+          COMMIT: ${{ inputs.commit }}
         run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
-        with:
-          extra_nix_config: system-features = nixos-test benchmark big-parallel kvm
-      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
-        with: # zizmor: ignore[cache-poisoning] a tag restores only caches saved on main, and only tags publish
-          primary-key: nix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**', '!.git/**') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-${{ runner.arch }}-
-          gc-max-store-size-linux: 8G
-          save: false
-      - name: Every check, including the NixOS VM test
-        run: nix flake check --print-build-logs --option abort-on-warn true
-      - name: Build release binary and image
+          if ! commit=$(git rev-parse --verify --quiet "refs/tags/$TAG^{commit}") && ! commit=$(git rev-parse --verify --quiet "${COMMIT:-none}^{commit}"); then
+            echo "Neither the tag $TAG nor a commit ${COMMIT:-to check} exists."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$commit" origin/main; then
+            echo "The tag $TAG names the commit $commit, which is not on main. Only a commit of main can become a release."
+            exit 1
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - name: Version that the commit raises
+        id: version
+        env:
+          COMMIT: ${{ steps.main.outputs.commit }}
         run: |
-          nix build --print-build-logs --out-link release .#packages.x86_64-linux.release
-          nix build --print-build-logs --out-link image .#packages.x86_64-linux.image
-          tar --create --gzip --dereference --file adunata-x86_64-linux.tar.gz --directory release .
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: adunata-x86_64-linux
-          path: adunata-x86_64-linux.tar.gz
-      - name: Publish image and release
-        if: startsWith(github.ref, 'refs/tags/v')
+          versionAt() {
+            case $2 in
+              server/Cargo.toml) git show "$1:$2" | python3 -c 'import sys, tomllib; print(tomllib.load(sys.stdin.buffer).get("package", {}).get("version", ""))' ;;
+              server/Cargo.lock) git show "$1:$2" | python3 -c 'import sys, tomllib; print(next((p["version"] for p in tomllib.load(sys.stdin.buffer).get("package", []) if p["name"] == "adunata"), ""))' ;;
+              client/package.json) git show "$1:$2" | jq --raw-output .version ;;
+            esac
+          }
+          if [[ "$TAG" != v* ]]; then
+            echo "The tag $TAG does not start with v, so pushing it would not start a release."
+            exit 1
+          fi
+          version=${TAG#v}
+          for file in server/Cargo.toml server/Cargo.lock client/package.json; do
+            found=$(versionAt "$COMMIT" "$file")
+            if [ "$found" != "$version" ]; then
+              echo "The tag $TAG names version $version, but $file of $COMMIT names ${found:-no version}."
+              exit 1
+            fi
+          done
+          previous=$(versionAt "$COMMIT^1" server/Cargo.toml)
+          status=0
+          node .github/scripts/semver.mjs greater "$version" "$previous" || status=$?
+          if [ "$status" = 1 ]; then
+            echo "The commit $COMMIT does not raise the version above $previous of its first parent. Tag the commit that raises the version to $version."
+            exit 1
+          elif [ "$status" != 0 ]; then
+            echo "The version $version of $COMMIT or ${previous:-the missing version} of its first parent is no valid version."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Sign-in to the registry
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+        run: docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<< "$GH_TOKEN"
+      - name: Verified run of the commit
+        id: run
+        env:
+          COMMIT: ${{ steps.main.outputs.commit }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
-          nix run --inputs-from . nixpkgs#skopeo -- copy \
-            --dest-creds "${GITHUB_ACTOR}:${GH_TOKEN}" \
-            docker-archive:image "docker://${image}:${TAG}"
-          nix run --inputs-from . nixpkgs#skopeo -- copy \
-            --dest-creds "${GITHUB_ACTOR}:${GH_TOKEN}" \
-            docker-archive:image "docker://${image}:latest"
-          gh release create "$TAG" adunata-x86_64-linux.tar.gz --generate-notes
+          if ! skopeo inspect --raw "docker://$image:sha-$COMMIT" > index.json; then
+            echo "$image:sha-$COMMIT does not exist, so no run of CI passed every check for $COMMIT and published its image."
+            exit 1
+          fi
+          run=$(jq --raw-output '.annotations["org.kammerchor-wernigerode.adunata.ci-run"]' index.json)
+          origin=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq '[(.path | sub("@.*$"; "")), .event, .head_branch, .head_sha, .conclusion, .head_repository.full_name] | join(" ")')
+          if [ "$origin" != ".github/workflows/ci.yaml push main $COMMIT success $GITHUB_REPOSITORY" ]; then
+            echo "The index $image:sha-$COMMIT names the run $run, which is no successful run of CI for a push of $COMMIT to main: $origin"
+            exit 1
+          fi
+          artifacts=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts" --paginate --jq '.artifacts[] | select(.expired | not) | .name')
+          for system in x86_64-linux aarch64-linux; do
+            if ! grep --quiet --line-regexp "release-$system" <<< "$artifacts"; then
+              echo "The run $run of CI no longer holds release-$system. A new build would give other bytes than the published image, so a new commit that raises the version is needed."
+              exit 1
+            fi
+          done
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "index=sha256:$(sha256sum index.json | cut --delimiter=' ' --fields=1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/release
+          run-id: ${{ steps.run.outputs.run }}
+          github-token: ${{ github.token }}
+      - name: Checksums
+        run: |
+          cd "$RUNNER_TEMP/release"
+          for system in x86_64-linux aarch64-linux; do
+            expected=$(jq --raw-output ".annotations[\"org.kammerchor-wernigerode.adunata.archive.$system.sha256\"]" "$GITHUB_WORKSPACE/index.json")
+            actual=$(sha256sum "adunata-$system.tar.gz" | cut --delimiter=' ' --fields=1)
+            if [ "$actual" != "$expected" ]; then
+              echo "adunata-$system.tar.gz has the checksum $actual, but the index names $expected."
+              exit 1
+            fi
+            sha256sum --check "adunata-$system.tar.gz.sha256"
+          done
+          cat adunata-x86_64-linux.tar.gz.sha256 adunata-aarch64-linux.tar.gz.sha256 > SHA256SUMS
+          rm ./*.sha256
+          ls -l
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: github.event_name == 'push'
+        with:
+          name: release
+          path: ${{ runner.temp }}/release/
+          retention-days: 1
+          overwrite: true
+          if-no-files-found: error
+
+  publish:
+    name: Release and image
+    needs: check
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      COMMIT: ${{ needs.check.outputs.commit }}
+      INDEX: ${{ needs.check.outputs.index }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+      - name: Draft release
+        run: |
+          cd "$RUNNER_TEMP/release"
+          tagged=$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq .sha)
+          if [ "$tagged" != "$COMMIT" ]; then
+            echo "The tag $TAG moved from $COMMIT to $tagged after the checks."
+            exit 1
+          fi
+          if ! state=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>&1); then
+            if ! grep --quiet 'release not found' <<< "$state"; then
+              echo "$state"
+              exit 1
+            fi
+            prerelease=$([[ "$VERSION" == *-* ]] && echo --prerelease || true)
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --generate-notes --latest=false $prerelease ./*
+          elif [ "$state" = true ]; then
+            gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber ./*
+          elif [ "$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.assets[] | "\(.name) \(.digest)"' | sort)" = "$(sha256sum ./* | sed 's|^\([0-9a-f]*\)  \./\(.*\)$|\2 sha256:\1|' | sort)" ]; then
+            echo "The release $TAG is published already with the checked files."
+          else
+            echo "The release $TAG is published already, but its files differ from the checked archives. Fix the release by hand."
+            exit 1
+          fi
+      - name: Sign-in to the registry
+        run: docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<< "$GH_TOKEN"
+      - name: Image of the version
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          index=$(skopeo inspect --raw "docker://$image@$INDEX")
+          mapfile -t annotations < <(jq --raw-output '.annotations | to_entries[] | "--annotation=index:\(.key)=\(.value)"' <<< "$index")
+          mapfile -t manifests < <(jq --raw-output --arg image "$image" '.manifests[] | "\($image)@\(.digest)"' <<< "$index")
+          docker buildx imagetools create --tag "$image:$VERSION" \
+            "${annotations[@]}" "--annotation=index:org.opencontainers.image.version=$VERSION" \
+            "${manifests[@]}"
+          skopeo inspect --raw "docker://$image:$VERSION" | jq .
+      - name: Publish release
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest=false
+
+  latest:
+    name: Tag latest
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+    concurrency:
+      group: release-latest
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Sign-in to the registry
+        run: docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<< "$GH_TOKEN"
+      - name: Highest stable release
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          releases=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '.[] | select((.draft or .prerelease) | not) | .tag_name | select(startswith("v")) | ltrimstr("v")')
+          mapfile -t versions <<< "$releases"
+          highest=$(node .github/scripts/semver.mjs highest-stable "${versions[@]}")
+          if [ -z "$highest" ]; then
+            echo "No published release is stable, so latest stays where it is."
+            exit 0
+          fi
+          current=$(skopeo inspect --raw "docker://$image:latest" 2>/dev/null | jq --raw-output '.annotations["org.opencontainers.image.version"] // ""' || true)
+          if [ "$current" != "$highest" ]; then
+            skopeo copy --all --preserve-digests "docker://$image:$highest" "docker://$image:latest"
+            echo "latest moved from ${current:-nothing} to $highest."
+          fi
+          gh release edit "v$highest" --repo "$GITHUB_REPOSITORY" --latest
+          if [[ "${TAG#v}" == *-* ]]; then
+            echo "${TAG#v} is a pre-release, so latest stays on $highest."
+          elif [ "$highest" != "${TAG#v}" ]; then
+            echo "latest stays on $highest, which is higher than ${TAG#v}."
+          fi

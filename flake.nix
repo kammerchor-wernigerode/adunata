@@ -21,6 +21,8 @@
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
+      version = (fromTOML (builtins.readFile ./server/Cargo.toml)).package.version;
+
       nixpkgsOnlyLicenses = [
         "GPL-2.0-or-later"
         "GPL-3.0-or-later"
@@ -100,7 +102,7 @@
             pkgs.stdenv.mkDerivation (
               {
                 pname = "adunata-client";
-                version = "0.1.0";
+                inherit version;
                 src = clientSource;
                 sourceRoot = "source/client";
                 nativeBuildInputs = [
@@ -246,6 +248,14 @@
             cp ${./deploy/systemd/adunata.env.example} $out/adunata.env.example
             cp ${./LICENSE} $out/LICENSE
             cp ${clientWithNotices}/licenses.txt ${clientWithNotices}/licenses-rust.html $out/
+          '';
+
+          releaseArchive = pkgs.runCommand "adunata-release-archive-${system}" { } ''
+            mkdir $out
+            archive=$out/adunata-${system}.tar.gz
+            (cd ${release} && export LC_ALL=C && tar --create --sort=name --owner=0 --group=0 --numeric-owner --mtime=@0 --format=gnu -- *) | gzip --no-name --best > $archive
+            cd $out
+            sha256sum adunata-${system}.tar.gz > adunata-${system}.tar.gz.sha256
           '';
 
           releaseLinkage =
@@ -415,6 +425,7 @@
             client
             server
             release
+            releaseArchive
             releaseLinkage
             image
             imageClosure
@@ -508,7 +519,9 @@
         {
           default = built.server;
         }
-        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux { inherit (built) release image; }
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          inherit (built) release releaseArchive image;
+        }
       );
 
       nixosModules.default = import ./nix/module.nix (pkgs: (build pkgs).server);
@@ -568,6 +581,30 @@
 
             inherit (built) clientLicenses;
 
+            projectVersion =
+              let
+                lockedVersion =
+                  (pkgs.lib.findFirst (crate: crate.name == "adunata") {
+                    version = "no version";
+                  } (fromTOML (builtins.readFile ./server/Cargo.lock)).package).version;
+                clientVersion =
+                  (builtins.fromJSON (builtins.readFile ./client/package.json)).version or "no version";
+              in
+              pkgs.runCommand "check-project-version" { } (
+                if lockedVersion != version || clientVersion != version then
+                  ''
+                    echo "server/Cargo.toml names version ${version}, server/Cargo.lock ${lockedVersion} and client/package.json ${clientVersion}. Set all three to the same version."
+                    exit 1
+                  ''
+                else if pkgs.lib.hasInfix "+" version then
+                  ''
+                    echo "The version ${version} has build metadata, which an image tag cannot hold. Remove the part from +."
+                    exit 1
+                  ''
+                else
+                  "touch $out"
+              );
+
             cargoDenyVersion = pkgs.runCommand "check-cargo-deny-version" { } ''
               pinned=$(sed --quiet 's/.*cargo-deny@\([0-9.]*\).*/\1/p' ${./README.md})
               if [ "$pinned" != "${tools.cargo-deny.version}" ]; then
@@ -588,6 +625,13 @@
                 zizmor --offline --no-progress ${source}/.github
                 touch $out
               '';
+
+            releaseScripts =
+              pkgs.runCommand "check-release-scripts" { nativeBuildInputs = [ tools.nodejs_26 ]; }
+                ''
+                  node --test ${./.github/scripts}/*.test.mjs
+                  touch $out
+                '';
 
             cargoAboutVersion = pkgs.runCommand "check-cargo-about-version" { } ''
               pinned=$(sed --quiet 's/.*cargo-about@\([0-9.]*\).*/\1/p' ${./README.md})

@@ -1,0 +1,182 @@
+name: Publish
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] the jobs run only after a successful push to main of this repository, run no code of the triggering run and write none of its data to GITHUB_ENV
+    workflows: [CI]
+    types: [completed]
+
+permissions: {}
+
+env:
+  COMMIT: ${{ github.event.workflow_run.head_sha }}
+  RUN_ID: ${{ github.event.workflow_run.id }}
+
+jobs:
+  index:
+    name: Index of the commit
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    concurrency:
+      group: publish-${{ github.event.workflow_run.head_sha }}
+      cancel-in-progress: false
+    outputs:
+      built: ${{ steps.need.outputs.built }}
+    steps:
+      - name: Sign-in to the registry
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<< "$GH_TOKEN"
+      - name: Need of an index
+        id: need
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          artifacts=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts" --paginate --jq '.artifacts[] | select(.expired | not) | .name')
+          missing=()
+          for name in image-x86_64-linux image-aarch64-linux release-x86_64-linux release-aarch64-linux; do
+            grep --quiet --line-regexp "$name" <<< "$artifacts" || missing+=("$name")
+          done
+          if [ "${#missing[@]}" = 4 ]; then
+            echo "The run $RUN_ID of CI holds no artifacts, so it built nothing to publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "built=true" >> "$GITHUB_OUTPUT"
+          if output=$(skopeo inspect --raw "docker://$image:sha-$COMMIT" 2>&1); then
+            echo "$image:sha-$COMMIT exists already and stays as it is."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          elif [ "${#missing[@]}" != 0 ]; then
+            echo "The run $RUN_ID of CI no longer holds ${missing[*]}, so $COMMIT gets no index. The next push to main that passes CI publishes its own commit, and nightly moves there."
+            exit 1
+          elif grep --quiet --ignore-case --extended-regexp 'manifest unknown|name unknown|not found' <<< "$output"; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          elif grep --quiet --ignore-case 'denied' <<< "$output" && gh api "orgs/$GITHUB_REPOSITORY_OWNER/packages/container/${image##*/}" 2>&1 | grep --quiet 'HTTP 404'; then
+            echo "The package ${image##*/} does not exist yet, so this run creates it."
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "$output"
+            echo "The registry gave no clear answer whether $image:sha-$COMMIT exists."
+            exit 1
+          fi
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.need.outputs.publish == 'true'
+        with:
+          pattern: image-*
+          path: ${{ runner.temp }}/artifacts
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.need.outputs.publish == 'true'
+        with:
+          pattern: release-*
+          path: ${{ runner.temp }}/artifacts
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - name: Images per architecture
+        if: steps.need.outputs.publish == 'true'
+        env:
+          IMAGE: ${{ steps.need.outputs.image }}
+        run: |
+          cd "$RUNNER_TEMP/artifacts"
+          for pair in x86_64-linux:amd64 aarch64-linux:arm64; do
+            system=${pair%:*}
+            architecture=${pair#*:}
+            archive="image-$system/image-$system.tar.gz"
+            essence='{architecture, os, config, rootfs}'
+            config=$(tar --extract --gzip --to-stdout --file "$archive" manifest.json | jq --raw-output '.[0].Config')
+            expected=$(tar --extract --gzip --to-stdout --file "$archive" "$config" | jq --compact-output --sort-keys "$essence")
+            skopeo copy --format oci "docker-archive:$archive" "docker://$IMAGE:sha-$COMMIT-$architecture"
+            actual=$(skopeo inspect --config --raw "docker://$IMAGE:sha-$COMMIT-$architecture" | jq --compact-output --sort-keys "$essence")
+            if [ "$actual" != "$expected" ]; then
+              echo "The registry holds other layers or another configuration for $IMAGE:sha-$COMMIT-$architecture than the artifact."
+              diff <(jq . <<< "$expected") <(jq . <<< "$actual") || true
+              exit 1
+            fi
+          done
+      - name: Index
+        if: steps.need.outputs.publish == 'true'
+        env:
+          IMAGE: ${{ steps.need.outputs.image }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          cd "$RUNNER_TEMP/artifacts"
+          annotations=(
+            "org.opencontainers.image.source=$SERVER_URL/$GITHUB_REPOSITORY"
+            "org.opencontainers.image.revision=$COMMIT"
+            "org.opencontainers.image.licenses=AGPL-3.0-only"
+            "org.opencontainers.image.title=Adunata"
+            "org.opencontainers.image.description=Web application for choirs and instrumental ensembles to organize gatherings"
+            "org.kammerchor-wernigerode.adunata.ci-run=$RUN_ID"
+          )
+          for system in x86_64-linux aarch64-linux; do
+            checksum=$(cut --delimiter=' ' --fields=1 "release-$system/adunata-$system.tar.gz.sha256")
+            annotations+=("org.kammerchor-wernigerode.adunata.archive.$system.sha256=$checksum")
+          done
+          docker buildx imagetools create --tag "$IMAGE:sha-$COMMIT" \
+            "${annotations[@]/#/--annotation=index:}" \
+            "$IMAGE:sha-$COMMIT-amd64" "$IMAGE:sha-$COMMIT-arm64"
+          skopeo inspect --raw "docker://$IMAGE:sha-$COMMIT" | jq .
+
+  nightly:
+    name: Tag nightly
+    needs: index
+    if: needs.index.outputs.built == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: publish-nightly
+      cancel-in-progress: false
+    steps:
+      - name: Sign-in to the registry
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<< "$GH_TOKEN"
+      - name: Newest commit with an index
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          newest=
+          while [ -n "$commit" ]; do
+            if output=$(skopeo inspect --raw "docker://$image:sha-$commit" 2>&1); then
+              newest=$commit
+              break
+            elif ! grep --quiet --ignore-case --extended-regexp 'manifest unknown|name unknown|not found' <<< "$output"; then
+              echo "$output"
+              echo "The registry gave no clear answer whether $image:sha-$commit exists."
+              exit 1
+            fi
+            commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/$commit" --jq '.parents[0].sha // ""')
+          done
+          if [ -z "$newest" ]; then
+            echo "No commit on the first-parent history of main has an index."
+            exit 1
+          fi
+          current=$(skopeo inspect --raw "docker://$image:nightly" 2>/dev/null | jq --raw-output '.annotations["org.opencontainers.image.revision"] // ""' || true)
+          if [ "$current" = "$newest" ]; then
+            echo "nightly points to $newest already."
+          else
+            skopeo copy --all --preserve-digests "docker://$image:sha-$newest" "docker://$image:nightly"
+            echo "nightly moved from ${current:-nothing} to $newest."
+          fi
+      - name: Pull without credentials
+        run: |
+          docker logout ghcr.io
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          if ! skopeo inspect --raw --no-creds "docker://$image:nightly" > /dev/null; then
+            echo "Nobody can pull $image:nightly without credentials. Make the package public in its settings on GitHub."
+            exit 1
+          fi
