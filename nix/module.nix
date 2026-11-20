@@ -211,8 +211,8 @@ in
       description = "Adunata";
       wantedBy = [ "multi-user.target" ];
       wants = [ "network-online.target" ];
-      after = [ "network-online.target" ] ++ lib.optional cfg.database.createLocally "postgresql.service";
-      requires = lib.optional cfg.database.createLocally "postgresql.service";
+      after = [ "network-online.target" ] ++ lib.optional cfg.database.createLocally "postgresql.target";
+      requires = lib.optional cfg.database.createLocally "postgresql.target";
 
       environment = {
         ADNT_HTTP_PUBLIC_URL = cfg.http.publicUrl;
@@ -252,6 +252,7 @@ in
         ExecStart = "${lib.getExe cfg.package} serve";
         Restart = "on-failure";
         RestartSec = 5;
+        RestartPreventExitStatus = "65 78";
         DynamicUser = true;
         User = "adunata";
         LoadCredential =

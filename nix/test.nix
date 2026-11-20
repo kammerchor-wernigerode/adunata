@@ -154,7 +154,7 @@ pkgs.testers.runNixOSTest {
         assert_mail_arrives(nixos)
 
     with subtest("Install from release binary"):
-        binary.wait_for_unit("postgresql.service")
+        binary.wait_for_unit("postgresql.target")
         binary.succeed(
             "install -D -m 0755 ${release}/adunata /usr/local/bin/adunata",
             "mkdir -p /etc/adunata /run/systemd/system",
@@ -178,7 +178,7 @@ pkgs.testers.runNixOSTest {
         assert_mail_arrives(binary)
 
     with subtest("Install as container"):
-        container.wait_for_unit("postgresql.service")
+        container.wait_for_unit("postgresql.target")
         container.succeed("podman load --input ${image}")
         container_settings = (
             " --network host"
@@ -231,5 +231,21 @@ pkgs.testers.runNixOSTest {
     with subtest("Stop gracefully"):
         nixos.succeed("systemctl stop adunata.service")
         nixos.succeed("systemctl show adunata.service --property=ExecMainStatus | grep -x ExecMainStatus=0")
+
+    with subtest("Invalid configuration leaves the service stopped"):
+        for machine in [nixos, binary]:
+            machine.succeed(
+                "mkdir -p /run/systemd/system/adunata.service.d",
+                "printf '[Service]\\nEnvironment=ADNT_CONFIG_FILE=/nonexistent/adunata.toml\\n' > /run/systemd/system/adunata.service.d/invalid.conf",
+                "systemctl daemon-reload",
+                "systemctl restart adunata.service || true",
+            )
+            machine.wait_until_succeeds("systemctl is-failed adunata.service", timeout=30)
+            machine.succeed(
+                "systemctl show adunata.service --property=ExecMainStatus | grep -x ExecMainStatus=78",
+                "sleep 7",
+                "systemctl is-failed adunata.service",
+                "systemctl show adunata.service --property=NRestarts | grep -x NRestarts=0",
+            )
   '';
 }

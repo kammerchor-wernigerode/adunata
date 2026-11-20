@@ -6,7 +6,7 @@ The quality goals in [Introduction and goals](01-introduction-and-goals.md) name
 
 |Scenario|Context|Stimulus|Response|Verified by|
 |-|-|-|-|-|
-|Invalid configuration|An operator starts a new instance.|Two required settings are missing and one has the wrong format.|Adunata exits with status 1 before it opens a port or touches the database. The log names all three settings in one entry each. It shows no secret value.|[`server/tests/startup.rs`](../../server/tests/startup.rs) and `several_settings_missing` in [`server/src/configuration.rs`](../../server/src/configuration.rs)|
+|Invalid configuration|An operator starts a new instance.|Two required settings are missing and one has the wrong format.|Adunata exits with status 78 before it opens a port or touches the database. The log names all three settings in one entry each. It shows no secret value.|[`server/tests/startup.rs`](../../server/tests/startup.rs) and `several_settings_missing` in [`server/src/configuration.rs`](../../server/src/configuration.rs)|
 |Mail server outage|The mail server of the ensemble is unreachable for a few minutes.|An organizer invites members during the outage.|The invitations exist at once. Their mails wait in the outbox and arrive once the server is reachable again.|`invitation_succeeds_while_the_mail_server_is_down` in [`server/src/invitations.rs`](../../server/src/invitations.rs) and `mail_server_comes_back` in [`server/src/mail.rs`](../../server/src/mail.rs)|
 
 ## Security

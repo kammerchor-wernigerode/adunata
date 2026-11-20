@@ -84,7 +84,7 @@ fn several_settings_missing_stops_before_anything_opens() {
             ("ADNT_MAIL_SENDER", "Adunata <adunata@example.org>"),
         ],
     );
-    assert_eq!(code, Some(1));
+    assert_eq!(code, Some(78));
     assert!(log.contains("ADNT_HTTP_PUBLIC_URL"), "{log}");
     assert!(log.contains("ADNT_SMTP_HOST"), "{log}");
     assert!(log.contains("ADNT_LOCALIZATION_TIME_ZONE"), "{log}");
@@ -104,7 +104,7 @@ fn malformed_value_names_setting_and_format() {
             ("ADNT_LOCALIZATION_TIME_ZONE", "Europe/Berlin"),
         ],
     );
-    assert_eq!(code, Some(1));
+    assert_eq!(code, Some(78));
     assert!(
         log.contains("ADNT_HTTP_PUBLIC_URL must be an absolute HTTPS URL"),
         "{log}"
@@ -123,7 +123,7 @@ fn unknown_time_zone_stops_before_the_database() {
             ("ADNT_LOCALIZATION_TIME_ZONE", "Europe/Wernigerode"),
         ],
     );
-    assert_eq!(code, Some(1));
+    assert_eq!(code, Some(78));
     assert!(
         log.contains("ADNT_LOCALIZATION_TIME_ZONE must be an IANA time zone"),
         "{log}"
@@ -148,7 +148,7 @@ fn settings_file_in_the_working_directory() {
     let (code, output, error) = run_in(&directory.path, &["serve"], &[]);
     let log = format!("{output}{error}");
 
-    assert_eq!(code, Some(1));
+    assert_eq!(code, Some(78));
     if cfg!(debug_assertions) {
         assert!(log.contains("line 2 of"), "{log}");
         assert!(log.contains(".env.local"), "{log}");
@@ -169,7 +169,7 @@ fn option_wins_over_variable() {
         &["--config", &file],
         &[("ADNT_CONFIG_FILE", "/nonexistent/adunata.toml")],
     );
-    assert_eq!(code, Some(1));
+    assert_eq!(code, Some(78));
     assert!(log.contains(&file), "{log}");
     assert!(log.contains("smpt.host"), "{log}");
     assert!(!log.contains("/nonexistent/adunata.toml"), "{log}");
@@ -178,7 +178,7 @@ fn option_wins_over_variable() {
 #[test]
 fn empty_variable_names_no_file() {
     let (code, log) = serve(&[], &[("ADNT_CONFIG_FILE", "")]);
-    assert_eq!(code, Some(1));
+    assert_eq!(code, Some(78));
     assert!(log.contains("is required but not set"), "{log}");
     assert!(!log.contains("configuration file"), "{log}");
 }
@@ -186,7 +186,7 @@ fn empty_variable_names_no_file() {
 #[test]
 fn named_file_missing() {
     let (code, log) = serve(&[], &[("ADNT_CONFIG_FILE", "/nonexistent/adunata.toml")]);
-    assert_eq!(code, Some(1));
+    assert_eq!(code, Some(78));
     assert!(log.contains("/nonexistent/adunata.toml"), "{log}");
     assert!(!log.contains("is required but not set"), "{log}");
 }
@@ -198,7 +198,7 @@ fn parse_error_never_shows_the_line() {
         "[http]\npublic-url = \"https://adunata.example.org\"\n\n[database]\npassword = pa$$word\n",
     );
     let (code, log) = serve(&["--config", &file], &[]);
-    assert_eq!(code, Some(1));
+    assert_eq!(code, Some(78));
     assert!(log.contains(&file), "{log}");
     assert!(log.contains("line 5, column 12"), "{log}");
     assert!(!log.contains("pa$$word"), "{log}");
@@ -265,7 +265,7 @@ fn development_mode_needs_a_public_url_on_localhost() {
         ],
     );
     let log = format!("{output}{error}");
-    assert_eq!(code, Some(1));
+    assert_eq!(code, Some(78));
     assert!(log.contains("ADNT_HTTP_PUBLIC_URL on localhost"), "{log}");
     assert!(!log.contains("database is not ready"), "{log}");
 }
@@ -284,7 +284,7 @@ fn development_mode_needs_a_loopback_listen_address() {
         ],
     );
     let log = format!("{output}{error}");
-    assert_eq!(code, Some(1));
+    assert_eq!(code, Some(78));
     assert!(
         log.contains("ADNT_HTTP_LISTEN_ADDRESS on a loopback address"),
         "{log}"
@@ -297,4 +297,21 @@ fn unknown_command() {
     let (code, _, error) = run(&["serv"], &[]);
     assert_eq!(code, Some(2));
     assert!(error.contains("serve"), "{error}");
+}
+
+/// Nothing listens on port 1, so the connection is refused until the timeout, which a later attempt may not meet.
+#[test]
+fn unreachable_database_is_a_temporary_failure() {
+    let (code, log) = serve(
+        &[],
+        &[
+            ("ADNT_HTTP_PUBLIC_URL", "https://adunata.example.org"),
+            ("ADNT_DATABASE_URL", UNREACHABLE_DATABASE),
+            ("ADNT_SMTP_HOST", "mail.example.org"),
+            ("ADNT_MAIL_SENDER", "Adunata <adunata@example.org>"),
+            ("ADNT_LOCALIZATION_TIME_ZONE", "Europe/Berlin"),
+        ],
+    );
+    assert_eq!(code, Some(75));
+    assert!(log.contains("database is not ready"), "{log}");
 }

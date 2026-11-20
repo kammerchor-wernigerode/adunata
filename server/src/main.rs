@@ -17,10 +17,15 @@ mod serving;
 mod test_logs;
 mod validation;
 
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use clap::{CommandFactory, Parser, Subcommand};
 use configuration::{Configuration, FirstOrganizer, PublicUrl};
+use tokio::net::TcpListener;
+
+/// `EX_CONFIG` from `sysexits.h`, so that a supervisor does not restart an instance whose configuration is invalid.
+const INVALID_CONFIGURATION: i32 = 78;
 
 /// Adunata organizes the gatherings of choirs and instrumental ensembles.
 #[derive(Parser)]
@@ -115,7 +120,7 @@ fn configuration(file: Option<&str>) -> Configuration {
         for problem in problems {
             tracing::error!(%problem, "configuration is invalid");
         }
-        std::process::exit(1);
+        std::process::exit(INVALID_CONFIGURATION);
     })
 }
 
@@ -124,7 +129,7 @@ async fn connect(configuration: &Configuration) -> sqlx::PgPool {
         .await
         .unwrap_or_else(|error| {
             tracing::error!(%error, "database is not ready");
-            std::process::exit(1);
+            std::process::exit(error.exit_status());
         })
 }
 
@@ -138,7 +143,7 @@ async fn grant_organizer(
     let pool = connect(&configuration).await;
     let mut connection = pool.acquire().await.unwrap_or_else(|error| {
         tracing::error!(%error, "database is not ready");
-        std::process::exit(1);
+        std::process::exit(database::exit_status(&error));
     });
     match members::grant_organizer(
         &mut connection,
@@ -155,7 +160,7 @@ async fn grant_organizer(
         ),
         Err(error) => {
             tracing::error!(%error, "organizer role could not be granted");
-            std::process::exit(1);
+            std::process::exit(database::exit_status(&error));
         }
     }
 }
@@ -165,13 +170,13 @@ async fn serve(configuration: Configuration, development_mode: bool) {
         tracing::error!(
             "development mode needs ADNT_HTTP_PUBLIC_URL on localhost and ADNT_HTTP_LISTEN_ADDRESS on a loopback address, because it writes sign-in links to the log"
         );
-        std::process::exit(1);
+        std::process::exit(INVALID_CONFIGURATION);
     }
     let pool = connect(&configuration).await;
     let delivery = mail::Delivery {
         transport: mail::transport(&configuration.smtp).unwrap_or_else(|error| {
             tracing::error!(%error, "mail server settings are unusable");
-            std::process::exit(1);
+            std::process::exit(INVALID_CONFIGURATION);
         }),
         sender: configuration.mail_sender,
         max_attempts: configuration.mail_max_attempts,
@@ -183,9 +188,12 @@ async fn serve(configuration: Configuration, development_mode: bool) {
         configuration.time_zone.clone(),
         Duration::from_hours(1),
     ));
-    let listener = tokio::net::TcpListener::bind(configuration.listen_address)
+    let listener = listen(configuration.listen_address)
         .await
-        .expect("listen address must be free");
+        .unwrap_or_else(|error| {
+            tracing::error!(%error, "listen address is unusable");
+            std::process::exit(1);
+        });
     prepare_organizers(
         &pool,
         configuration.first_organizer.clone(),
@@ -196,7 +204,7 @@ async fn serve(configuration: Configuration, development_mode: bool) {
     .await
     .unwrap_or_else(|error| {
         tracing::error!(%error, "organizers could not be prepared");
-        std::process::exit(1);
+        std::process::exit(database::exit_status(&error));
     });
     let state = api::AppState {
         pool,
@@ -211,6 +219,13 @@ async fn serve(configuration: Configuration, development_mode: bool) {
     serving::serve_until(listener, app(state), serving::termination_signal())
         .await
         .expect("server must keep running until it is asked to stop");
+}
+
+/// Opens the listen address. The error names the address.
+async fn listen(address: SocketAddr) -> std::io::Result<TcpListener> {
+    TcpListener::bind(address).await.map_err(|error| {
+        std::io::Error::new(error.kind(), format!("cannot listen on {address}: {error}"))
+    })
 }
 
 /// Whether only this machine can reach the instance, which development mode needs because its log grants access.
@@ -393,6 +408,16 @@ mod integration {
             assert!(organizers(&pool).await.is_empty());
             assert_eq!(count(&pool, "sign_in_links").await, 0);
         }
+    }
+
+    #[tokio::test]
+    async fn listen_address_in_use() {
+        let occupied = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = occupied.local_addr().unwrap();
+
+        let error = listen(address).await.expect_err("address must be in use");
+        assert_eq!(error.kind(), std::io::ErrorKind::AddrInUse);
+        assert!(error.to_string().contains(&address.to_string()), "{error}");
     }
 
     #[tokio::test]
