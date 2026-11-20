@@ -15,18 +15,69 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-24.04
+    outputs:
+      code: ${{ steps.paths.outputs.code }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Paths outside openspec
+        id: paths
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          everything() {
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+          case "$EVENT" in
+            pull_request) range="$BASE...$HEAD" ;;
+            push)
+              if [[ "$BEFORE" =~ ^0*$ ]] || ! git merge-base --is-ancestor "$BEFORE" "$AFTER"; then everything; fi
+              range="$BEFORE..$AFTER"
+              ;;
+            *) everything ;;
+          esac
+          changed=$(git diff --name-only --no-renames "$range")
+          echo "$changed"
+          if [ -z "$changed" ] || grep --invert-match --quiet '^openspec/' <<< "$changed"; then everything; fi
+          echo "code=false" >> "$GITHUB_OUTPUT"
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        if: steps.paths.outputs.code == 'false'
+      - name: Editorconfig
+        if: steps.paths.outputs.code == 'false'
+        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.editorconfig
+      - name: Matrix
+        id: matrix
+        env:
+          DRAFT: ${{ github.event.pull_request.draft == true }}
+        run: |
+          if [ "$DRAFT" = true ]; then
+            echo 'matrix={"include":[{"system":"x86_64-linux","runner":"ubuntu-24.04","image":false,"vm":false}]}' >> "$GITHUB_OUTPUT"
+          else
+            echo 'matrix={"include":[{"system":"x86_64-linux","runner":"ubuntu-24.04","image":true,"vm":true},{"system":"aarch64-linux","runner":"ubuntu-24.04-arm","image":true,"vm":false}]}' >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: Build (${{ matrix.system }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       actions: write
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { system: x86_64-linux, runner: ubuntu-24.04, image: true, vm: true }
-          - { system: aarch64-linux, runner: ubuntu-24.04-arm, image: true, vm: false }
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     env:
       SYSTEM: ${{ matrix.system }}
     steps:
@@ -88,14 +139,12 @@ jobs:
 
   e2e:
     name: End-to-end tests (${{ matrix.system }})
-    needs: build
+    needs: [changes, build]
+    if: needs.changes.outputs.code == 'true' && !github.event.pull_request.draft
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { system: x86_64-linux, runner: ubuntu-24.04 }
-          - { system: aarch64-linux, runner: ubuntu-24.04-arm }
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     defaults:
       run:
         working-directory: client
@@ -189,3 +238,23 @@ jobs:
         if: failure()
         working-directory: .
         run: docker logs adunata || true
+
+  ci:
+    name: ci
+    needs: [changes, build, e2e]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Results of every job
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+          DRAFT: ${{ github.event.pull_request.draft == true }}
+          BUILD: ${{ needs.build.result }}
+          E2E: ${{ needs.e2e.result }}
+        run: |
+          echo "changes: $CHANGES, code: $CODE, draft: $DRAFT, build: $BUILD, e2e: $E2E"
+          [ "$CHANGES" = success ] || exit 1
+          [ "$CODE" = true ] || exit 0
+          [ "$BUILD" = success ] || exit 1
+          [ "$DRAFT" = true ] || [ "$E2E" = success ]

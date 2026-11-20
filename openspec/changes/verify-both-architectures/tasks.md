@@ -2,7 +2,7 @@
 
 ## 1. Build and check per architecture
 
-- [ ] 1.1 Open a draft pull request for this branch, as design.md decision 7 allows. Verify that its run starts.
+- [x] 1.1 Open a draft pull request for this branch, as design.md decision 7 allows. Verify that its run starts.
 - [ ] 1.2 Replace `verify` and `nixos` in `.github/workflows/ci.yaml` with the matrix job `build` and its artifacts as design.md decision 1 describes. Verify with `zizmor` through the lint target and by the run of the draft pull request on both architectures.
 - [ ] 1.3 Turn `e2e` into the same matrix with the image start of design.md decision 2. Verify by the run of the draft pull request on both architectures.
 - [ ] 1.4 Add the concurrency groups and the cache rules of design.md decision 5, including the Playwright key, the save only on `main`, `actions: write` on the saving job and the prefix in `.github/workflows/release.yaml`. Verify with `zizmor` and by `grep -n -A6 'cache' .github/workflows/*.yaml`.
