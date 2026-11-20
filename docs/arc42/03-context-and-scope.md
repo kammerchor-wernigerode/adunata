@@ -28,6 +28,6 @@ flowchart LR
 |Partner|Channel|
 |-|-|
 |Organizer and member|HTTPS from a browser to a reverse proxy in front of Adunata, which listens on plain HTTP|
-|Operator|Environment variables, an optional configuration file and secret files, the health endpoint `/api/health` and JSON logs on standard output|
+|Operator|Environment variables, an optional configuration file and secret files, the health endpoint `/api/health`, JSON logs on standard output and the [exit status](../operating/installation.md#commands) of a failed start|
 |Mail server|SMTP|
 |PostgreSQL|The PostgreSQL protocol over TCP or a Unix socket|
