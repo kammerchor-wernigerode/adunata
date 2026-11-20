@@ -18,7 +18,7 @@ unic-langid = "0.9.6"
 url = "2.5.8"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["json"] }
-tokio = { version = "1.54.1", features = ["macros", "net", "rt-multi-thread", "signal"] }
+tokio = { version = "1.54.1", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "time"] }
 utoipa = { version = "6.0.0", features = ["time", "preserve_order"] }
 utoipa-axum = "0.3.0"
 jiff = { version = "1.0.0", default-features = false, features = ["std", "tzdb-bundle-always"] }
