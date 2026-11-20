@@ -26,7 +26,7 @@
 
 ### 1. Images and release archives for both architectures
 
-Every push to `main` that passes CI publishes the image as an OCI index for `linux/amd64` and `linux/arm64` under `sha-<commit>` and moves `nightly` to the newest such commit. A release publishes the same manifests under its version. `latest` names the release with the highest version among those without a pre-release part. It attaches `adunata-x86_64-linux.tar.gz`, `adunata-aarch64-linux.tar.gz` and `SHA256SUMS`.
+Every push to `main` that builds Adunata and passes CI publishes the image as an OCI index for `linux/amd64` and `linux/arm64` under `sha-<commit>` and moves `nightly` to the newest such commit. A push that changes only `openspec/` builds nothing and gets no index. A release publishes the same manifests under its version. `latest` names the release with the highest version among those without a pre-release part. It attaches `adunata-x86_64-linux.tar.gz`, `adunata-aarch64-linux.tar.gz` and `SHA256SUMS`.
 
 Each index carries the OCI annotations `org.opencontainers.image.source`, `revision`, `licenses`, `title` and `description`. The index of a release also carries `version`. It is a new index over the same manifests, so the images stay byte for byte the same and only the digest of the index differs from `sha-<commit>`. The image config gets no labels, because annotations replace them.
 
@@ -89,7 +89,7 @@ Not architecturally significant, because it is CI tooling. Operators see the tag
 
 **Context.** Ensembles run Adunata on their own hardware, which includes `aarch64-linux` boards. Adunata publishes its image and its release archive only for `x86_64` and only for releases. Nobody can follow `main` without building it. The version lives in several files that nothing compares, and a tag can name any version. ghcr.io creates packages as private, and only a person can make one public.
 
-**Decision.** We will publish every image as one OCI index for `linux/amd64` and `linux/arm64` and every release archive for `x86_64-linux` and `aarch64-linux`. Every push to `main` that passes all checks publishes `sha-<commit>`, and `nightly` points to the newest of them. A release is a tag `v<version>` on the commit of `main` that raises the version. It publishes the bytes that the checks of that commit verified under its version. `latest` names the highest release without a pre-release part. `server/Cargo.toml` holds the one version of the project. Each index names its source, revision and license in OCI annotations, and a release also its version. The package is public.
+**Decision.** We will publish every image as one OCI index for `linux/amd64` and `linux/arm64` and every release archive for `x86_64-linux` and `aarch64-linux`. Every push to `main` that builds Adunata and passes all checks publishes `sha-<commit>`, and `nightly` points to the newest of them. A release is a tag `v<version>` on the commit of `main` that raises the version. It publishes the bytes that the checks of that commit verified under its version. `latest` names the highest release without a pre-release part. `server/Cargo.toml` holds the one version of the project. Each index names its source, revision and license in OCI annotations, and a release also its version. The package is public.
 
 This supersedes no record.
 
