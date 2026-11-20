@@ -31,7 +31,7 @@ Adunata SHALL be installable as a NixOS module, as an OCI image and as a release
 Every push to `main` that builds Adunata and passes all checks SHALL publish the OCI image for `linux/amd64` and `linux/arm64` as an index under the tag `sha-<commit>`, with the commit as the annotation `org.opencontainers.image.revision`. A push that changes only planning artifacts under `openspec/` builds nothing and SHALL get no index. Anyone SHALL be able to pull the index without credentials.
 
 #### Scenario: Pull a specific commit
-- **WHEN** an operator pulls `sha-<commit>` for a commit on `main` whose checks passed
+- **WHEN** an operator pulls `sha-<commit>` for a commit on `main` that built Adunata and passed its checks
 - **THEN** the container runtime receives the image built from that commit for the architecture of the host
 
 #### Scenario: Planning-only commit
@@ -47,7 +47,7 @@ The tag `nightly` SHALL point to the index of the newest commit on `main` that h
 
 #### Scenario: Failed checks
 - **WHEN** a check fails for a push to `main`
-- **THEN** the tag `nightly` keeps pointing to the newest commit whose checks passed
+- **THEN** the tag `nightly` keeps pointing to the newest commit on `main` that has an index
 
 #### Scenario: Later commit without a build
 - **WHEN** a commit that changes only `openspec/` lands on `main` while the checks of the commit before it still run
@@ -89,7 +89,15 @@ A release SHALL publish, under the version of the project, exactly the image and
 - **THEN** nothing is published and the release workflow says that a new commit that raises the version is needed
 
 ### Requirement: Tag latest
-The tag `latest` SHALL move to a release only if its version has no pre-release part and a higher SemVer precedence than the version `latest` names.
+The tag `latest` SHALL name the release with the highest SemVer precedence among all releases without a pre-release part. The first such release SHALL create it.
+
+#### Scenario: First stable release
+- **WHEN** the first release without a pre-release part is published
+- **THEN** `latest` names it
+
+#### Scenario: Newer stable release
+- **WHEN** `latest` names `1.2.0` and the release `1.3.0` is published
+- **THEN** `latest` names `1.3.0`
 
 #### Scenario: Older stable release
 - **WHEN** `latest` names `1.2.0` and someone pushes the tag `v1.1.0` on the commit that raised the version to `1.1.0`
