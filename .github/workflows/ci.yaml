@@ -233,7 +233,7 @@ jobs:
             --env 'ADNT_MAIL_SENDER=Adunata <adunata@example.org>' \
             --env ADNT_LOCALIZATION_TIME_ZONE=Europe/Berlin \
             adunata:latest
-          curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-all-errors http://127.0.0.1:8080/api/health
+          timeout 60 sh -c 'until docker exec adunata adunata healthcheck; do sleep 1; done'
       - name: Output of the image
         if: failure()
         working-directory: .

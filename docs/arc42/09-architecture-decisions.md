@@ -23,3 +23,4 @@
 |0019|[Exit statuses from sysexits for a failed start](../decisions/0019-exit-statuses-from-sysexits-for-a-failed-start.md)|Accepted|
 |0020|[TLS to the database configured in its URL](../decisions/0020-tls-to-the-database-configured-in-its-url.md)|Accepted|
 |0021|[Published artifacts, their tags and the project version](../decisions/0021-published-artifacts-their-tags-and-the-project-version.md)|Accepted|
+|0022|[Healthcheck as a command of the binary](../decisions/0022-healthcheck-as-a-command-of-the-binary.md)|Accepted|

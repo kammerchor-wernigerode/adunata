@@ -62,6 +62,10 @@ enum Command {
         #[arg(value_parser = name)]
         last_name: String,
     },
+    /// Check whether the instance on the listen address is ready
+    ///
+    /// Asks the health endpoint of the instance on `ADNT_HTTP_LISTEN_ADDRESS`, or on the loopback address when it listens on every interface. Exits with 0 when the instance is ready and with 1 otherwise, including no answer within ten seconds. Meant as the healthcheck of a container. Reads the same settings as `serve`.
+    Healthcheck,
     #[command(about = "Print the OpenAPI document of the API")]
     Openapi,
 }
@@ -106,6 +110,7 @@ async fn main() {
             )
             .await;
         }
+        Command::Healthcheck => healthcheck(file.as_deref()).await,
         Command::Openapi => {
             let document = api::document()
                 .to_pretty_json()
@@ -122,6 +127,20 @@ fn configuration(file: Option<&str>) -> Configuration {
         }
         std::process::exit(INVALID_CONFIGURATION);
     })
+}
+
+/// Exits with 1 and one line that names the cause unless the instance is ready. The line never holds a setting value, so the problems of an invalid configuration stay with `serve`.
+async fn healthcheck(file: Option<&str>) {
+    let Ok(configuration) = Configuration::from_environment_and_file(file) else {
+        eprintln!("the configuration is invalid, adunata serve names the problems");
+        std::process::exit(1);
+    };
+    if let Err(cause) =
+        health::check_readiness(configuration.listen_address, Duration::from_secs(10)).await
+    {
+        eprintln!("{cause}");
+        std::process::exit(1);
+    }
 }
 
 async fn connect(configuration: &Configuration) -> sqlx::PgPool {

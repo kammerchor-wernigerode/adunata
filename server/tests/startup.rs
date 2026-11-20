@@ -228,7 +228,7 @@ fn without_a_command_the_binary_prints_its_help() {
     ] {
         let (code, _, error) = run(&[], variables);
         assert_eq!(code, Some(2));
-        for command in ["serve", "grant-organizer", "openapi"] {
+        for command in ["serve", "grant-organizer", "healthcheck", "openapi"] {
             assert!(error.contains(command), "{error}");
         }
         assert!(error.contains("Usage: adunata"), "{error}");
@@ -290,6 +290,37 @@ fn development_mode_needs_a_loopback_listen_address() {
         "{log}"
     );
     assert!(!log.contains("database is not ready"), "{log}");
+}
+
+/// Runs `healthcheck` and returns the exit code and everything the binary printed.
+fn healthcheck(variables: &[(&str, &str)]) -> (Option<i32>, String) {
+    let (code, output, error) = run(&["healthcheck"], variables);
+    (code, format!("{output}{error}"))
+}
+
+#[test]
+fn healthcheck_without_an_instance_fails() {
+    let (code, log) = healthcheck(&[
+        ("ADNT_HTTP_LISTEN_ADDRESS", "127.0.0.1:1"),
+        ("ADNT_HTTP_PUBLIC_URL", "https://adunata.example.org"),
+        ("ADNT_DATABASE_URL", UNREACHABLE_DATABASE),
+        ("ADNT_SMTP_HOST", "mail.example.org"),
+        ("ADNT_MAIL_SENDER", "Adunata <adunata@example.org>"),
+        ("ADNT_LOCALIZATION_TIME_ZONE", "Europe/Berlin"),
+    ]);
+    assert_eq!(code, Some(1));
+    assert_eq!(log.lines().count(), 1, "{log}");
+    assert!(log.contains("cannot be reached"), "{log}");
+    assert!(!log.contains("127.0.0.1:1"), "{log}");
+}
+
+#[test]
+fn healthcheck_with_settings_missing_fails() {
+    let (code, log) = healthcheck(&[("ADNT_DATABASE_URL", UNREACHABLE_DATABASE)]);
+    assert_eq!(code, Some(1));
+    assert_eq!(log.lines().count(), 1, "{log}");
+    assert!(log.contains("configuration is invalid"), "{log}");
+    assert!(!log.contains(UNREACHABLE_DATABASE), "{log}");
 }
 
 #[test]
