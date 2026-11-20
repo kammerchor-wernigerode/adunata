@@ -24,6 +24,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "unic-langid",
+ "url",
  "utoipa",
  "utoipa-axum",
 ]

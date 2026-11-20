@@ -266,6 +266,16 @@ pub enum Problem {
         path: String,
         line: usize,
     },
+    UnsupportedDatabaseParameter {
+        parameter: String,
+    },
+    UnreadableAuthority {
+        parameter: String,
+        path: String,
+    },
+    LibpqVariable {
+        variable: String,
+    },
 }
 
 impl fmt::Display for Problem {
@@ -314,6 +324,24 @@ impl fmt::Display for Problem {
                 write!(
                     formatter,
                     "line {line} of {path} must have the form KEY=value without quotes or trailing comments"
+                )
+            }
+            Self::UnsupportedDatabaseParameter { parameter } => {
+                write!(
+                    formatter,
+                    "ADNT_DATABASE_URL sets the parameter {parameter}, which Adunata does not support"
+                )
+            }
+            Self::UnreadableAuthority { parameter, path } => {
+                write!(
+                    formatter,
+                    "{parameter} in ADNT_DATABASE_URL names the file {path}, which cannot be read"
+                )
+            }
+            Self::LibpqVariable { variable } => {
+                write!(
+                    formatter,
+                    "the environment sets {variable}, which Adunata does not support, set TLS for the database in the parameters of ADNT_DATABASE_URL instead"
                 )
             }
         }
@@ -489,6 +517,7 @@ impl Configuration {
     pub fn from_environment_and_file(file: Option<&str>) -> Result<Self, Vec<Problem>> {
         Self::from_sources(
             &|name| std::env::var(name).ok().filter(|value| !value.is_empty()),
+            std::env::vars_os().map(|(name, _)| name.to_string_lossy().into_owned()),
             file,
             SettingsFiles::of_working_directory(),
         )
@@ -497,6 +526,7 @@ impl Configuration {
     /// Reads the given environment, the named configuration file and the settings files for development, in this order of precedence.
     fn from_sources(
         environment: Source,
+        environment_names: impl Iterator<Item = String>,
         file: Option<&str>,
         development: SettingsFiles,
     ) -> Result<Self, Vec<Problem>> {
@@ -504,12 +534,20 @@ impl Configuration {
             files,
             mut problems,
         } = development;
+        problems.extend(
+            environment_names
+                .filter(|name| name.starts_with("PGSSL"))
+                .map(|variable| Problem::LibpqVariable { variable }),
+        );
         let settings = match file.map(read_file) {
             Some(Ok((settings, mut file_problems))) => {
                 problems.append(&mut file_problems);
                 settings
             }
-            Some(Err(problem)) => return Err(vec![problem]),
+            Some(Err(problem)) => {
+                problems.push(problem);
+                return Err(problems);
+            }
             None => HashMap::new(),
         };
         let from_file = |name: &str| settings.get(name).cloned();
@@ -631,13 +669,21 @@ fn load_database(
     sources: &[Source],
     variable: Source,
 ) -> Option<PgConnectOptions> {
-    let database = parse(
-        problems,
-        "ADNT_DATABASE_URL",
-        "a PostgreSQL URL such as postgres://adunata@localhost/adunata",
-        variable("ADNT_DATABASE_URL").as_deref(),
-        |value| value.parse::<PgConnectOptions>().ok(),
-    );
+    let url = variable("ADNT_DATABASE_URL");
+    let parameters_accepted = url
+        .as_deref()
+        .is_none_or(|url| accepts_database_parameters(problems, url));
+    let database = if parameters_accepted {
+        parse(
+            problems,
+            "ADNT_DATABASE_URL",
+            "a PostgreSQL URL such as postgres://adunata@localhost/adunata",
+            url.as_deref(),
+            |value| value.parse::<PgConnectOptions>().ok(),
+        )
+    } else {
+        None
+    };
     let password = secret(
         problems,
         "ADNT_DATABASE_PASSWORD",
@@ -648,6 +694,51 @@ fn load_database(
         Some(password) => database.map(|database| database.password(&password)),
         None => database,
     }
+}
+
+/// Checks the query of the database URL before sqlx parses it, because sqlx logs each parameter it does not know together with its value.
+fn accepts_database_parameters(problems: &mut Vec<Problem>, url: &str) -> bool {
+    let Ok(url) = url::Url::parse(url) else {
+        return true;
+    };
+    let known = problems.len();
+    for (parameter, value) in url.query_pairs() {
+        if is_authority_parameter(&parameter) {
+            if std::fs::read(&*value).is_err() {
+                problems.push(Problem::UnreadableAuthority {
+                    parameter: parameter.into_owned(),
+                    path: value.into_owned(),
+                });
+            }
+        } else if !is_supported_database_parameter(&parameter) {
+            problems.push(Problem::UnsupportedDatabaseParameter {
+                parameter: parameter.into_owned(),
+            });
+        }
+    }
+    problems.len() == known
+}
+
+fn is_authority_parameter(parameter: &str) -> bool {
+    matches!(parameter, "sslrootcert" | "ssl-root-cert" | "ssl-ca")
+}
+
+/// The parameters that sqlx parses, without those of a client certificate.
+fn is_supported_database_parameter(parameter: &str) -> bool {
+    matches!(
+        parameter,
+        "sslmode"
+            | "ssl-mode"
+            | "statement-cache-capacity"
+            | "host"
+            | "hostaddr"
+            | "port"
+            | "dbname"
+            | "user"
+            | "password"
+            | "application_name"
+            | "options"
+    ) || parameter.starts_with("options[") && parameter.ends_with(']')
 }
 
 fn load_smtp(problems: &mut Vec<Problem>, sources: &[Source], variable: Source) -> Option<Smtp> {
@@ -1552,6 +1643,85 @@ mod tests {
         );
     }
 
+    fn with_database_url(url: &str) -> HashMap<&'static str, String> {
+        let mut variables = required();
+        variables.insert("ADNT_DATABASE_URL", url.to_owned());
+        variables
+    }
+
+    #[test]
+    fn unsupported_database_parameter_hides_its_value() {
+        let logs = crate::test_logs::captured_logs();
+        let problems = problems(&with_database_url(
+            "postgres://adunata@db.example.org/adunata?sslmode=verify-full&sslpassword=s3cret",
+        ));
+        assert_eq!(
+            problems,
+            vec![Problem::UnsupportedDatabaseParameter {
+                parameter: "sslpassword".to_owned()
+            }]
+        );
+        assert!(problems[0].to_string().contains("sslpassword"));
+        assert!(!problems[0].to_string().contains("s3cret"));
+        assert!(!logs.text().contains("s3cret"));
+    }
+
+    #[test]
+    fn client_certificate_is_unsupported() {
+        let problems = problems(&with_database_url(
+            "postgres://adunata@db.example.org/adunata?sslcert=client.crt&ssl-key=client.key",
+        ));
+        assert_eq!(
+            problems,
+            vec![
+                Problem::UnsupportedDatabaseParameter {
+                    parameter: "sslcert".to_owned()
+                },
+                Problem::UnsupportedDatabaseParameter {
+                    parameter: "ssl-key".to_owned()
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn database_url_with_supported_parameters() {
+        let configuration = load(&with_database_url(
+            "postgres://adunata@db.example.org/adunata?sslmode=verify-full&options[search_path]=adunata&statement-cache-capacity=50",
+        ))
+        .expect("configuration must be accepted");
+        let options = database_debug(&configuration);
+        assert!(options.contains("VerifyFull"), "{options}");
+        assert!(options.contains("search_path"), "{options}");
+    }
+
+    #[test]
+    fn every_libpq_tls_variable_is_a_problem() {
+        let variables = required();
+        let problems = Configuration::from_sources(
+            &|name| variables.get(name).cloned(),
+            ["PATH", "PGSSLCERT", "PGSSLCRL", "PGHOST"]
+                .into_iter()
+                .map(str::to_owned),
+            None,
+            SettingsFiles::default(),
+        )
+        .err()
+        .expect("configuration must be rejected");
+        assert_eq!(
+            problems,
+            vec![
+                Problem::LibpqVariable {
+                    variable: "PGSSLCERT".to_owned()
+                },
+                Problem::LibpqVariable {
+                    variable: "PGSSLCRL".to_owned()
+                },
+            ]
+        );
+        assert!(problems[0].to_string().contains("PGSSLCERT"));
+    }
+
     mod integration {
         use super::*;
         use std::collections::HashMap;
@@ -1627,6 +1797,7 @@ mod tests {
             ]);
             let configuration = Configuration::from_sources(
                 &|_| None,
+                std::iter::empty(),
                 Some(&file),
                 SettingsFiles::read(Some(&directory.path)),
             )
@@ -1667,9 +1838,13 @@ mod tests {
         #[test]
         fn start_from_a_configuration_file() {
             let file = secret_file(&REQUIRED_FILE.replace("listen-address = \"no address\"\n", ""));
-            let configuration =
-                Configuration::from_sources(&|_| None, Some(&file), SettingsFiles::default())
-                    .expect("configuration must be accepted");
+            let configuration = Configuration::from_sources(
+                &|_| None,
+                std::iter::empty(),
+                Some(&file),
+                SettingsFiles::default(),
+            )
+            .expect("configuration must be accepted");
             assert_eq!(configuration.smtp.host, "mail.example.org");
         }
 
@@ -1678,16 +1853,21 @@ mod tests {
             let file = secret_file(REQUIRED_FILE);
             let configuration = Configuration::from_sources(
                 &|name| (name == "ADNT_HTTP_LISTEN_ADDRESS").then(|| "127.0.0.1:9000".to_owned()),
+                std::iter::empty(),
                 Some(&file),
                 SettingsFiles::default(),
             )
             .expect("configuration must be accepted");
             assert_eq!(configuration.listen_address.to_string(), "127.0.0.1:9000");
 
-            let problems =
-                Configuration::from_sources(&|_| None, Some(&file), SettingsFiles::default())
-                    .err()
-                    .expect("listen address of the file must be rejected");
+            let problems = Configuration::from_sources(
+                &|_| None,
+                std::iter::empty(),
+                Some(&file),
+                SettingsFiles::default(),
+            )
+            .err()
+            .expect("listen address of the file must be rejected");
             assert_eq!(
                 problems,
                 vec![Problem::Malformed {
@@ -1700,10 +1880,14 @@ mod tests {
         #[test]
         fn problems_of_the_file_join_the_others() {
             let file = secret_file("[smpt]\nhost = \"mail.example.org\"\n");
-            let problems =
-                Configuration::from_sources(&|_| None, Some(&file), SettingsFiles::default())
-                    .err()
-                    .expect("configuration must be rejected");
+            let problems = Configuration::from_sources(
+                &|_| None,
+                std::iter::empty(),
+                Some(&file),
+                SettingsFiles::default(),
+            )
+            .err()
+            .expect("configuration must be rejected");
             assert!(
                 matches!(problems[0], Problem::UnknownKey { .. }),
                 "{problems:?}"
@@ -1818,6 +2002,47 @@ mod tests {
                 }]
             );
             assert!(problems[0].to_string().contains("ADNT_SMTP_PASSWORD_FILE"));
+        }
+
+        #[test]
+        fn readable_authority_file() {
+            let authority = secret_file("-----BEGIN CERTIFICATE-----\n");
+            let configuration = load(&with_database_url(&format!(
+                "postgres://adunata@db.example.org/adunata?sslmode=verify-full&sslrootcert={authority}"
+            )))
+            .expect("configuration must be accepted");
+            assert!(database_debug(&configuration).contains(&authority));
+        }
+
+        #[test]
+        fn authority_file_missing() {
+            let problems = problems(&with_database_url(
+                "postgres://adunata@db.example.org/adunata?sslmode=verify-full&sslrootcert=/nonexistent/authority.crt",
+            ));
+            assert_eq!(
+                problems,
+                vec![Problem::UnreadableAuthority {
+                    parameter: "sslrootcert".to_owned(),
+                    path: "/nonexistent/authority.crt".to_owned()
+                }]
+            );
+            let message = problems[0].to_string();
+            assert!(message.contains("sslrootcert"), "{message}");
+            assert!(message.contains("/nonexistent/authority.crt"), "{message}");
+        }
+
+        #[test]
+        fn authority_file_missing_under_an_alias() {
+            let problems = problems(&with_database_url(
+                "postgres://adunata@db.example.org/adunata?sslmode=verify-full&ssl-ca=/nonexistent/authority.crt",
+            ));
+            assert_eq!(
+                problems,
+                vec![Problem::UnreadableAuthority {
+                    parameter: "ssl-ca".to_owned(),
+                    path: "/nonexistent/authority.crt".to_owned()
+                }]
+            );
         }
     }
 }
