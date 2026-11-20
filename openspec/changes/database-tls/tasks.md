@@ -4,7 +4,7 @@
 
 - [x] 1.1 Add the sqlx feature `tls-rustls-ring-native-roots` in `server/Cargo.toml` and update `server/Cargo.lock`. Verify that `cargo tree -i webpki-roots` finds nothing, that `cargo deny check licenses` passes and that the notices still build. The commit says that the feature adds no crate.
 - [x] 1.2 Add the check of design.md decision 2 to `server/src/configuration.rs`, with `url` as a direct dependency. Verify with the unit tests of design.md decision 3. The commit says what `url` does and why the check needs it, and names its license.
-- [ ] 1.3 Extend `nix/test.nix` as design.md decision 3 lists. Verify by running `nixosVmTest` with its output in a log file.
+- [x] 1.3 Extend `nix/test.nix` as design.md decision 3 lists. Verify by running `nixosVmTest` with its output in a log file.
 
 ## 2. Documentation
 
@@ -13,7 +13,7 @@
 
 ## 3. Hand-over
 
-- [ ] 3.1 Run `openspec-verify-change` for `database-tls` and fix what it finds.
-- [ ] 3.2 Run a code review of the whole branch with the review command of the agent and fix what it finds.
-- [ ] 3.3 Run `nix build .#checks.<system>.integration` for the local system and fix every failure.
-- [ ] 3.4 Rebase onto `main`, push the branch and open the pull request ready for review.
+- [x] 3.1 Run `openspec-verify-change` for `database-tls` and fix what it finds.
+- [x] 3.2 Run a code review of the whole branch with the review command of the agent and fix what it finds.
+- [x] 3.3 Run `nix build .#checks.<system>.integration` for the local system and fix every failure.
+- [x] 3.4 Rebase onto `main`, push the branch and open the pull request ready for review.
