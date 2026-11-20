@@ -21,14 +21,14 @@ This file routes. It names where things live and the rules that apply everywhere
 - Small fixes need no change proposal.
 - An architecturally significant decision gets a record in `docs/decisions/`. Significant means that an operator or a running instance notices it. Tooling for development, tests and CI never is, even where a record mentions it. [ADR 0001](docs/decisions/0001-record-architecture-decisions.md) defines what counts. The development environment is not architecture. The README documents it.
 - Plan each change from its own problem and the current code. Archived changes are no template.
-- Archive a merged OpenSpec change directly on `main`, never through a pull request. Pull `main` first. The commit subject ends with `[skip ci]`, because the archive changes no code.
+- Archive merged OpenSpec changes together in a pull request of their own, once every change of a piece of work is merged or whenever a maintainer chooses. Nobody pushes to `main` directly. CI checks only `editorconfig` for a pull request that touches nothing outside `openspec/`.
 - When an agent repeats a mistake, add a rule here.
 
 ## Pull requests
 
-CI runs the checks up to `integration` in the job `verify` on every push to a pull request. Pull requests that are ready for review and pushes to `main` also run the jobs `e2e` and `nixos`, which take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes the checks.
+CI runs the checks up to `integration` in the job `build` on every push to a pull request. A draft builds only `x86_64-linux`. Pull requests that are ready for review and pushes to `main` build both architectures with the image and the NixOS VM test and run the job `e2e`, which takes much longer. The job `ci` sums up every job and is the check that `main` requires. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes the checks.
 
-- A change is ready for human review when nothing local can still find a problem in it. Every local check is cheaper than a CI round, and every push after review starts one. So the agent that finishes a change runs `openspec-verify-change` (for OpenSpec changes), a code review of the whole branch with its own review command and the checks up to integration, and fixes what they find. Once all three pass, push the branch and open the pull request ready for review. The first push then carries the reviewed state, and `e2e` and `nixos` run once.
+- A change is ready for human review when nothing local can still find a problem in it. Every local check is cheaper than a CI round, and every push after review starts one. So the agent that finishes a change runs `openspec-verify-change` (for OpenSpec changes), a code review of the whole branch with its own review command and the checks up to integration, and fixes what they find. Once all three pass, push the branch and open the pull request ready for review. The first push then carries the reviewed state, and the full run with both architectures and `e2e` happens once.
 - Open a draft pull request only for an intermediate state that someone should see.
 - Before each push, run the checks up to integration locally with `nix build .#checks.<system>.integration`, where `<system>` is the local Nix system such as `aarch64-linux`. Without Nix, run the commands that the [README](README.md#checks-before-a-push) lists. Never push a state that fails them.
 - Push once per round of feedback. Collect every remark of a review, fix them together and then push.
