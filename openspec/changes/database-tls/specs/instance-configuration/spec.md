@@ -44,7 +44,7 @@ Adunata SHALL take the TLS mode of the database connection from the parameter `s
 - **THEN** Adunata connects without TLS
 
 ### Requirement: Parameters of the database URL
-Adunata SHALL check the query of the database URL together with the other settings, before it touches the database. A parameter that Adunata does not support SHALL be a problem that names the parameter but not its value. A file named by `sslrootcert` that does not exist or cannot be read SHALL be a problem that names the parameter and the path.
+Adunata SHALL check the query of the database URL together with the other settings, before it touches the database. A parameter that Adunata does not support SHALL be a problem that names the parameter but not its value. A file named by `sslrootcert` that does not exist or cannot be read SHALL be a problem that names the parameter and the path. Each of the variables `PGSSLMODE`, `PGSSLROOTCERT`, `PGSSLCERT` and `PGSSLKEY` that is set SHALL be a problem that names the variable.
 
 #### Scenario: Authority file missing
 - **WHEN** the database URL sets `sslrootcert` to a path where no readable file exists
@@ -53,3 +53,7 @@ Adunata SHALL check the query of the database URL together with the other settin
 #### Scenario: Unsupported parameter
 - **WHEN** the database URL sets `sslpassword=s3cret`
 - **THEN** Adunata names `sslpassword` as unsupported, never prints `s3cret` and exits as with an invalid configuration
+
+#### Scenario: Variable of libpq set
+- **WHEN** the environment sets `PGSSLCERT`
+- **THEN** Adunata names `PGSSLCERT` among all other problems and exits as with an invalid configuration before it touches the database
