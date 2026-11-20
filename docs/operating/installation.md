@@ -2,7 +2,7 @@
 
 Adunata runs as one service next to PostgreSQL and a mail server. Put a reverse proxy with HTTPS in front of it, such as Caddy or nginx, and point `ADNT_HTTP_PUBLIC_URL` at the address the proxy serves. The [configuration reference](configuration.md) lists every setting. Adunata checks the certificate of the mail server against the trust store of the host. With `sslmode=verify-ca` or `verify-full` it checks the certificate of the database there too. The host therefore needs a trust store with the authorities of both servers, see [certificate authorities](configuration.md#certificate-authorities).
 
-There are three supported ways to install Adunata. A NixOS test runs each of them in a virtual machine, see [`nix/test.nix`](../../nix/test.nix).
+There are three supported ways to install Adunata. The image and the release binary exist for `x86_64` and `aarch64`. A NixOS test runs each way on `x86_64` in a virtual machine, see [`nix/test.nix`](../../nix/test.nix).
 
 ## NixOS
 
@@ -54,7 +54,18 @@ systemd restarts the service five seconds after a failure, but not after status 
 
 ## Container
 
-Each release publishes an image to `ghcr.io/kammerchor-wernigerode/adunata`. The image listens on port 8080 and runs as an unprivileged user. It sets `ADNT_HTTP_LISTEN_ADDRESS` to `0.0.0.0:8080`, which wins over `listen-address` in a configuration file, so change the port with that variable. A Compose file with PostgreSQL could look like this:
+Adunata publishes its image to `ghcr.io/kammerchor-wernigerode/adunata` for `linux/amd64` and `linux/arm64`. The container runtime pulls the image for its host. Pulling needs no sign-in. The image has these tags:
+
+|Tag|Image|
+|-|-|
+|`latest`|The highest release without a pre-release part|
+|`<version>`, such as `0.1.0`|The release of that version|
+|`nightly`|The newest commit on `main` that passed every check. It changes with every merge, including database migrations, so it suits test instances, not production.|
+|`sha-<commit>`|The commit on `main` with that full hash|
+
+OCI annotations of the image name its source, the commit in `org.opencontainers.image.revision`, the license and, for a release, the version in `org.opencontainers.image.version`. `docker buildx imagetools inspect --raw <image>` shows them.
+
+The image listens on port 8080 and runs as an unprivileged user. It sets `ADNT_HTTP_LISTEN_ADDRESS` to `0.0.0.0:8080`, which wins over `listen-address` in a configuration file, so change the port with that variable. A Compose file with PostgreSQL could look like this:
 
 ```yaml
 services:
@@ -131,7 +142,15 @@ docker rm adunata-licenses
 
 ## Release binary
 
-Each release publishes `adunata-x86_64-linux.tar.gz`. It holds a binary for Linux distributions with systemd, glibc 2.34 or newer and libgcc_s, an example unit, an example environment file and the license notices `licenses.txt` and `licenses-rust.html`. On a distribution based on musl, such as Alpine, use the container instead.
+Each release publishes `adunata-x86_64-linux.tar.gz` and `adunata-aarch64-linux.tar.gz` together with `SHA256SUMS`, which holds the SHA-256 checksum of both archives. Each archive holds a binary for Linux distributions with systemd, glibc 2.34 or newer and libgcc_s, an example unit, an example environment file and the license notices `licenses.txt` and `licenses-rust.html`. On a distribution based on musl, such as Alpine, use the container instead.
+
+Download the archive for your architecture and `SHA256SUMS` into one directory and check the archive:
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+Continue only if it reports `OK` for the archive. Then unpack and install it, here for `x86_64`:
 
 ```sh
 tar --extract --gzip --file adunata-x86_64-linux.tar.gz
