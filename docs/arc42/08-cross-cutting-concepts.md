@@ -6,7 +6,7 @@ An instance takes its configuration from environment variables and from an optio
 
 A development build also reads the files `.env.local` and `.env` in its working directory, so `cargo run` and `cargo test` in `server/` need no setting in the shell. Each file is a source below the configuration file, and `.env.local` wins over `.env`. A release build never reads either file. The repository tracks `server/.env` with the settings for local development.
 
-The module `configuration` reads all settings at start-up and checks them together. It collects every problem before Adunata touches the database or opens a port, so an operator fixes all mistakes in one round. Each message names the setting and never a secret value. A message about the configuration file names the file and the key but never a value or the content of a line. Other modules receive typed settings, such as the public base URL, and never read the environment or the file themselves. The exceptions are `SSL_CERT_FILE` and `SSL_CERT_DIR`, which the TLS library of mail delivery reads to find the trust store, as every TLS tool on the host does. The module `configuration` does not check them.
+The module `configuration` reads all settings at start-up and checks them together. It collects every problem before Adunata touches the database or opens a port, so an operator fixes all mistakes in one round. Each message names the setting and never a secret value. A message about the configuration file names the file and the key but never a value or the content of a line. Other modules receive typed settings, such as the public base URL, and never read the environment or the file themselves. The exceptions are `SSL_CERT_FILE` and `SSL_CERT_DIR`, which the TLS library of mail delivery and of the database connection reads to find the trust store, as every TLS tool on the host does. The module `configuration` does not check them. It checks the parameters of the database URL before sqlx parses it, because sqlx logs an unknown parameter with its value. It rejects every variable whose name starts with `PGSSL`, because sqlx would read some of them besides the URL.
 
 The settings and their defaults are listed in the [configuration reference](../operating/configuration.md).
 
@@ -98,6 +98,8 @@ Every page runs axe in its client integration test. Axe in jsdom computes neithe
 ## Persistence and migrations
 
 PostgreSQL holds all data, see [ADR 0004](../decisions/0004-postgresql-as-database.md). Queries are plain SQL that the server sends at runtime. Builds therefore need no database.
+
+The connection to PostgreSQL takes its TLS settings from the database URL, see [ADR 0020](../decisions/0020-tls-to-the-database-configured-in-its-url.md). Only `verify-ca` and `verify-full` check the certificate of the database, against the trust store of the host as for the [mail server](#mail-delivery). The [configuration reference](../operating/configuration.md#settings) describes the modes.
 
 The binary embeds its migrations. On start, the module `database` compares the newest migration applied to the database with the newest one the binary knows. If the database is ahead, a newer release has already migrated it. Adunata then refuses to start without changing anything and exits with a status that the [operating guide](../operating/installation.md#commands) lists. Otherwise it applies the pending migrations before it accepts requests. Migrations only move forward, and a released migration never changes. Going back to an older release means restoring a backup.
 

@@ -21,3 +21,4 @@
 |0017|[Third-party notices in every artifact](../decisions/0017-third-party-notices-in-every-artifact.md)|Accepted|
 |0018|[Development mode on localhost](../decisions/0018-development-mode-on-localhost.md)|Accepted|
 |0019|[Exit statuses from sysexits for a failed start](../decisions/0019-exit-statuses-from-sysexits-for-a-failed-start.md)|Accepted|
+|0020|[TLS to the database configured in its URL](../decisions/0020-tls-to-the-database-configured-in-its-url.md)|Accepted|

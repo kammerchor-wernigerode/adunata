@@ -92,7 +92,7 @@ async fn main() {
     tracing_subscriber::fmt().json().init();
     let file = cli.config.filter(|path| !path.is_empty());
     match command {
-        Command::Serve { dev } => serve(configuration(file.as_deref()), dev).await,
+        Command::Serve { dev } => Box::pin(serve(configuration(file.as_deref()), dev)).await,
         Command::GrantOrganizer {
             mail,
             first_name,
@@ -125,7 +125,7 @@ fn configuration(file: Option<&str>) -> Configuration {
 }
 
 async fn connect(configuration: &Configuration) -> sqlx::PgPool {
-    database::connect(configuration.database.clone())
+    Box::pin(database::connect(configuration.database.clone()))
         .await
         .unwrap_or_else(|error| {
             tracing::error!(%error, "database is not ready");

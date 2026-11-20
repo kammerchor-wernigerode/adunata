@@ -6,17 +6,19 @@
   image,
 }:
 let
-  testAuthorityAndMailpitCertificate =
+  testCertificates =
     pkgs.runCommand "adunata-test-certificates" { nativeBuildInputs = [ (toolsOf pkgs).openssl ]; }
       ''
         mkdir $out
         openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 3650 \
           -subj "/CN=Adunata test authority" -keyout authority.key -out $out/authority.crt
-        openssl req -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
-          -subj "/CN=127.0.0.1" -keyout $out/mailpit.key -out mailpit.csr
-        printf 'subjectAltName=IP:127.0.0.1\nbasicConstraints=CA:FALSE\nextendedKeyUsage=serverAuth\n' > mailpit.ext
-        openssl x509 -req -in mailpit.csr -CA $out/authority.crt -CAkey authority.key -CAcreateserial -days 3650 \
-          -extfile mailpit.ext -out $out/mailpit.crt
+        printf 'subjectAltName=IP:127.0.0.1\nbasicConstraints=CA:FALSE\nextendedKeyUsage=serverAuth\n' > server.ext
+        for server in mailpit postgresql; do
+          openssl req -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
+            -subj "/CN=127.0.0.1" -keyout $out/$server.key -out $server.csr
+          openssl x509 -req -in $server.csr -CA $out/authority.crt -CAkey authority.key -CAcreateserial -days 3650 \
+            -extfile server.ext -out $out/$server.crt
+        done
       '';
 
   mailpitWithImplicitTls =
@@ -24,12 +26,29 @@ let
     {
       systemd.services.mailpit = {
         wantedBy = [ "multi-user.target" ];
-        serviceConfig.ExecStart = "${(toolsOf pkgs).mailpit}/bin/mailpit --smtp 127.0.0.1:1465 --listen 127.0.0.1:8025 --smtp-tls-cert ${testAuthorityAndMailpitCertificate}/mailpit.crt --smtp-tls-key ${testAuthorityAndMailpitCertificate}/mailpit.key --smtp-require-tls";
+        serviceConfig.ExecStart = "${(toolsOf pkgs).mailpit}/bin/mailpit --smtp 127.0.0.1:1465 --listen 127.0.0.1:8025 --smtp-tls-cert ${testCertificates}/mailpit.crt --smtp-tls-key ${testCertificates}/mailpit.key --smtp-require-tls";
       };
     };
 
+  postgresqlWithTls = {
+    services.postgresql = {
+      enableTCPIP = true;
+      authentication = "host adunata adunata 127.0.0.0/8 trust";
+      settings = {
+        ssl = true;
+        ssl_cert_file = "${testCertificates}/postgresql.crt";
+        ssl_key_file = "/run/postgresql-tls/postgresql.key";
+      };
+    };
+    systemd.tmpfiles.rules = [
+      "d /run/postgresql-tls 0755 root root -"
+      "C /run/postgresql-tls/postgresql.key - - - - ${testCertificates}/postgresql.key"
+      "z /run/postgresql-tls/postgresql.key 0640 root postgres -"
+    ];
+  };
+
   trustsTestAuthority = {
-    security.pki.certificateFiles = [ "${testAuthorityAndMailpitCertificate}/authority.crt" ];
+    security.pki.certificateFiles = [ "${testCertificates}/authority.crt" ];
   };
 in
 pkgs.testers.runNixOSTest {
@@ -42,6 +61,7 @@ pkgs.testers.runNixOSTest {
         imports = [
           module
           mailpitWithImplicitTls
+          postgresqlWithTls
           trustsTestAuthority
         ];
         services.adunata = {
@@ -91,12 +111,14 @@ pkgs.testers.runNixOSTest {
     container =
       { pkgs, ... }:
       {
-        imports = [ mailpitWithImplicitTls ];
+        imports = [
+          mailpitWithImplicitTls
+          postgresqlWithTls
+        ];
         virtualisation.podman.enable = true;
         virtualisation.memorySize = 2048;
         services.postgresql = {
           enable = true;
-          enableTCPIP = true;
           ensureDatabases = [ "adunata" ];
           ensureUsers = [
             {
@@ -104,7 +126,6 @@ pkgs.testers.runNixOSTest {
               ensureDBOwnership = true;
             }
           ];
-          authentication = "host adunata adunata 127.0.0.1/32 trust";
         };
       };
   };
@@ -132,6 +153,25 @@ pkgs.testers.runNixOSTest {
             " -d '{\"mail\":\"organizer@example.org\"}' http://127.0.0.1:8080/api/sign-in-requests"
         )
 
+    def database_connection_encrypted(machine):
+        encrypted = machine.succeed(
+            "sudo -u postgres psql -d adunata -tAc"
+            " \"SELECT ssl FROM pg_stat_ssl JOIN pg_stat_activity USING (pid) WHERE usename = 'adunata' ORDER BY backend_start DESC LIMIT 1\""
+        ).strip()
+        assert encrypted in ("t", "f"), encrypted
+        return encrypted == "t"
+
+    def connect_nixos_through(url):
+        nixos.succeed(
+            "mkdir -p /run/systemd/system/adunata.service.d",
+            f"printf '[Service]\\nEnvironment=ADNT_DATABASE_URL={url}\\n' > /run/systemd/system/adunata.service.d/database.conf",
+            "systemctl daemon-reload",
+            "systemctl restart adunata.service",
+        )
+        nixos.wait_for_open_port(8080)
+        assert_serves_adunata(nixos)
+        assert database_connection_encrypted(nixos), url
+
     def assert_mail_arrives(machine):
         machine.wait_until_succeeds(
             "curl --fail --silent http://127.0.0.1:8025/api/v1/messages | grep --quiet '\"total\":1'", timeout=90
@@ -148,10 +188,20 @@ pkgs.testers.runNixOSTest {
         assert int(applied) >= 2, applied
         exposure = nixos.succeed("systemd-analyze security adunata.service | tail -1")
         print(exposure)
+        assert not database_connection_encrypted(nixos), "the Unix socket must stay plain"
 
     with subtest("Mail over TLS on NixOS, trusted through the host's store"):
         request_sign_in(nixos)
         assert_mail_arrives(nixos)
+
+    with subtest("Database over TLS on NixOS, verified with the authority in sslrootcert"):
+        connect_nixos_through("postgres://adunata@127.0.0.1/adunata?sslmode=verify-full&sslrootcert=${testCertificates}/authority.crt")
+
+    with subtest("Database over TLS on NixOS, verified through the host's store"):
+        connect_nixos_through("postgres://adunata@127.0.0.1/adunata?sslmode=verify-full")
+
+    with subtest("Database over TLS on NixOS without TLS parameters"):
+        connect_nixos_through("postgres://adunata@127.0.0.1/adunata")
 
     with subtest("Install from release binary"):
         binary.wait_for_unit("postgresql.target")
@@ -177,6 +227,15 @@ pkgs.testers.runNixOSTest {
         request_sign_in(binary)
         assert_mail_arrives(binary)
 
+    with subtest("Release binary refuses a database without TLS under sslmode=require"):
+        binary.succeed(
+            "sed -i 's#^ADNT_DATABASE_URL=.*#&?sslmode=require#' /etc/adunata/adunata.env",
+            "systemctl restart adunata.service",
+        )
+        binary.wait_until_succeeds("systemctl show adunata.service --property=ExecMainStatus | grep -x ExecMainStatus=1")
+        binary.succeed("journalctl -u adunata.service | grep 'database is not ready' | grep --quiet -i tls")
+        binary.succeed("systemctl stop adunata.service")
+
     with subtest("Install as container"):
         container.wait_for_unit("postgresql.target")
         container.succeed("podman load --input ${image}")
@@ -184,7 +243,6 @@ pkgs.testers.runNixOSTest {
             " --network host"
             " --env ADNT_HTTP_LISTEN_ADDRESS=127.0.0.1:8080"
             " --env ADNT_HTTP_PUBLIC_URL=http://localhost:8080"
-            " --env ADNT_DATABASE_URL=postgres://adunata@127.0.0.1/adunata"
             " --env ADNT_SMTP_HOST=127.0.0.1"
             " --env ADNT_SMTP_PORT=1465"
             " --env ADNT_SMTP_ENCRYPTION=tls"
@@ -194,7 +252,8 @@ pkgs.testers.runNixOSTest {
             " --env ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME=Ada"
             " --env ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME=Lovelace"
         )
-        container.succeed("podman run --detach --name untrusting" + container_settings + " adunata:latest")
+        plain_database = " --env ADNT_DATABASE_URL=postgres://adunata@127.0.0.1/adunata"
+        container.succeed("podman run --detach --name untrusting" + container_settings + plain_database + " adunata:latest")
         container.wait_for_open_port(8080)
         assert_serves_adunata(container)
         assert_serves_notices(container)
@@ -222,11 +281,52 @@ pkgs.testers.runNixOSTest {
     with subtest("Image trusts the bundle that SSL_CERT_FILE names"):
         container.succeed(
             "podman run --detach --name trusting"
-            " --volume ${testAuthorityAndMailpitCertificate}/authority.crt:/authority.crt:ro"
+            " --volume ${testCertificates}/authority.crt:/authority.crt:ro"
             " --env SSL_CERT_FILE=/authority.crt"
-            + container_settings + " adunata:latest"
+            + container_settings + plain_database + " adunata:latest"
         )
         assert_mail_arrives(container)
+        container.succeed("podman stop trusting")
+
+    def run_container_with_database(url):
+        return container.execute(
+            "timeout 60 podman run --rm --volume ${testCertificates}/authority.crt:/authority.crt:ro"
+            + container_settings + f" --env 'ADNT_DATABASE_URL={url}' adunata:latest 2>&1"
+        )
+
+    with subtest("Image refuses a database outside its bundle"):
+        status, output = run_container_with_database("postgres://adunata@127.0.0.1/adunata?sslmode=verify-full")
+        assert status == 1, output
+        assert "UnknownIssuer" in output, output
+
+    with subtest("Image trusts the database through the authority in sslrootcert"):
+        container.succeed(
+            "podman run --detach --name verifying --volume ${testCertificates}/authority.crt:/authority.crt:ro"
+            + container_settings
+            + " --env 'ADNT_DATABASE_URL=postgres://adunata@127.0.0.1/adunata?sslmode=verify-full&sslrootcert=/authority.crt'"
+            + " adunata:latest"
+        )
+        container.wait_for_open_port(8080)
+        assert_serves_adunata(container)
+        assert database_connection_encrypted(container)
+        container.succeed("podman stop verifying")
+
+    with subtest("Image refuses a database whose certificate does not name the host"):
+        status, output = run_container_with_database("postgres://adunata@localhost/adunata?sslmode=verify-full&sslrootcert=/authority.crt")
+        assert status == 1, output
+        assert "not valid for name" in output, output
+
+    with subtest("Image checks only the authority under sslmode=verify-ca"):
+        container.succeed(
+            "podman run --detach --name verifying-authority --volume ${testCertificates}/authority.crt:/authority.crt:ro"
+            + container_settings
+            + " --env 'ADNT_DATABASE_URL=postgres://adunata@127.0.0.2/adunata?sslmode=verify-ca&sslrootcert=/authority.crt'"
+            + " adunata:latest"
+        )
+        container.wait_for_open_port(8080)
+        assert_serves_adunata(container)
+        assert database_connection_encrypted(container)
+        container.succeed("podman stop verifying-authority")
 
     with subtest("Stop gracefully"):
         nixos.succeed("systemctl stop adunata.service")
