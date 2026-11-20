@@ -66,7 +66,7 @@ A release SHALL publish, under the version of the project, exactly the image and
 - **THEN** nothing is published and the release workflow names the mismatch
 
 #### Scenario: Tag on a commit that does not raise the version
-- **WHEN** someone pushes a tag on a commit whose version equals the version of its first parent
+- **WHEN** someone pushes a tag on a commit whose version is not higher than the version of its first parent
 - **THEN** nothing is published and the release workflow names the reason
 
 #### Scenario: Tag outside main

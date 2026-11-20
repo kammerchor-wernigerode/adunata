@@ -50,11 +50,11 @@ Not architecturally significant, because the content of the archive does not cha
 
 ### 4. `publish.yaml` publishes `nightly`
 
-It runs on `workflow_run` after `CI` completed. A job condition lets it continue only if that run succeeded, its event was `push`, its branch was `main` and its head repository is this repository, and only if it uploaded artifacts. A fork cannot push to `main`, so no run of a pull request publishes. Each commit has its own `concurrency` group, because one shared group would drop pending runs and leave a commit without `sha-<commit>`.
+It runs on `workflow_run` after `CI` completed. A job condition lets it continue only if that run succeeded, its event was `push`, its branch was `main` and its head repository is this repository, and only if it uploaded artifacts. A fork cannot push to `main`, so no run of a pull request publishes. The job `index` below has one `concurrency` group per commit, because one shared group would drop pending runs and leave a commit without `sha-<commit>`.
 
-It downloads `image-<system>` of exactly that run and pushes both images with `skopeo` as `sha-<commit>-amd64` and `sha-<commit>-arm64`, with credentials from a file. `docker buildx imagetools create` joins them into the OCI index `sha-<commit>` with the annotations of decision 1. A step compares the config digest of each pushed image with the artifact.
+A job `index` downloads `image-<system>` of exactly that run and pushes both images with `skopeo` as `sha-<commit>-amd64` and `sha-<commit>-arm64`, with credentials from a file. `docker buildx imagetools create` joins them into the OCI index `sha-<commit>` with the annotations of decision 1 and `org.kammerchor-wernigerode.adunata.ci-run`, which names the run and the attempt of `CI`. A step compares the config digest of each pushed image with the artifact. If `sha-<commit>` already exists, the job leaves it as it is, so a run again of `CI` never replaces the verified index.
 
-It then reads the annotation `revision` of the current `nightly` and asks the compare API of GitHub whether that commit is a descendant of this one. If it is not, `nightly` moves to `sha-<commit>`. A commit that skipped its build or failed its checks therefore never holds `nightly` back, and a late run never moves it back. A last step pulls `nightly` without credentials, so a private package fails visibly.
+A job `nightly` follows in one `concurrency` group for all runs that never cancels a running job. It walks the first-parent history of `main` from its head and takes the first commit that has an index `sha-<commit>`. It moves `nightly` there if the annotation `revision` of the current `nightly` names another commit. Because each run computes the newest published commit itself, a run that GitHub drops from the queue loses nothing, two runs never move `nightly` at the same time, and a late run never moves it back. A commit that skipped its build or failed its checks never holds `nightly` back. A last step pulls `nightly` without credentials, so a private package fails visibly.
 
 It holds `packages: write`, `actions: read` and `contents: read`, restores no cache, builds nothing and checks out no code. zizmor flags `workflow_run` as a dangerous trigger, because it runs with the rights of this repository after a run that a fork may have started. The job condition excludes those runs, and the workflow neither runs code from the triggering run nor writes its data to `GITHUB_ENV`. The trigger carries `zizmor: ignore[dangerous-triggers]` with this reason.
 
@@ -67,9 +67,9 @@ Not architecturally significant, because it is CI tooling. Operators see only th
 It runs on tags `v*`, builds nothing and uses no Nix.
 
 1. The tagged commit is on `main`.
-2. The tag equals `v` and the version in `server/Cargo.toml`, `server/Cargo.lock` and `client/package.json` of that commit, and that version differs from the one in its first parent. A tag therefore sits only on the commit that raises the version.
-3. A successful run of `CI` for a push of that commit exists, its artifacts `release-<system>` still exist and the index `sha-<commit>` exists.
-4. It downloads the archives of both architectures, checks each against its `.sha256` file and joins them into `SHA256SUMS`.
+2. The tag equals `v` and the version in `server/Cargo.toml`, `server/Cargo.lock` and `client/package.json` of that commit, and that version has a higher SemVer precedence than the one in its first parent, so `1.2.0-rc.1` to `1.2.0` passes and `1.2.0` to `1.1.0` fails. A tag therefore sits only on the commit that raises the version.
+3. The index `sha-<commit>` exists. Its annotation `org.kammerchor-wernigerode.adunata.ci-run` names the run and the attempt of `CI` that verified it, and the artifacts `release-<system>` of exactly that attempt still exist.
+4. It downloads the archives of both architectures from that attempt, checks each against its `.sha256` file and joins them into `SHA256SUMS`.
 5. It creates the GitHub release as a draft with both archives, `SHA256SUMS` and notes from `--generate-notes`, or reuses the draft of an earlier attempt.
 6. It creates the index of decision 1 with the annotation `version` and tags it as `<version>`, and as `latest` only if the version has no pre-release part.
 7. It publishes the release.
