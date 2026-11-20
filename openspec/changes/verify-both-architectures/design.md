@@ -54,7 +54,7 @@ Not architecturally significant, because where tests run is tooling.
 
 ### 3. Changes to `openspec/` alone run only `editorconfig`
 
-A job `changes` compares, for a pull request, its base with its head and, for a push, the commit with its first parent, using `git diff --name-only`. If every changed path lies under `openspec/`, it runs `nix build .#checks.x86_64-linux.editorconfig`, and every other job skips. A run started by `workflow_dispatch` never skips. A filter on the workflow itself would leave the required check without a report and block such a pull request for good.
+A job `changes` compares, for a pull request, its base with its head and, for a push, `github.event.before` with the pushed commit, using `git diff --name-only`, so a push of several commits counts all of them. If `github.event.before` is missing, consists of zeros or is not an ancestor of the pushed commit, `changes` runs everything. If every changed path lies under `openspec/`, it runs `nix build .#checks.x86_64-linux.editorconfig`, and every other job skips. A run started by `workflow_dispatch` never skips. A filter on the workflow itself would leave the required check without a report and block such a pull request for good.
 
 `changes` also writes the matrix of `build` as an output, because a job condition cannot see the matrix. A draft pull request gets only the x86 leg, and the steps for image and VM test skip there.
 
