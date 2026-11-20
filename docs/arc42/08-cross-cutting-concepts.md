@@ -136,6 +136,8 @@ Every value that organizers or members entered, such as titles, locations and na
 
 The endpoint `/api/health` reports whether the instance can serve requests and, if not, which dependency is unavailable. It carries no personal data and no configuration values, so monitors may call it without authentication.
 
+The command `adunata healthcheck` asks the same endpoint from inside a container, because the image has no shell and no HTTP client, see [ADR 0022](../decisions/0022-healthcheck-as-a-command-of-the-binary.md). The [operating guide](../operating/installation.md#check-readiness) describes the command and how an operator wires it.
+
 ## Shutdown
 
 On SIGTERM, Adunata stops accepting connections, lets requests in progress finish and exits with status zero. Mail that the background task has not yet sent stays in the outbox and goes out after the next start.
