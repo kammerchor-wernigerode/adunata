@@ -28,10 +28,11 @@ jobs:
         with:
           extra_nix_config: system-features = nixos-test benchmark big-parallel kvm
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
-        with: # zizmor: ignore[cache-poisoning] a tag restores only caches saved on main or for tags, and only tags publish
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', 'flake.lock', 'server/Cargo.lock', 'client/pnpm-lock.yaml', 'client/pnpm-deps.hash') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
+        with: # zizmor: ignore[cache-poisoning] a tag restores only caches saved on main, and only tags publish
+          primary-key: nix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**', '!.git/**') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-${{ runner.arch }}-
           gc-max-store-size-linux: 8G
+          save: false
       - name: Every check, including the NixOS VM test
         run: nix flake check --print-build-logs --option abort-on-warn true
       - name: Build release binary and image

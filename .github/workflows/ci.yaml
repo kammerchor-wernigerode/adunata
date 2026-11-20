@@ -8,54 +8,143 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
-  verify:
-    name: Verify
-    runs-on: ubuntu-latest
+  changes:
+    name: Changes
+    runs-on: ubuntu-24.04
+    outputs:
+      code: ${{ steps.paths.outputs.code }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - name: Paths outside openspec
+        id: paths
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          everything() {
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+          case "$EVENT" in
+            pull_request) range="$BASE...$HEAD" ;;
+            push)
+              if [[ "$BEFORE" =~ ^0*$ ]] || ! git merge-base --is-ancestor "$BEFORE" "$AFTER"; then everything; fi
+              range="$BEFORE..$AFTER"
+              ;;
+            *) everything ;;
+          esac
+          changed=$(git diff --name-only --no-renames "$range") || everything
+          echo "$changed"
+          if [ -z "$changed" ] || grep --invert-match --quiet '^openspec/' <<< "$changed"; then everything; fi
+          echo "code=false" >> "$GITHUB_OUTPUT"
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        if: steps.paths.outputs.code == 'false'
+      - name: Editorconfig
+        if: steps.paths.outputs.code == 'false'
+        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.editorconfig
+      - name: Matrix
+        id: matrix
+        env:
+          DRAFT: ${{ github.event.pull_request.draft == true }}
+        run: |
+          if [ "$DRAFT" = true ]; then
+            echo 'matrix={"include":[{"system":"x86_64-linux","runner":"ubuntu-24.04","image":false,"vm":false}]}' >> "$GITHUB_OUTPUT"
+          else
+            echo 'matrix={"include":[{"system":"x86_64-linux","runner":"ubuntu-24.04","image":true,"vm":true},{"system":"aarch64-linux","runner":"ubuntu-24.04-arm","image":true,"vm":false}]}' >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build (${{ matrix.system }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      actions: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    env:
+      SYSTEM: ${{ matrix.system }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Allow virtual machines
+        if: matrix.vm
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
       - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
         with:
-          extra_nix_config: system-features = nixos-test benchmark big-parallel kvm
+          extra_nix_config: system-features = benchmark big-parallel${{ matrix.vm && ' nixos-test kvm' || '' }}
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', 'flake.lock', 'server/Cargo.lock', 'client/pnpm-lock.yaml', 'client/pnpm-deps.hash') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          gc-max-store-size-linux: 8G
+        with: # zizmor: ignore[cache-poisoning] only pushes to main save a cache, so no run on main restores one that a pull request saved
+          primary-key: nix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**', '!.git/**') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-${{ runner.arch }}-
+          gc-max-store-size-linux: 4G
+          save: ${{ github.event_name == 'push' }}
+          purge: ${{ github.event_name == 'push' }}
+          purge-prefixes: nix-${{ runner.os }}-${{ runner.arch }}-
+          purge-created: 0
+          purge-primary-key: never
       - name: Evaluation of every flake output
         run: nix flake check --no-build --option abort-on-warn true
-      - name: Lint
-        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.lint
-      - name: Build
-        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.build
-      - name: Unit tests
-        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.test
-      - name: Integration tests
-        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.integration
-      - name: Release binary
-        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-        run: nix build --print-build-logs --out-link release --option abort-on-warn true .#packages.x86_64-linux.release
+      - name: Checks up to integration, release binary and image
+        env:
+          IMAGE: ${{ matrix.image }}
+          VM: ${{ matrix.vm }}
+        run: |
+          installables=(".#checks.$SYSTEM.integration" ".#packages.$SYSTEM.release")
+          if [ "$IMAGE" = true ]; then installables+=(".#packages.$SYSTEM.image"); fi
+          if [ "$VM" = true ]; then installables+=(".#checks.$SYSTEM.nixosVmTest"); fi
+          nix build --print-build-logs --keep-going --no-link --option abort-on-warn true "${installables[@]}"
+      - name: Release archive
+        run: |
+          nix build --out-link release ".#packages.$SYSTEM.release"
+          tar --create --gzip --dereference --file "release-$SYSTEM.tar.gz" --directory release .
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
         with:
-          name: adunata-x86_64-linux
-          path: release/adunata
+          name: release-${{ matrix.system }}
+          path: release-${{ matrix.system }}.tar.gz
+          retention-days: ${{ github.event_name == 'push' && 30 || 1 }}
+          if-no-files-found: error
+      - name: Image archive
+        if: matrix.image
+        run: |
+          nix build --out-link image ".#packages.$SYSTEM.image"
+          cp image "image-$SYSTEM.tar.gz"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.image
+        with:
+          name: image-${{ matrix.system }}
+          path: image-${{ matrix.system }}.tar.gz
           retention-days: 1
           if-no-files-found: error
 
   e2e:
-    name: End-to-end tests
-    needs: verify
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    runs-on: ubuntu-24.04
+    name: End-to-end tests (${{ matrix.system }})
+    needs: [changes, build]
+    if: needs.changes.outputs.code == 'true' && !github.event.pull_request.draft
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     defaults:
       run:
         working-directory: client
@@ -65,29 +154,52 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: adunata-x86_64-linux
-          path: ${{ runner.temp }}/release
-      - name: Executable bit of the release binary
-        run: chmod +x "$RUNNER_TEMP/release/adunata"
+          name: release-${{ matrix.system }}
+          path: ${{ runner.temp }}
+      - name: Release binary
+        env:
+          SYSTEM: ${{ matrix.system }}
+        run: |
+          mkdir "$RUNNER_TEMP/release"
+          tar --extract --gzip --file "$RUNNER_TEMP/release-$SYSTEM.tar.gz" --directory "$RUNNER_TEMP/release"
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           package_json_file: client/package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
-          cache: pnpm
-          cache-dependency-path: client/pnpm-lock.yaml
+          package-manager-cache: false
+      - name: Store of pnpm
+        id: pnpm
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: pnpm-cache
+        with:
+          path: ${{ steps.pnpm.outputs.path }}
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('client/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-${{ runner.arch }}-
       - name: Dependencies
         run: pnpm install --frozen-lockfile
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.event_name == 'push' && steps.pnpm-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ steps.pnpm.outputs.path }}
+          key: ${{ steps.pnpm-cache.outputs.cache-primary-key }}
       - name: Version of Playwright
         id: playwright
         run: echo "version=$(pnpm exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
       - name: Chromium with its system dependencies
         run: pnpm exec playwright install --with-deps chromium
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.event_name == 'push' && steps.playwright-cache.outputs.cache-hit != 'true'
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
       - name: End-to-end tests
         env:
           ADUNATA_E2E_SERVER: ${{ runner.temp }}/release/adunata
@@ -98,31 +210,55 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
-          name: test-results
+          name: test-results-${{ matrix.system }}
           path: client/test-results
           retention-days: 7
-
-  nixos:
-    name: NixOS
-    needs: verify
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          persist-credentials: false
-      - name: Allow virtual machines
+          name: image-${{ matrix.system }}
+          path: ${{ runner.temp }}
+      - name: Start of the image
+        working-directory: .
+        env:
+          SYSTEM: ${{ matrix.system }}
         run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
-        with:
-          extra_nix_config: system-features = nixos-test benchmark big-parallel kvm
-      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', 'flake.lock', 'server/Cargo.lock', 'client/pnpm-lock.yaml', 'client/pnpm-deps.hash') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          save: false
-      - name: NixOS VM test
-        run: nix build --print-build-logs --no-link --option abort-on-warn true .#checks.x86_64-linux.nixosVmTest
+          docker load --input "$RUNNER_TEMP/image-$SYSTEM.tar.gz"
+          docker compose --project-name adunata-image up --detach --wait postgres
+          docker run --detach --name adunata --network host \
+            --env ADNT_HTTP_LISTEN_ADDRESS=127.0.0.1:8080 \
+            --env ADNT_HTTP_PUBLIC_URL=http://localhost:8080 \
+            --env ADNT_DATABASE_URL=postgres://adunata:adunata@127.0.0.1:5432/adunata \
+            --env ADNT_SMTP_HOST=127.0.0.1 \
+            --env ADNT_SMTP_ENCRYPTION=none \
+            --env 'ADNT_MAIL_SENDER=Adunata <adunata@example.org>' \
+            --env ADNT_LOCALIZATION_TIME_ZONE=Europe/Berlin \
+            adunata:latest
+          curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-all-errors http://127.0.0.1:8080/api/health
+      - name: Output of the image
+        if: failure()
+        working-directory: .
+        run: docker logs adunata || true
+
+  verdict:
+    name: ${{ github.event.pull_request.draft && 'Verdict (draft)' || 'Verdict' }}
+    needs: [changes, build, e2e]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Results of every job
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+          DRAFT: ${{ github.event.pull_request.draft == true }}
+          BUILD: ${{ needs.build.result }}
+          E2E: ${{ needs.e2e.result }}
+        run: |
+          echo "changes: $CHANGES, code: $CODE, draft: $DRAFT, build: $BUILD, e2e: $E2E"
+          [ "$CHANGES" = success ] || exit 1
+          if [ "$CODE" = false ]; then
+            [ "$BUILD" = skipped ] && [ "$E2E" = skipped ]
+            exit
+          fi
+          [ "$CODE" = true ] || exit 1
+          [ "$BUILD" = success ] || exit 1
+          [ "$DRAFT" = true ] || [ "$E2E" = success ]

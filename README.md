@@ -208,7 +208,7 @@ Commit the component together with those packages.
 
 ### Checks before a push
 
-Run the checks up to `integration` locally before each push. CI runs them in the job `verify` and runs the end-to-end tests and the NixOS VM test once a pull request is ready for review. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target and job.
+Run the checks up to `integration` locally before each push. CI runs them in the job `build` and runs the end-to-end tests, the image and the NixOS VM test once a pull request is ready for review. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target and job.
 
 With Nix, one command runs them. Replace `x86_64-linux` with your system, such as `aarch64-darwin`:
 
@@ -261,7 +261,7 @@ pnpm update <package>
 
 If the fix lies outside that range, pin it under `overrides` in `client/pnpm-workspace.yaml`.
 
-The Nix build fetches the client dependencies once for `pnpm-lock.yaml` and checks them against the hash in [`client/pnpm-deps.hash`](client/pnpm-deps.hash). Every change of `pnpm-lock.yaml` or `pnpm-workspace.yaml` makes the build fetch the dependencies anew, which also checks the release age. If the fetched packages differ, the build fails with `got: sha256-…`. Write that value to the file. Without Nix, the job `verify` of CI shows the same error. On pull requests of Dependabot, the workflow [`client-dependencies`](.github/workflows/client-dependencies.yaml) writes the hash and pushes it with the token of the GitHub App `adunata-client-dependencies`, so the push starts CI on the pull request. `[dependabot skip]` in its message lets Dependabot keep rebasing the branch.
+The Nix build fetches the client dependencies once for `pnpm-lock.yaml` and checks them against the hash in [`client/pnpm-deps.hash`](client/pnpm-deps.hash). Every change of `pnpm-lock.yaml` or `pnpm-workspace.yaml` makes the build fetch the dependencies anew, which also checks the release age. If the fetched packages differ, the build fails with `got: sha256-…`. Write that value to the file. Without Nix, the job `build` of CI shows the same error. On pull requests of Dependabot, the workflow [`client-dependencies`](.github/workflows/client-dependencies.yaml) writes the hash and pushes it with the token of the GitHub App `adunata-client-dependencies`, so the push starts CI on the pull request. `[dependabot skip]` in its message lets Dependabot keep rebasing the branch.
 
 The workflow [`advisories`](.github/workflows/advisories.yaml) checks both lock files against the advisory databases every day and on pull requests that change them. It fails on any advisory of a crate and on an advisory of a client package of severity high or critical. If such an advisory has no fix yet, add it to `client/audit-exceptions.json` with its GHSA ID, the reason and an expiry date. The run fails once the date has passed and, outside pull requests, once the exception matches no advisory. GitHub notifies only the person who last changed the schedule of a failed scheduled run, so check the workflow in the Actions tab. For a crate, add `{ id, reason }` to `ignore` under `[advisories]` in `server/deny.toml`.
 
@@ -271,7 +271,7 @@ The repository expects these settings, which no file holds:
 |-|-|
 |Dependabot alerts and security updates|Settings, Advanced Security|
 |Secret Protection with push protection|Settings, Advanced Security|
-|Ruleset for `main` that requires the check `Verify`, with a bypass for admins|Settings, Rules|
+|Ruleset for `main` that requires the check `Verdict`, with a bypass for admins|Settings, Rules|
 |Ruleset for tags `v*` that restricts creation, update and deletion, with a bypass for admins|Settings, Rules|
 |GitHub App `adunata-client-dependencies` with the repository permission Contents read and write, installed on this repository only|Settings of the organization, Developer settings, GitHub Apps|
 |Dependabot secrets `CLIENT_DEPENDENCIES_APP_CLIENT_ID` and `CLIENT_DEPENDENCIES_APP_PRIVATE_KEY` with the client ID and a private key of that App|Settings, Secrets and variables, Dependabot|
