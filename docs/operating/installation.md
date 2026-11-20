@@ -84,6 +84,9 @@ services:
       ADNT_MAIL_SENDER: Adunata <adunata@example.org>
       ADNT_LOCALIZATION_TIME_ZONE: Europe/Berlin
       ADNT_HTTP_TRUSTED_PROXIES: 172.30.0.1/32
+    healthcheck:
+      test: ["CMD", "adunata", "healthcheck"]
+      start_period: 60s
     secrets:
       - database-password
     depends_on:
@@ -120,6 +123,8 @@ volumes:
 The reverse proxy on the host reaches Adunata through the published port. Docker forwards these connections from the gateway of the network `adunata`, so `ADNT_HTTP_TRUSTED_PROXIES` names that gateway. A proxy that runs as a container in the same network needs its own address there instead.
 
 With `restart: on-failure` Docker restarts the container after every failure, also after status 65 or 78, because it cannot leave out single statuses. Read the log if the container keeps restarting.
+
+The image declares no healthcheck, so the example adds one that runs [`adunata healthcheck`](#check-readiness). With Podman, pass `--health-cmd '["adunata","healthcheck"]'` to `podman run`. Both use the exec form, because the image has no shell to run a command given as a string. The start period covers the database migrations at start. Pick interval and start period with care, because some tools act on the result. Traefik routes only to healthy containers, and Docker Swarm replaces unhealthy ones. A healthcheck runs without the arguments of the main command, so a container that passes `--config` needs `ADNT_CONFIG_FILE` instead for the healthcheck to find the file.
 
 For a database on another host with an authority of your own, mount the file of the authority read-only and name it in `sslrootcert`:
 
@@ -203,6 +208,10 @@ adunata grant-organizer organizer@example.org Ada Lovelace
 
 The command reads the same settings as the server, so pass it the same `--config` or `ADNT_CONFIG_FILE` if the service uses a [configuration file](configuration.md#configuration-file). It connects to the database and makes the member with that address an active organizer. It creates the member with both names if no member has the address. In a container run it with `docker compose exec adunata adunata grant-organizer …` or the equivalent of your platform. On NixOS and with the release binary run it as the service user with the settings of the service.
 
+### Check readiness
+
+`adunata healthcheck` asks the instance on `ADNT_HTTP_LISTEN_ADDRESS` for its [health](#health). It asks the loopback address of the same family when the instance listens on every interface, such as `0.0.0.0` or `::`. It exits with 0 when the instance is ready. It exits with 1 when the instance is not ready, cannot be reached, sends no answer within ten seconds or when the configuration is invalid. On failure it writes one line with the cause and never a setting value. It reads the same settings as the server and is meant as the healthcheck of a [container](#container).
+
 ### Development mode
 
 `adunata serve --dev` is meant for a debug run on your own machine, not for an instance that others use. It starts only when `ADNT_HTTP_PUBLIC_URL` is on `localhost` and `ADNT_HTTP_LISTEN_ADDRESS` is a loopback address such as the default `127.0.0.1:8080`, and exits with status 78 otherwise. If the instance has no active organizer, it creates the first organizer from the bootstrap settings or, without them, `organizer@example.org` named Ada Lovelace. Before it accepts requests it writes a sign-in link for the oldest active organizer to the log, with the message `sign-in link for development` and the link in the field `link`. While the mode is on, every sign-in link that Adunata sends by mail also goes to the log, and the limit of links per address does not apply. The limit of 20 requests per network address and hour still applies. Anyone who can read the log can therefore sign in as an organizer.
@@ -213,7 +222,7 @@ Install the newer release the same way and restart the service. Adunata applies 
 
 ## Health
 
-`GET /api/health` answers with status 200 and `{"status":"ready"}` once Adunata can serve requests. It answers with status 503 and the unavailable dependency otherwise.
+`GET /api/health` answers with status 200 and `{"status":"ready"}` once Adunata can serve requests. It answers with status 503 and the unavailable dependency otherwise. Inside a container, where no HTTP client is at hand, [`adunata healthcheck`](#check-readiness) asks the endpoint.
 
 ## License notices
 

@@ -9,7 +9,7 @@
 
 ## 2. Documentation
 
-- [ ] 2.1 Document the command under "Commands" and "Health" in `docs/operating/installation.md`, add `healthcheck:` to the Compose example and show `--health-cmd` for Podman, both in the exec form, and name the start period, the tools that act on health and `ADNT_CONFIG_FILE` for containers with `--config`. Verify that `adunata help healthcheck` matches the text.
+- [x] 2.1 Document the command under "Commands" and "Health" in `docs/operating/installation.md`, add `healthcheck:` to the Compose example and show `--health-cmd` for Podman, both in the exec form, and name the start period, the tools that act on health and `ADNT_CONFIG_FILE` for containers with `--config`. Verify that `adunata help healthcheck` matches the text.
 - [ ] 2.2 Write the record "Healthcheck as a command of the binary" from the draft in design.md with the next free number in `docs/decisions/`, add it to `docs/arc42/09-architecture-decisions.md` and update `03-context-and-scope.md`, `05-building-block-view.md` and "Health" in `08-cross-cutting-concepts.md` as design.md lists. Check the number again after the last rebase onto `main`. Verify that every link resolves.
 
 ## 3. Hand-over
