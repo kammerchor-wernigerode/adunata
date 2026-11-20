@@ -10,7 +10,7 @@ CI verifies only `x86_64-linux`, although the flake builds Adunata for `aarch64-
 - The NixOS VM test runs in the x86 job on the same store paths that the job uploads.
 - The end-to-end tests run on both architectures against the uploaded binary and also start the uploaded image.
 - For a change that touches only `openspec/`, CI runs only the check `editorconfig`.
-- One aggregate check `ci` replaces `Verify` as the check the ruleset of `main` requires.
+- One aggregate check `Verdict` replaces `Verify` as the check the ruleset of `main` requires.
 - The caches are kept per architecture and saved only on `main`.
 - Merged OpenSpec changes are archived together in a pull request of their own, so nobody pushes to `main` directly.
 
@@ -30,4 +30,4 @@ None. No behavior of Adunata changes, so the change sets `skip_specs`.
 - `README.md`: the jobs and the required check of the ruleset.
 - `AGENTS.md`: how OpenSpec changes are archived and which jobs CI runs.
 - `docs/arc42/08-cross-cutting-concepts.md`: "Testing".
-- The ruleset of `main` requires `ci` instead of `Verify`. A maintainer changes it before the merge.
+- The ruleset of `main` requires `Verdict` instead of `Verify`. A maintainer changes it before the merge.

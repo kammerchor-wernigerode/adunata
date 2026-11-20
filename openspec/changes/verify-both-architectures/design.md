@@ -54,7 +54,7 @@ Not architecturally significant, because where tests run is tooling.
 
 ### 3. Changes to `openspec/` alone run only `editorconfig`
 
-A job `changes` compares, for a pull request, its base with its head and, for a push, `github.event.before` with the pushed commit, using `git diff --name-only --no-renames`, so a push of several commits counts all of them and a file moved into `openspec/` still counts as a change at its old path. If `github.event.before` is missing, consists of zeros or is not an ancestor of the pushed commit, `changes` runs everything. If every changed path lies under `openspec/`, it runs `nix build .#checks.x86_64-linux.editorconfig`, and every job but `ci` skips. Such a commit on `main` uploads no artifacts and gets no image. A run started by `workflow_dispatch` never skips. A filter on the workflow itself would leave the required check without a report and block such a pull request for good.
+A job `changes` compares, for a pull request, its base with its head and, for a push, `github.event.before` with the pushed commit, using `git diff --name-only --no-renames`, so a push of several commits counts all of them and a file moved into `openspec/` still counts as a change at its old path. If `github.event.before` is missing, consists of zeros or is not an ancestor of the pushed commit, `changes` runs everything. If every changed path lies under `openspec/`, it runs `nix build .#checks.x86_64-linux.editorconfig`, and every job but `Verdict` skips. Such a commit on `main` uploads no artifacts and gets no image. A run started by `workflow_dispatch` never skips. A filter on the workflow itself would leave the required check without a report and block such a pull request for good.
 
 `changes` also writes the matrix of `build` as an output, because a job condition cannot see the matrix. A draft pull request gets only the x86 leg, and the steps for image and VM test skip there.
 
@@ -62,7 +62,7 @@ Not architecturally significant, because it changes only what CI runs.
 
 ### 4. One aggregate check
 
-A job `ci` needs every other job and runs always, also when `changes` skipped the others. It fails if one failed or was cancelled, including `changes` with its check `editorconfig`, and passes when the others were skipped by `changes` or by the rule for drafts. The ruleset of `main` requires only `ci`, so the matrix can change without touching the ruleset. Everything beyond the x86 leg of `build` starts once a pull request is ready for review.
+A job `Verdict` needs every other job and runs always, also when `changes` skipped the others. It fails if one failed or was cancelled, including `changes` with its check `editorconfig`, and passes when the others were skipped by `changes` or by the rule for drafts. The ruleset of `main` requires only `Verdict`, so the matrix can change without touching the ruleset. A draft run reports `Verdict (draft)` instead, so a passing draft run on the same commit cannot stand in for the full run after the pull request turns ready. The name is new on purpose. A pull request still open on the old workflow reports the old job `Verify`, which must not satisfy the new requirement. `Verdict` names the result of the run and differs from the workflow `CI`. Everything beyond the x86 leg of `build` starts once a pull request is ready for review.
 
 Not architecturally significant, because it concerns CI and repository settings.
 
@@ -98,6 +98,6 @@ No decision is architecturally significant, so the change drafts no record.
 - [Two stores and the caches of Playwright and pnpm share 10 GB.] → Only `main` saves, each store is capped and older entries are purged. Measure the stores on the first runs and adjust the cap.
 - [A merge commit on `main` differs from the head of its pull request, and caches do not cross refs.] → `main` builds once more, incrementally.
 - [`e2e` waits for both `build` legs, including the VM test, because `needs` cannot name one leg.] → The end-to-end tests start later than today. Wall time costs nothing.
-- [The pull request of this change reports only `ci`, so the required check `Verify` never reports for it.] → A maintainer replaces `Verify` with `ci` in the ruleset before merging this change. Every pull request still open on the old `ci.yaml` then needs a rebase onto `main`.
+- [The pull request of this change reports only `Verdict`, so the required check `Verify` never reports for it.] → A maintainer replaces `Verify` with `Verdict` in the ruleset before merging this change. Every pull request still open on the old `ci.yaml` then needs a rebase onto `main`.
 - [Changes planned in parallel touch `ci.yaml` or rely on the new checks.] → Branch them after this change is merged, or rebase them onto it.
 - [Playwright or the images in `compose.yaml` may not run on arm64.] → The draft pull request shows it before the merge.
