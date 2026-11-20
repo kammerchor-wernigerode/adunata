@@ -7,8 +7,8 @@ Ensembles run Adunata on their own hardware, and some of that hardware is `aarch
 ## What Changes
 
 - Every published image and release archive exists for `x86_64` and `aarch64`.
-- Every push to `main` that passes CI publishes the image as one OCI index under `sha-<commit>`, from the artifacts of that run. `nightly` points to the newest such commit.
-- A release is a tag `v<version>` on the commit of `main` that raises the version. It promotes the verified artifacts of that commit without building them again, attaches checksums and moves `latest` only for a version without a pre-release part.
+- Every push to `main` that builds Adunata and passes CI publishes the image as one OCI index under `sha-<commit>`, from the artifacts of that run. `nightly` points to the newest such commit. A push that changes only `openspec/` builds nothing and gets no index.
+- A release is a tag `v<version>` on the commit of `main` that raises the version. It promotes the verified artifacts of that commit without building them again, and attaches checksums. `latest` names the highest release without a pre-release part.
 - Each index names source, commit and license in OCI annotations, and a release also its version.
 - `server/Cargo.toml` holds the one version of the project. `flake.nix` reads it, `client/package.json` carries the same, and a check keeps them equal. The version starts at `0.0.0`.
 - The release archive becomes a derivation of the flake with a checksum.

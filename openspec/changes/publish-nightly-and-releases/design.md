@@ -2,7 +2,7 @@
 
 ## Context
 
-- After `verify-both-architectures`, every run of the workflow `CI` builds and checks both architectures and keeps the artifacts `release-<system>` and `image-<system>`. The release binary of a push to `main` lives 30 days, images one day.
+- After `verify-both-architectures`, every run of the workflow `CI` that does not only touch `openspec/` builds and checks both architectures and keeps the artifacts `release-<system>` and `image-<system>`. The release binary of a push to `main` lives 30 days, images one day.
 - `release.yaml` runs on tags `v*` on any commit. It runs `nix flake check`, builds the binary and the image a second time for `x86_64-linux` only and packs the archive in a shell step that no check covers. It pushes `:<tag>` and `:latest` for every tag, including pre-releases, before it creates the GitHub release, and passes the token on the command line. It creates notes with `--generate-notes`. No tag and no release exist yet.
 - The version is `0.1.0` in `server/Cargo.toml` and `server/Cargo.lock`, a copy in `flake.nix` and `0.0.0` in `client/package.json`. `client/pnpm-lock.yaml` holds no version of the project itself. Nothing compares them.
 - The image is a Docker archive from `dockerTools.buildLayeredImage`. The package `adunata` does not exist on ghcr.io yet. GitHub creates every package as private and offers no API to change that. A push with `GITHUB_TOKEN` from a workflow links the package to the repository without a label.
@@ -97,7 +97,7 @@ This supersedes no record.
 
 **Consequences.**
 - Operators on either architecture install a release or follow `main` without building Adunata or holding credentials.
-- `nightly` changes with every merge, including migrations. It suits test instances, not production. Its annotation `revision` names the commit.
+- `nightly` changes with every merge that builds Adunata, including migrations. It suits test instances, not production. Its annotation `revision` names the commit.
 - A release names the same version in its tag, its image, its annotations and `adunata --version`. A tag on any other commit, or with another version, publishes nothing.
 - A release is possible only while the verified archives of its commit exist. After that, a new commit that raises the version is needed.
 - The registry holds `sha-<commit>` per commit and one tag per architecture. They accumulate until someone prunes them.
