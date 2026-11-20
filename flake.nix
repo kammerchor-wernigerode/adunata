@@ -250,6 +250,14 @@
             cp ${clientWithNotices}/licenses.txt ${clientWithNotices}/licenses-rust.html $out/
           '';
 
+          releaseArchive = pkgs.runCommand "adunata-release-archive-${system}" { } ''
+            mkdir $out
+            archive=$out/adunata-${system}.tar.gz
+            (cd ${release} && export LC_ALL=C && tar --create --sort=name --owner=0 --group=0 --numeric-owner --mtime=@0 --format=gnu -- *) | gzip --no-name --best > $archive
+            cd $out
+            sha256sum adunata-${system}.tar.gz > adunata-${system}.tar.gz.sha256
+          '';
+
           releaseLinkage =
             pkgs.runCommand "check-release-linkage" { nativeBuildInputs = [ tools.binutils ]; }
               ''
@@ -417,6 +425,7 @@
             client
             server
             release
+            releaseArchive
             releaseLinkage
             image
             imageClosure
@@ -510,7 +519,9 @@
         {
           default = built.server;
         }
-        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux { inherit (built) release image; }
+        // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          inherit (built) release releaseArchive image;
+        }
       );
 
       nixosModules.default = import ./nix/module.nix (pkgs: (build pkgs).server);
