@@ -1,6 +1,6 @@
 # Configuration
 
-Adunata reads its configuration from environment variables and, if the operator names one, from a configuration file. It checks every setting before it opens a port or connects to the database. If any setting is missing or invalid, Adunata prints every problem at once and exits with status 1.
+Adunata reads its configuration from environment variables and, if the operator names one, from a configuration file. It checks every setting before it opens a port or connects to the database. If any setting is missing or invalid, Adunata prints every problem at once and exits with status 78. Whether `serve` can use the mail server settings shows only after it has connected to the database and applied pending migrations. If it cannot, it exits with status 78 as well.
 
 An empty variable counts as not set.
 

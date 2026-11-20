@@ -132,7 +132,16 @@ Set `ADNT_BOOTSTRAP_ORGANIZER_MAIL` with both names, as the [configuration refer
 
 ## Commands
 
-The binary runs the server with `adunata serve`, which the image, the example unit and the NixOS module call. `adunata --help` lists every command and `adunata help <command>` explains one. A command exits with status 0 on success, 1 when it fails at runtime, such as with an invalid configuration or an unreachable database, and 2 on wrong arguments.
+The binary runs the server with `adunata serve`, which the image, the example unit and the NixOS module call. `adunata --help` lists every command and `adunata help <command>` explains one. `serve` and `grant-organizer` exit with a status from `sysexits.h` for the failures that a supervisor handles differently. The log names the cause.
+
+|Status|Meaning|
+|-|-|
+|0|The command succeeded.|
+|1|Any other failure, such as a wrong database password, a missing privilege in the database or a listen address in use.|
+|2|The arguments are wrong.|
+|65|The data in the database does not fit this release, such as a schema that a newer release migrated or a migration that fails on the data.|
+|75|The connection to the database failed for a reason that may pass, such as a database that does not answer yet or that shuts down. A socket path that does not exist counts as well, because Adunata cannot tell it from a socket that does not exist yet.|
+|78|The configuration is invalid.|
 
 ### Recover organizer access
 
@@ -146,11 +155,11 @@ The command reads the same settings as the server, so pass it the same `--config
 
 ### Development mode
 
-`adunata serve --dev` is meant for a debug run on your own machine, not for an instance that others use. It starts only when `ADNT_HTTP_PUBLIC_URL` is on `localhost` and `ADNT_HTTP_LISTEN_ADDRESS` is a loopback address such as the default `127.0.0.1:8080`, and exits with status 1 otherwise. If the instance has no active organizer, it creates the first organizer from the bootstrap settings or, without them, `organizer@example.org` named Ada Lovelace. Before it accepts requests it writes a sign-in link for the oldest active organizer to the log, with the message `sign-in link for development` and the link in the field `link`. While the mode is on, every sign-in link that Adunata sends by mail also goes to the log, and the limit of links per address does not apply. The limit of 20 requests per network address and hour still applies. Anyone who can read the log can therefore sign in as an organizer.
+`adunata serve --dev` is meant for a debug run on your own machine, not for an instance that others use. It starts only when `ADNT_HTTP_PUBLIC_URL` is on `localhost` and `ADNT_HTTP_LISTEN_ADDRESS` is a loopback address such as the default `127.0.0.1:8080`, and exits with status 78 otherwise. If the instance has no active organizer, it creates the first organizer from the bootstrap settings or, without them, `organizer@example.org` named Ada Lovelace. Before it accepts requests it writes a sign-in link for the oldest active organizer to the log, with the message `sign-in link for development` and the link in the field `link`. While the mode is on, every sign-in link that Adunata sends by mail also goes to the log, and the limit of links per address does not apply. The limit of 20 requests per network address and hour still applies. Anyone who can read the log can therefore sign in as an organizer.
 
 ## Updates
 
-Install the newer release the same way and restart the service. Adunata applies pending database migrations on start. It refuses to start against a database that a newer release has already migrated, so going back to an older release needs a database backup from before the update.
+Install the newer release the same way and restart the service. Adunata applies pending database migrations on start. It exits with status 65 against a database that a newer release has already migrated, so going back to an older release needs a database backup from before the update.
 
 ## Health
 
