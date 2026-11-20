@@ -251,12 +251,17 @@ pkgs.testers.runNixOSTest {
             " --env ADNT_BOOTSTRAP_ORGANIZER_MAIL=organizer@example.org"
             " --env ADNT_BOOTSTRAP_ORGANIZER_FIRST_NAME=Ada"
             " --env ADNT_BOOTSTRAP_ORGANIZER_LAST_NAME=Lovelace"
+            " --health-cmd '[\"adunata\",\"healthcheck\"]'"
         )
         plain_database = " --env ADNT_DATABASE_URL=postgres://adunata@127.0.0.1/adunata"
         container.succeed("podman run --detach --name untrusting" + container_settings + plain_database + " adunata:latest")
         container.wait_for_open_port(8080)
         assert_serves_adunata(container)
         assert_serves_notices(container)
+
+    with subtest("Image declares no healthcheck"):
+        inspected = json.loads(container.succeed("podman image inspect adunata:latest"))[0]
+        assert not inspected.get("Healthcheck"), inspected
 
     with subtest("Image ships a bundle of certificate authorities"):
         bundle = container.succeed(
@@ -327,6 +332,16 @@ pkgs.testers.runNixOSTest {
         assert_serves_adunata(container)
         assert database_connection_encrypted(container)
         container.succeed("podman stop verifying-authority")
+
+    with subtest("Container turns unhealthy without its database"):
+        container.succeed("podman run --detach --name healthchecked" + container_settings + plain_database + " adunata:latest")
+        container.wait_for_open_port(8080)
+        container.succeed("podman healthcheck run healthchecked")
+        container.succeed("systemctl stop postgresql.service")
+        container.wait_until_succeeds(
+            "rc=0; podman healthcheck run healthchecked </dev/null >/dev/null 2>&1 || rc=$?; [ $rc -eq 1 ]",
+            timeout=60,
+        )
 
     with subtest("Stop gracefully"):
         nixos.succeed("systemctl stop adunata.service")
