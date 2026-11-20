@@ -1,6 +1,6 @@
 # Installation
 
-Adunata runs as one service next to PostgreSQL and a mail server. Put a reverse proxy with HTTPS in front of it, such as Caddy or nginx, and point `ADNT_HTTP_PUBLIC_URL` at the address the proxy serves. The [configuration reference](configuration.md) lists every setting. Adunata checks the certificate of the mail server against the trust store of the host, so the host needs one with the authority of the mail server, see [certificate authorities](configuration.md#certificate-authorities).
+Adunata runs as one service next to PostgreSQL and a mail server. Put a reverse proxy with HTTPS in front of it, such as Caddy or nginx, and point `ADNT_HTTP_PUBLIC_URL` at the address the proxy serves. The [configuration reference](configuration.md) lists every setting. Adunata checks the certificate of the mail server against the trust store of the host. With `sslmode=verify-ca` or `verify-full` it checks the certificate of the database there too. The host therefore needs a trust store with the authorities of both servers, see [certificate authorities](configuration.md#certificate-authorities).
 
 There are three supported ways to install Adunata. A NixOS test runs each of them in a virtual machine, see [`nix/test.nix`](../../nix/test.nix).
 
@@ -109,6 +109,17 @@ volumes:
 The reverse proxy on the host reaches Adunata through the published port. Docker forwards these connections from the gateway of the network `adunata`, so `ADNT_HTTP_TRUSTED_PROXIES` names that gateway. A proxy that runs as a container in the same network needs its own address there instead.
 
 With `restart: on-failure` Docker restarts the container after every failure, also after status 65 or 78, because it cannot leave out single statuses. Read the log if the container keeps restarting.
+
+For a database on another host with an authority of your own, mount the file of the authority read-only and name it in `sslrootcert`:
+
+```yaml
+services:
+  adunata:
+    environment:
+      ADNT_DATABASE_URL: postgres://adunata@db.example.org/adunata?sslmode=verify-full&sslrootcert=/etc/adunata/database-ca.crt
+    volumes:
+      - ./database-ca.crt:/etc/adunata/database-ca.crt:ro
+```
 
 The image carries the license notices in `/share/licenses`. Next to the notices of the binary it holds, for each system package in the image such as glibc and the CA bundle, the license texts and the source the package was built from. The image has no shell, so copy the directory out of it:
 

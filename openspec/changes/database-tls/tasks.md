@@ -8,7 +8,7 @@
 
 ## 2. Documentation
 
-- [ ] 2.1 Document `sslmode` and `sslrootcert` in the row of `database.url` in `docs/operating/configuration.md`, including the default `prefer`, that `allow` behaves like `disable`, that `sslrootcert` takes effect only with `verify-ca` or `verify-full`, that `sslmode=disable` restores plain text, which parameters Adunata rejects and that it refuses every variable whose name starts with `PGSSL`. Extend "Certificate authorities" and the introduction of `docs/operating/installation.md` from the mail server to the database, and show how the file of the authority gets into the container. Verify that the example URL matches the VM test.
+- [x] 2.1 Document `sslmode` and `sslrootcert` in the row of `database.url` in `docs/operating/configuration.md`, including the default `prefer`, that `allow` behaves like `disable`, that `sslrootcert` takes effect only with `verify-ca` or `verify-full`, that `sslmode=disable` restores plain text, which parameters Adunata rejects and that it refuses every variable whose name starts with `PGSSL`. Extend "Certificate authorities" and the introduction of `docs/operating/installation.md` from the mail server to the database, and show how the file of the authority gets into the container. Verify that the example URL matches the VM test.
 - [ ] 2.2 Write the record "TLS to the database configured in its URL" from the draft in design.md with the next free number in `docs/decisions/`, add it to `docs/arc42/09-architecture-decisions.md` and update `03-context-and-scope.md`, `07-deployment-view.md` and `08-cross-cutting-concepts.md` as design.md lists. Check the number again after the last rebase onto `main`. Verify that every link resolves.
 
 ## 3. Hand-over
