@@ -21,7 +21,7 @@ This file routes. It names where things live and the rules that apply everywhere
 - Small fixes need no change proposal.
 - An architecturally significant decision gets a record in `docs/decisions/`. Significant means that an operator or a running instance notices it. Tooling for development, tests and CI never is, even where a record mentions it. [ADR 0001](docs/decisions/0001-record-architecture-decisions.md) defines what counts. The development environment is not architecture. The README documents it.
 - Plan each change from its own problem and the current code. Archived changes are no template.
-- Archive a merged OpenSpec change directly on `main`, never through a pull request. Pull `main` first. The commit subject ends with `[skip ci]`, because the archive changes no code.
+- Archive merged OpenSpec changes together in a pull request of their own, once every change of a piece of work is merged or whenever a maintainer chooses. Nobody pushes to `main` directly. CI checks only `editorconfig` for a pull request that touches nothing outside `openspec/`.
 - When an agent repeats a mistake, add a rule here.
 
 ## Pull requests
