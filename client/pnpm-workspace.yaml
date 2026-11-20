@@ -1,9 +1,4 @@
 minimumReleaseAge: 10080
-minimumReleaseAgeExclude:
-  - "@testing-library/user-event@14.6.10"
-  - jsdom@31.0.1
-  - tldts@7.5.2
-  - tldts-core@7.5.2
 allowBuilds:
   esbuild: false
 enableGlobalVirtualStore: true
