@@ -77,7 +77,7 @@ It runs on tags `v*`, builds nothing and uses no Nix.
 
 Each step accepts the result of its own earlier attempt, so a failed run can run again. Any failed condition stops the job with a message that names it. When the artifacts expired, the message says that a new commit that raises the version is needed, because a new build would produce other bytes than the published image. It holds `contents: write`, `packages: write` and `actions: read`.
 
-A `workflow_dispatch` with a tag name runs steps 1 to 4 and stops before the first write, so the conditions can be tried on real refs before the first release.
+A `workflow_dispatch` with a tag name runs steps 1 to 4 and stops before the first write, so the conditions can be tried on real refs before the first release. Because pushing a tag starts the release, the dispatch also takes a commit, which it checks under the tag name when the tag does not exist yet.
 
 A tag that runs the whole pipeline again would build the release a second time and publish bytes that `main` never verified when the cache is cold. A release by a version bump without a tag would turn every merge of a bump into a release.
 

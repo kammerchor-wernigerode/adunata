@@ -626,6 +626,13 @@
                 touch $out
               '';
 
+            releaseScripts =
+              pkgs.runCommand "check-release-scripts" { nativeBuildInputs = [ tools.nodejs_26 ]; }
+                ''
+                  node --test ${./.github/scripts}/*.test.mjs
+                  touch $out
+                '';
+
             cargoAboutVersion = pkgs.runCommand "check-cargo-about-version" { } ''
               pinned=$(sed --quiet 's/.*cargo-about@\([0-9.]*\).*/\1/p' ${./README.md})
               if [ "$pinned" != "${tools.cargo-about.version}" ]; then
