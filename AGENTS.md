@@ -26,9 +26,9 @@ This file routes. It names where things live and the rules that apply everywhere
 
 ## Pull requests
 
-CI runs the checks up to `integration` in the job `verify` on every push to a pull request. Pull requests that are ready for review and pushes to `main` also run the jobs `e2e` and `nixos`, which take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes the checks.
+CI runs the checks up to `integration` on every push to a pull request that changes files outside `openspec/`. Pull requests that are ready for review and pushes to `main` also run the jobs that take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes the checks.
 
-- A change is ready for human review when nothing local can still find a problem in it. Every local check is cheaper than a CI round, and every push after review starts one. So the agent that finishes a change runs `openspec-verify-change` (for OpenSpec changes), a code review of the whole branch with its own review command and the checks up to integration, and fixes what they find. Once all three pass, push the branch and open the pull request ready for review. The first push then carries the reviewed state, and `e2e` and `nixos` run once.
+- A change is ready for human review when nothing local can still find a problem in it. Every local check is cheaper than a CI round, and every push after review starts one. So the agent that finishes a change runs `openspec-verify-change` (for OpenSpec changes), a code review of the whole branch with its own review command and the checks up to integration, and fixes what they find. Once all three pass, push the branch and open the pull request ready for review. The first push then carries the reviewed state, so the long jobs run once.
 - Open a draft pull request only for an intermediate state that someone should see.
 - Before each push, run the checks up to integration locally with `nix build .#checks.<system>.integration`, where `<system>` is the local Nix system such as `aarch64-linux`. Without Nix, run the commands that the [README](README.md#checks-before-a-push) lists. Never push a state that fails them.
 - Push once per round of feedback. Collect every remark of a review, fix them together and then push.
