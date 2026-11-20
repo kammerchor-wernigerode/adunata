@@ -21,6 +21,8 @@
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
+      version = (fromTOML (builtins.readFile ./server/Cargo.toml)).package.version;
+
       nixpkgsOnlyLicenses = [
         "GPL-2.0-or-later"
         "GPL-3.0-or-later"
@@ -100,7 +102,7 @@
             pkgs.stdenv.mkDerivation (
               {
                 pname = "adunata-client";
-                version = "0.1.0";
+                inherit version;
                 src = clientSource;
                 sourceRoot = "source/client";
                 nativeBuildInputs = [
@@ -567,6 +569,30 @@
               );
 
             inherit (built) clientLicenses;
+
+            projectVersion =
+              let
+                lockedVersion =
+                  (pkgs.lib.findFirst (crate: crate.name == "adunata") {
+                    version = "no version";
+                  } (fromTOML (builtins.readFile ./server/Cargo.lock)).package).version;
+                clientVersion =
+                  (builtins.fromJSON (builtins.readFile ./client/package.json)).version or "no version";
+              in
+              pkgs.runCommand "check-project-version" { } (
+                if lockedVersion != version || clientVersion != version then
+                  ''
+                    echo "server/Cargo.toml names version ${version}, server/Cargo.lock ${lockedVersion} and client/package.json ${clientVersion}. Set all three to the same version."
+                    exit 1
+                  ''
+                else if pkgs.lib.hasInfix "+" version then
+                  ''
+                    echo "The version ${version} has build metadata, which an image tag cannot hold. Remove the part from +."
+                    exit 1
+                  ''
+                else
+                  "touch $out"
+              );
 
             cargoDenyVersion = pkgs.runCommand "check-cargo-deny-version" { } ''
               pinned=$(sed --quiet 's/.*cargo-deny@\([0-9.]*\).*/\1/p' ${./README.md})
