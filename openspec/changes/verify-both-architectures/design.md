@@ -68,7 +68,7 @@ Not architecturally significant, because it concerns CI and repository settings.
 
 ### 5. Concurrency and caches
 
-Pull requests cancel older runs of the same pull request. On `main`, each commit has its own `concurrency` group, so every commit gets a run and a later workflow can find the artifacts of any commit.
+Pull requests cancel older runs of the same pull request. On `main`, each pushed commit has its own `concurrency` group, so every push gets a run and a later workflow can find the artifacts of every pushed commit. Merges are the only pushes to `main`, so every merge commit has its artifacts. A commit inside a merged branch has none, and a release can only use a merge commit.
 
 The Nix cache key holds `runner.os`, `runner.arch` and a hash of the sources, so `release.yaml` with its prefix `nix-Linux-` matches it no more. That prefix moves to `nix-Linux-X64-` in this change. The Playwright key gains `runner.arch`. Every cache restores everywhere and saves only on a push to `main`. The Nix cache then purges older entries of its prefix, which needs `actions: write` on the saving job. Each architecture caps its store at about 4 GB. Each `cache-nix-action` step carries `zizmor: ignore[cache-poisoning]`, because no run on `main` restores a cache that a pull request saved.
 
