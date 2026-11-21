@@ -55,6 +55,17 @@ describe('member list', () => {
     expect(screen.getByRole('status').textContent).toBe('One member')
   })
 
+  it('offers to add a member in the page header before the search field', async () => {
+    signedIn()
+    renderApp('/members')
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Members' })
+    const add = screen.getByRole('link', { name: 'Add member' })
+    expect(heading.contains(add)).toBe(false)
+    const controls = [...screen.getByRole('main').querySelectorAll('a, button, input')]
+    expect(controls.slice(0, 2)).toEqual([add, screen.getByLabelText('Search by name or mail address')])
+    expect(heading.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('filters active and inactive members', async () => {
     signedIn()
     renderApp('/members')
