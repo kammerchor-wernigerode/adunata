@@ -22,4 +22,4 @@
 - [x] 4.1 Run `openspec-verify-change` for `publish-nightly-and-releases` and fix what it finds.
 - [x] 4.2 Run a code review of the whole branch with the review command of the agent and fix what it finds.
 - [x] 4.3 Run `nix build .#checks.<system>.integration` for the local system and fix every failure.
-- [ ] 4.4 Rebase onto `main`, push the branch and open the pull request ready for review. The description names the manual step to make the package public after the first publish and asks a maintainer to watch the first run of `publish.yaml`.
+- [x] 4.4 Rebase onto `main`, push the branch and open the pull request ready for review. The description names the manual step to make the package public after the first publish and asks a maintainer to watch the first run of `publish.yaml`.
