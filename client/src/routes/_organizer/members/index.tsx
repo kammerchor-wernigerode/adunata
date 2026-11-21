@@ -96,9 +96,9 @@ function MemberListPage() {
                     {member.lastName}, {member.firstName}
                   </Link>
                 </TableCell>
-                <TableCell className="px-3 py-2 break-all whitespace-normal">
+                <TableCell className="px-3 py-2 whitespace-normal">
                   <span className="flex items-center gap-1">
-                    {member.mail}
+                    <span className="min-w-0 break-words">{member.mail}</span>
                     <Button
                       variant="ghost"
                       size="icon"
