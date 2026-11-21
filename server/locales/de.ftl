@@ -209,6 +209,9 @@ members-filter-all = Alle
 members-filter-active = Aktive
 members-filter-inactive = Inaktive
 members-empty = Kein Mitglied passt.
+members-copy-mail = Mailadresse kopieren
+members-mail-copied = Mailadresse kopiert
+members-copy-failed = Die Mailadresse ließ sich nicht kopieren. Markiere und kopiere sie von Hand.
 members-count = { $count ->
         [one] Ein Mitglied
        *[other] { $count } Mitglieder

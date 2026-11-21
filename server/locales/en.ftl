@@ -209,6 +209,9 @@ members-filter-all = All
 members-filter-active = Active
 members-filter-inactive = Inactive
 members-empty = No member matches.
+members-copy-mail = Copy mail address
+members-mail-copied = Mail address copied
+members-copy-failed = Could not copy the mail address. Select and copy it by hand.
 members-count = { $count ->
         [one] One member
        *[other] { $count } members

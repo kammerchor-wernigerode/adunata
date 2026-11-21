@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   getCurrentSessionMockHandler,
   getLegalLinksMockHandler,
@@ -38,6 +38,18 @@ function signedIn(members: Member[] = [johannes, ada, clara]) {
   server.use(getLegalLinksMockHandler({}), getCurrentSessionMockHandler(ada), getListMembersMockHandler(members))
 }
 
+function countStatus(): HTMLElement {
+  return screen.getAllByRole('status')[0]!
+}
+
+function copyStatus(): HTMLElement {
+  return screen.getAllByRole('status')[1]!
+}
+
+function copyButton(row: string): HTMLElement {
+  return within(screen.getByRole('row', { name: new RegExp(row) })).getByRole('button')
+}
+
 function names(): string[] {
   return within(screen.getByRole('table'))
     .getAllByRole('link')
@@ -45,6 +57,11 @@ function names(): string[] {
 }
 
 describe('member list', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
   it('searches by part of a last name ignoring case', async () => {
     signedIn()
     const { container } = renderApp('/members')
@@ -52,7 +69,7 @@ describe('member list', () => {
     expect(await violations(container)).toEqual([])
     await userEvent.type(screen.getByLabelText('Search by name or mail address'), 'SCHU')
     expect(names()).toEqual(['Schumann, Clara'])
-    expect(screen.getByRole('status').textContent).toBe('One member')
+    expect(countStatus().textContent).toBe('One member')
   })
 
   it('offers to add a member in the page header before the search field', async () => {
@@ -74,6 +91,75 @@ describe('member list', () => {
     expect(names()).toEqual(['Brahms, Johannes'])
     await userEvent.click(screen.getByRole('radio', { name: 'Active' }))
     expect(names()).toEqual(['Lovelace, Ada', 'Schumann, Clara'])
+  })
+
+  it('copies a member as a mail recipient and confirms it', async () => {
+    signedIn()
+    const user = userEvent.setup()
+    const { container } = renderApp('/members')
+    await screen.findByRole('link', { name: 'Lovelace, Ada' })
+    await user.click(copyButton('Lovelace, Ada'))
+    expect(await navigator.clipboard.readText()).toBe('Ada Lovelace <ada@example.org>')
+    const button = copyButton('Lovelace, Ada')
+    expect(button.getAttribute('aria-label')).toBe('Mail address copied')
+    expect(button.querySelector('.lucide-check')).not.toBeNull()
+    expect(copyStatus().textContent).toBe('Mail address copied')
+    expect(countStatus().textContent).toBe('3 members')
+    expect(await violations(container)).toEqual([])
+  })
+
+  it('ends the confirmation after two seconds', async () => {
+    signedIn()
+    userEvent.setup()
+    renderApp('/members')
+    await screen.findByRole('link', { name: 'Lovelace, Ada' })
+    vi.useFakeTimers()
+    const button = copyButton('Lovelace, Ada')
+    fireEvent.click(button)
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(button.getAttribute('aria-label')).toBe('Mail address copied')
+    await act(() => vi.advanceTimersByTimeAsync(1999))
+    expect(button.getAttribute('aria-label')).toBe('Mail address copied')
+    await act(() => vi.advanceTimersByTimeAsync(1))
+    expect(button.getAttribute('aria-label')).toBe('Copy mail address')
+    expect(button.querySelector('.lucide-copy')).not.toBeNull()
+    expect(copyStatus().textContent).toBe('')
+  })
+
+  it.each([
+    [{ firstName: 'Ada', lastName: 'Lovelace, Countess' }, '"Ada Lovelace, Countess" <ada@example.org>'],
+    [{ firstName: 'Ada "Bird"', lastName: 'Lovelace' }, '"Ada \\"Bird\\" Lovelace" <ada@example.org>'],
+  ])('quotes the name %o when it would split the recipient', async (name, recipient) => {
+    signedIn([{ ...ada, ...name }])
+    const user = userEvent.setup()
+    renderApp('/members')
+    await user.click(await screen.findByRole('button', { name: 'Copy mail address' }))
+    expect(await navigator.clipboard.readText()).toBe(recipient)
+  })
+
+  it('offers to copy the mail address of an inactive member', async () => {
+    signedIn()
+    renderApp('/members')
+    await screen.findByRole('link', { name: 'Brahms, Johannes' })
+    expect(copyButton('Brahms, Johannes').getAttribute('aria-label')).toBe('Copy mail address')
+  })
+
+  it.each([
+    ['rejects the write', () => vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new DOMException('denied', 'NotAllowedError'))],
+    ['offers no clipboard', () => vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue(undefined as unknown as Clipboard)],
+  ])('names a failed copy when the browser %s', async (_, breakClipboard) => {
+    signedIn()
+    const user = userEvent.setup()
+    const { container } = renderApp('/members')
+    await screen.findByRole('link', { name: 'Lovelace, Ada' })
+    breakClipboard()
+    await user.click(copyButton('Lovelace, Ada'))
+    expect(copyStatus().textContent).toBe('Could not copy the mail address. Select and copy it by hand.')
+    const button = copyButton('Lovelace, Ada')
+    expect(button.getAttribute('aria-label')).toBe('Copy mail address')
+    expect(button.querySelector('.lucide-copy')).not.toBeNull()
+    expect(countStatus().textContent).toBe('3 members')
+    expect(await violations(container)).toEqual([])
   })
 
   it('names a failed load of the list instead of showing an empty list', async () => {
