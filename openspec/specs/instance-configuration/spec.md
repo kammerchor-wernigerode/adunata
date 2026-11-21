@@ -205,7 +205,7 @@ A key SHALL take a string, an integer or, where a setting takes a list, a non-em
 - **THEN** Adunata starts without a link to a privacy notice
 
 ### Requirement: TLS to the database
-Adunata SHALL take the TLS mode of the database connection from the parameter `sslmode` of the database URL and default to `prefer`. With `verify-ca` or `verify-full` it SHALL check the certificate of the database against the trust store of the host and the authority in the file that `sslrootcert` names, and with `verify-full` also the host name.
+Adunata SHALL take the TLS mode of the database connection from the parameter `sslmode` or its alias `ssl-mode` of the database URL and default to `prefer`. With `verify-ca` or `verify-full` it SHALL check the certificate of the database against the trust store of the host and the authority in the file that `sslrootcert` names, and with `verify-full` also the host name.
 
 #### Scenario: Verified connection with an own authority
 - **WHEN** the database URL sets `sslmode=verify-full` and `sslrootcert` to a file with the authority that signed the certificate of the database
@@ -238,11 +238,11 @@ Adunata SHALL take the TLS mode of the database connection from the parameter `s
 - **THEN** Adunata refuses to connect and exits with status 1
 
 #### Scenario: URL without TLS parameters
-- **WHEN** the database URL sets no `sslmode`
+- **WHEN** the database URL sets neither `sslmode` nor `ssl-mode`
 - **THEN** Adunata connects over TLS without a check if the server offers TLS and without TLS otherwise
 
 #### Scenario: Unix socket
-- **WHEN** the database URL points to a Unix socket and sets no `sslmode`
+- **WHEN** the database URL points to a Unix socket and sets neither `sslmode` nor `ssl-mode`
 - **THEN** Adunata connects without TLS
 
 ### Requirement: Parameters of the database URL

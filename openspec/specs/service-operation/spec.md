@@ -203,7 +203,7 @@ The tag `nightly` SHALL point to the index of the newest commit on `main` that h
 
 #### Scenario: Later commit without a build
 - **WHEN** a commit that changes only `openspec/` lands on `main` while the checks of the commit before it still run
-- **THEN** the tag `nightly` moves to the commit before it once its checks passed
+- **THEN** the tag `nightly` moves to the commit before it once its checks passed, unless a newer commit on `main` has an index by then
 
 #### Scenario: Older run finishes late
 - **WHEN** the checks of a commit pass after the checks of a newer commit on `main` passed
@@ -252,7 +252,7 @@ The tag `latest` SHALL name the release with the highest SemVer precedence among
 - **THEN** `latest` names `1.3.0`
 
 #### Scenario: Older stable release
-- **WHEN** `latest` names `1.2.0` and someone pushes the tag `v1.1.0` on the commit that raised the version to `1.1.0`
+- **WHEN** `latest` names `1.2.0` and someone pushes the tag `v1.1.0` on the commit of `main` that raised the version to `1.1.0` and whose verified archives are still kept
 - **THEN** the release `1.1.0` is published and the release workflow says that `latest` stays on `1.2.0`
 
 #### Scenario: Pre-release
