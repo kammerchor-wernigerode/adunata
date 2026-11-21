@@ -69,7 +69,7 @@ function MemberListPage() {
       <p role="status" className="mb-2 text-sm text-muted-foreground">
         {list ? translate('members-count', { count: shown.length }) : ''}
       </p>
-      <p role="status" className="mb-2 text-sm">
+      <p role="status" className="mb-2 min-h-5 text-sm">
         {copiedKey !== undefined ? translate('members-mail-copied') : failed ? translate('members-copy-failed') : ''}
       </p>
       {list && shown.length === 0 ? (
