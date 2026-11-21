@@ -186,15 +186,33 @@
               initdb --username="$PGUSER" --auth=trust --no-instructions >/dev/null
               pg_ctl start --wait --silent --options="-k $PGHOST -c listen_addresses="
               export ADNT_DATABASE_URL="postgres:///postgres?host=$PGHOST&user=$PGUSER"
-              export ADNT_SMTP_PORT=11025 MAILPIT_UI_PORT=18025
-              mailpit --smtp "127.0.0.1:$ADNT_SMTP_PORT" --listen "127.0.0.1:$MAILPIT_UI_PORT" --quiet &
-              mailpitPid=$!
-              for _ in $(seq 50); do (echo > "/dev/tcp/127.0.0.1/$MAILPIT_UI_PORT") 2>/dev/null && break; sleep 0.1; done
               stopTestServices() {
                 kill "$mailpitPid"
                 pg_ctl stop --wait --silent
               }
               failureHooks+=(stopTestServices)
+              portAnswers() {
+                (echo > "/dev/tcp/127.0.0.1/$1") 2>/dev/null
+              }
+              startMailpit() {
+                export ADNT_SMTP_PORT=$((20000 + RANDOM)) MAILPIT_UI_PORT=$((20000 + RANDOM))
+                mailpit --smtp "127.0.0.1:$ADNT_SMTP_PORT" --listen "127.0.0.1:$MAILPIT_UI_PORT" --quiet &
+                mailpitPid=$!
+                for _ in $(seq 100); do
+                  portAnswers "$ADNT_SMTP_PORT" && portAnswers "$MAILPIT_UI_PORT" && kill -0 "$mailpitPid" 2>/dev/null && return 0
+                  kill -0 "$mailpitPid" 2>/dev/null || return 1
+                  sleep 0.1
+                done
+                kill "$mailpitPid"
+                return 1
+              }
+              for mailpitAttempt in $(seq 5); do
+                startMailpit && break
+                if [ "$mailpitAttempt" -eq 5 ]; then
+                  echo "Mailpit did not start on free ports after 5 attempts" >&2
+                  exit 1
+                fi
+              done
             '';
             postCheck = "stopTestServices";
           };
