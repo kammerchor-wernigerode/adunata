@@ -143,7 +143,7 @@ async fn create_gathering(
     State(state): State<AppState>,
     Json(input): Json<GatheringInput>,
 ) -> Response {
-    let errors = validate(&input);
+    let errors = validate(&input, state.time_zone.today(), None);
     if !errors.is_empty() {
         return invalid(errors);
     }
@@ -206,31 +206,38 @@ async fn change_gathering(
     Path(id): Path<i64>,
     Json(input): Json<GatheringInput>,
 ) -> Response {
-    let errors = validate(&input);
+    change(&state, id, &input)
+        .await
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+}
+
+/// Changes a gathering under the lock of its row, so the stored first day cannot change between validation and update.
+async fn change(
+    state: &AppState,
+    id: i64,
+    input: &GatheringInput,
+) -> Result<Response, sqlx::Error> {
+    let today = state.time_zone.today();
+    let mut transaction = state.pool.begin().await?;
+    let Some(stored) = find_for_update(&mut transaction, id, today).await? else {
+        return Ok(StatusCode::NOT_FOUND.into_response());
+    };
+    if stored.ended {
+        return Ok(invalid(vec![field_error("gathering", ErrorCode::Ended)]));
+    }
+    let errors = validate(input, today, Some(stored.first_day));
     if !errors.is_empty() {
-        return invalid(errors);
+        return Ok(invalid(errors));
     }
     let query = format!(
-        "UPDATE gatherings SET title = $1, location = $2, description = $3, first_day = $4, last_day = $5 WHERE id = $6 AND last_day >= $7 RETURNING {COLUMNS}"
+        "UPDATE gatherings SET title = $1, location = $2, description = $3, first_day = $4, last_day = $5 WHERE id = $6 RETURNING {COLUMNS}"
     );
-    let today = state.time_zone.today();
-    let updated = bind(sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(query)), &input)
+    let row = bind(sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(query)), input)
         .bind(id)
-        .bind(today)
-        .fetch_optional(&state.pool)
-        .await;
-    match updated {
-        Ok(Some(row)) => Json(Gathering::from_row(row, today)).into_response(),
-        Ok(None) => match state.pool.acquire().await {
-            Ok(mut connection) => match find(&mut connection, id, today).await {
-                Ok(Some(_)) => invalid(vec![field_error("gathering", ErrorCode::Ended)]),
-                Ok(None) => StatusCode::NOT_FOUND.into_response(),
-                Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-            },
-            Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-        },
-        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-    }
+        .fetch_one(&mut *transaction)
+        .await?;
+    transaction.commit().await?;
+    Ok(Json(Gathering::from_row(row, today)).into_response())
 }
 
 /// Marks a gathering as cancelled unless it is cancelled already or has ended. Returns the gathering as it was cancelled, or `None` when nothing changed.
@@ -296,7 +303,12 @@ fn bind<'q>(
         .bind(input.last_day)
 }
 
-fn validate(input: &GatheringInput) -> Vec<FieldError> {
+/// The errors of each field. A first day before today is refused unless it is the stored first day of the gathering that changes.
+fn validate(
+    input: &GatheringInput,
+    today: Date,
+    stored_first_day: Option<Date>,
+) -> Vec<FieldError> {
     let mut errors = Vec::new();
     for (field, value, limit) in [
         ("title", &input.title, MAX_TITLE_LENGTH),
@@ -315,6 +327,9 @@ fn validate(input: &GatheringInput) -> Vec<FieldError> {
         .is_some_and(|description| description.trim().chars().count() > MAX_DESCRIPTION_LENGTH)
     {
         errors.push(field_error("description", ErrorCode::TooLong));
+    }
+    if input.first_day < today && Some(input.first_day) != stored_first_day {
+        errors.push(field_error("firstDay", ErrorCode::FirstDayInPast));
     }
     if input.last_day < input.first_day {
         errors.push(field_error("lastDay", ErrorCode::BeforeFirstDay));
@@ -349,6 +364,56 @@ mod tests {
         assert!(gathering.has_begun(fixed_day()));
         assert!(!gathering.has_begun(fixed_day() - Duration::days(1)));
         assert!(!gathering.ended);
+    }
+
+    fn input(first_day: Date, last_day: Date) -> GatheringInput {
+        GatheringInput {
+            title: "Probenwochenende".to_owned(),
+            location: "Kloster Drübeck".to_owned(),
+            description: None,
+            first_day,
+            last_day,
+        }
+    }
+
+    fn first_day_in_past() -> Vec<FieldError> {
+        vec![field_error("firstDay", ErrorCode::FirstDayInPast)]
+    }
+
+    #[test]
+    fn refuses_new_first_day_in_past() {
+        let yesterday = fixed_day() - Duration::days(1);
+        assert_eq!(
+            validate(&input(yesterday, fixed_day()), fixed_day(), None),
+            first_day_in_past()
+        );
+    }
+
+    #[test]
+    fn accepts_today_as_first_and_last_day() {
+        assert_eq!(
+            validate(&input(fixed_day(), fixed_day()), fixed_day(), None),
+            vec![]
+        );
+    }
+
+    #[test]
+    fn accepts_unchanged_first_day_in_past() {
+        let stored = fixed_day() - Duration::days(2);
+        assert_eq!(
+            validate(&input(stored, fixed_day()), fixed_day(), Some(stored)),
+            vec![]
+        );
+    }
+
+    #[test]
+    fn refuses_changed_first_day_in_past() {
+        let stored = fixed_day() - Duration::days(2);
+        let changed = fixed_day() - Duration::days(1);
+        assert_eq!(
+            validate(&input(changed, fixed_day()), fixed_day(), Some(stored)),
+            first_day_in_past()
+        );
     }
 
     mod integration {
@@ -430,19 +495,29 @@ mod tests {
         }
 
         #[tokio::test]
+        async fn new_gathering_starts_in_the_past() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (status, body) =
+                send(&pool, &cookie, "POST", "/api/gatherings", &weekend(-1, 1)).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                body,
+                json!({ "errors": [{ "field": "firstDay", "code": "firstDayInPast" }] })
+            );
+            let (status, _) = send(&pool, &cookie, "POST", "/api/gatherings", &weekend(0, 0)).await;
+            assert_eq!(status, StatusCode::CREATED);
+        }
+
+        #[tokio::test]
         async fn gathering_has_ended() {
             let database = fresh_database().await;
             let pool = database.pool();
             let (_, cookie) = signed_in_organizer(&pool).await;
             for (first, last) in [(-3, -1), (-10, -8), (0, 0), (5, 6), (2, 3)] {
-                send(
-                    &pool,
-                    &cookie,
-                    "POST",
-                    "/api/gatherings",
-                    &weekend(first, last),
-                )
-                .await;
+                crate::invitations::testing::gathering(&pool, "Probenwochenende", first, last)
+                    .await;
             }
             let (_, list) = send(&pool, &cookie, "GET", "/api/gatherings", &Value::Null).await;
             let firsts = |key: &str| -> Vec<String> {
@@ -491,13 +566,13 @@ mod tests {
             let database = fresh_database().await;
             let pool = database.pool();
             let (_, cookie) = signed_in_organizer(&pool).await;
-            let (_, created) =
-                send(&pool, &cookie, "POST", "/api/gatherings", &weekend(-3, -1)).await;
+            let id =
+                crate::invitations::testing::gathering(&pool, "Probenwochenende", -3, -1).await;
             let (status, body) = send(
                 &pool,
                 &cookie,
                 "PUT",
-                &format!("/api/gatherings/{}", created["id"]),
+                &format!("/api/gatherings/{id}"),
                 &weekend(-3, 0),
             )
             .await;
@@ -509,6 +584,37 @@ mod tests {
             let (status, _) =
                 send(&pool, &cookie, "PUT", "/api/gatherings/999", &weekend(1, 2)).await;
             assert_eq!(status, StatusCode::NOT_FOUND);
+        }
+
+        #[tokio::test]
+        async fn unknown_gathering_with_invalid_change() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (status, _) =
+                send(&pool, &cookie, "PUT", "/api/gatherings/999", &weekend(2, 1)).await;
+            assert_eq!(status, StatusCode::NOT_FOUND);
+        }
+
+        #[tokio::test]
+        async fn running_gathering_keeps_its_first_day() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let id = crate::invitations::testing::gathering(&pool, "Probenwochenende", -2, 2).await;
+            let path = format!("/api/gatherings/{id}");
+            let (status, changed) = send(&pool, &cookie, "PUT", &path, &weekend(-2, 3)).await;
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(changed["lastDay"], day(3));
+            let (status, body) = send(&pool, &cookie, "PUT", &path, &weekend(-1, 3)).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                body,
+                json!({ "errors": [{ "field": "firstDay", "code": "firstDayInPast" }] })
+            );
+            let (_, stored) = send(&pool, &cookie, "GET", &path, &Value::Null).await;
+            assert_eq!(stored["firstDay"], day(-2));
+            assert_eq!(stored["lastDay"], day(3));
         }
     }
 }
