@@ -2,27 +2,21 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { setupApiServer } from '@/testing/server'
 import { LanguageSwitcher } from './LanguageSwitcher'
 import { LocalizationProvider } from './LocalizationProvider'
 
-const server = setupServer(
+const server = setupApiServer(
   http.get('*/api/catalogs/:locale', ({ params }) =>
     HttpResponse.text(readFileSync(path.join(import.meta.dirname, `../../../server/locales/${String(params.locale)}.ftl`), 'utf8')),
   ),
 )
 
-beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 beforeEach(() => localStorage.clear())
-afterEach(() => {
-  server.resetHandlers()
-  cleanup()
-})
-afterAll(() => server.close())
 
 function preferLanguages(languages: string[]) {
   Object.defineProperty(navigator, 'languages', { value: languages, configurable: true })

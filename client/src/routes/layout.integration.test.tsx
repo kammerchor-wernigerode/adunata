@@ -7,25 +7,20 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import axe from 'axe-core'
-import { setupServer } from 'msw/node'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { http, HttpResponse } from 'msw'
+import { describe, expect, it } from 'vitest'
 import { getLegalLinksMockHandler } from '@/api/generated/api.msw'
 import { EnglishLocalization } from '@/l10n/testing'
 import { PageTitle } from '@/components/PageTitle'
 import { RootLayout } from '@/components/RootLayout'
+import { setupApiServer } from '@/testing/server'
 
-const server = setupServer()
-
-beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
-afterEach(() => {
-  server.resetHandlers()
-  cleanup()
-})
-afterAll(() => server.close())
+const server = setupApiServer()
 
 function renderLayout() {
+  server.use(http.get('*/api/session', () => new HttpResponse(null, { status: 401 })))
   const root = createRootRoute({ component: RootLayout })
   const first = createRoute({
     getParentRoute: () => root,

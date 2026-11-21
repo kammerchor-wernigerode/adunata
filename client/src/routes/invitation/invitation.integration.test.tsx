@@ -1,23 +1,17 @@
 // @vitest-environment jsdom
-import { cleanup, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { getLegalLinksMockHandler } from '@/api/generated/api.msw'
 import type { InvitationPage } from '@/api/generated/model'
 import { renderApp, violations } from '@/testing/app'
+import { setupApiServer } from '@/testing/server'
 
-const server = setupServer()
+const server = setupApiServer()
 const secret = 'f'.repeat(64)
 
-beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
-afterEach(() => {
-  server.resetHandlers()
-  cleanup()
-  window.history.replaceState(null, '', '/')
-})
-afterAll(() => server.close())
+afterEach(() => window.history.replaceState(null, '', '/'))
 
 const page: InvitationPage = {
   firstName: 'Clara',

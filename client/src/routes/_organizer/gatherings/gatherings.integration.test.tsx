@@ -1,26 +1,21 @@
 // @vitest-environment jsdom
-import { cleanup, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   getCurrentSessionMockHandler,
   getGetGatheringMockHandler,
   getLegalLinksMockHandler,
   getListGatheringsMockHandler,
+  getListInvitationsMockHandler,
+  getOverviewMockHandler,
 } from '@/api/generated/api.msw'
 import type { Gathering } from '@/api/generated/model'
 import { renderApp, violations } from '@/testing/app'
+import { setupApiServer } from '@/testing/server'
 
-const server = setupServer()
-
-beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
-afterEach(() => {
-  server.resetHandlers()
-  cleanup()
-})
-afterAll(() => server.close())
+const server = setupApiServer()
 
 const march: Gathering = {
   id: 1,
@@ -100,7 +95,11 @@ describe('gathering form', () => {
 
   it('opens the gathering with its span and the action to edit it', async () => {
     signedIn()
-    server.use(getGetGatheringMockHandler({ ...march, description: 'We rehearse the April programme.' }))
+    server.use(
+      getGetGatheringMockHandler({ ...march, description: 'We rehearse the April programme.' }),
+      getListInvitationsMockHandler([]),
+      getOverviewMockHandler({ rows: [], totals: { accepted: 0, tentative: 0, declined: 0, pending: 0, bedsNeeded: 0, bedsOffered: 0 } }),
+    )
     const { container } = renderApp('/gatherings/1')
     expect(await screen.findByRole('heading', { level: 1, name: 'Rehearsal weekend in March' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Edit gathering' }).getAttribute('href')).toBe('/gatherings/1/edit')
