@@ -12,4 +12,3 @@ rules:
     - Draft only the architecturally significant decisions so that each can become a record in docs/decisions/ following docs/decisions/_decision_template.md. Name the records it supersedes. A change with no significant decision drafts no record.
   tasks:
     - Include tasks that update the affected arc42 sections and that write or supersede the decision records drafted in design.md. Add no task for a record that design.md does not draft.
-    - End tasks.md with a group "Hand-over" whose tasks run openspec-verify-change, a code review of the whole branch with the review command of the agent, and the checks up to integration, then push the branch and open the pull request ready for review. Reviewers only see a change once its pull request is ready, and the agent that applies the change works through tracked tasks until none is left, so the change reaches review without a further prompt.
