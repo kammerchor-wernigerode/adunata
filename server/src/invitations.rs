@@ -576,7 +576,10 @@ mod tests {
     fn cancellation_mail_in_german() {
         let (member, gathering) = sample();
         let mail = cancellation_mail(&member, &gathering, 11);
-        assert_eq!(mail.subject, "Abgesagt: Probenwochenende");
+        assert_eq!(
+            mail.subject,
+            "Abgesagt: Probenwochenende, 12.–14. März 2027"
+        );
         assert!(mail.text.contains("Hallo Clara"), "{}", mail.text);
         assert!(
             mail.text.contains(
@@ -619,7 +622,10 @@ mod tests {
             imprint: Some("https://choir.example.org/imprint".to_owned()),
         };
         let mail = invitation_mail(&member, &gathering, link, &legal, 11);
-        assert_eq!(mail.subject, "Einladung: Probenwochenende");
+        assert_eq!(
+            mail.subject,
+            "Einladung: Probenwochenende, 12.–14. März 2027"
+        );
         for expected in [
             "Hallo Clara",
             "Probenwochenende",
@@ -967,6 +973,12 @@ mod tests {
             )
             .await;
             assert_eq!(status, StatusCode::NO_CONTENT);
+            let span = localization::localizer().date_span(
+                "en",
+                api::testing::day(10),
+                api::testing::day(12),
+            );
+            let subject = format!("Cancelled: Probenwochenende, {span}");
             let cancellations: Vec<(String, String)> = sqlx::query_as(
                     "SELECT recipient, subject FROM mail_outbox WHERE subject NOT LIKE 'Invitation%' AND subject NOT LIKE 'Einladung%' ORDER BY recipient",
                 )
@@ -976,14 +988,8 @@ mod tests {
             assert_eq!(
                 cancellations,
                 vec![
-                    (
-                        "Johannes@example.org".to_owned(),
-                        "Cancelled: Probenwochenende".to_owned()
-                    ),
-                    (
-                        "root@example.org".to_owned(),
-                        "Cancelled: Probenwochenende".to_owned()
-                    ),
+                    ("Johannes@example.org".to_owned(), subject.clone()),
+                    ("root@example.org".to_owned(), subject),
                 ]
             );
             let (status, body) = send(
