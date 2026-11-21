@@ -202,8 +202,8 @@ The tag `nightly` SHALL point to the index of the newest commit on `main` that h
 - **THEN** the tag `nightly` keeps pointing to the newest commit on `main` that has an index
 
 #### Scenario: Later commit without a build
-- **WHEN** a commit that changes only `openspec/` lands on `main` while the checks of the commit before it still run
-- **THEN** the tag `nightly` moves to the commit before it once its checks passed, unless a newer commit on `main` has an index by then
+- **WHEN** a commit that changes only `openspec/` lands on `main` while the checks of the commit before it, which builds Adunata, still run
+- **THEN** the tag `nightly` moves to the commit before it once that commit has its index, unless a newer commit on `main` has an index by then
 
 #### Scenario: Older run finishes late
 - **WHEN** the checks of a commit pass after the checks of a newer commit on `main` passed
