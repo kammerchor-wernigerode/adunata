@@ -37,16 +37,18 @@ function MemberListPage() {
 
   return (
     <>
-      <PageTitle title={translate('members-title')} />
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
-        <Field className="max-w-sm">
-          <FieldLabel htmlFor={`${id}-search`}>{translate('members-search')}</FieldLabel>
-          <Input id={`${id}-search`} type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
-        </Field>
-        <Button asChild>
-          <Link to="/members/new">{translate('members-add')}</Link>
-        </Button>
-      </div>
+      <PageTitle
+        title={translate('members-title')}
+        action={
+          <Button asChild>
+            <Link to="/members/new">{translate('members-add')}</Link>
+          </Button>
+        }
+      />
+      <Field className="mb-4 max-w-sm">
+        <FieldLabel htmlFor={`${id}-search`}>{translate('members-search')}</FieldLabel>
+        <Input id={`${id}-search`} type="search" value={search} onChange={(event) => setSearch(event.target.value)} />
+      </Field>
       <ToggleGroup
         type="single"
         value={filter}

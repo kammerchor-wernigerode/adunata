@@ -55,14 +55,14 @@ const overview: Overview = {
   totals: { accepted: 3, tentative: 0, declined: 1, pending: 1, bedsNeeded: 2, bedsOffered: 3 },
 }
 
-function organizerPage() {
+function organizerPage(gathering: Gathering = weekend, shown: Overview = overview) {
   server.use(
     getLegalLinksMockHandler({}),
     getCurrentSessionMockHandler({ id: 9, firstName: 'Ada', lastName: 'Lovelace', mail: 'ada@example.org', language: 'en', active: true, organizer: true }),
-    getGetGatheringMockHandler(weekend),
+    getGetGatheringMockHandler(gathering),
     getListMembersMockHandler([]),
     getListInvitationsMockHandler([]),
-    getOverviewMockHandler(overview),
+    getOverviewMockHandler(shown),
   )
   return renderApp('/gatherings/5')
 }
@@ -72,6 +72,11 @@ function names(): string[] {
     .getAllByRole('row')
     .slice(1)
     .map((row) => within(row).getAllByRole('cell')[0]!.textContent)
+}
+
+async function actionsOf(name: string): Promise<HTMLElement> {
+  const row = (await screen.findByText(name)).closest('tr')!
+  return within(row).getAllByRole('cell').at(-1)!
 }
 
 describe('overview', () => {
@@ -124,8 +129,12 @@ describe('overview', () => {
       }),
     )
     organizerPage()
-    const sophie = (await screen.findByText('Sophie Graf')).closest('tr')!
+    const sophie = await actionsOf('Sophie Graf')
     expect(within(sophie).getByText(/mail failed/)).toBeTruthy()
+    const name = within(sophie.closest('tr')!).getAllByRole('cell')[0]!
+    expect(within(name).queryByRole('button')).toBeNull()
+    expect(within(name).queryByText(/mail failed/)).toBeNull()
+    expect(within(name).getByRole('link').textContent).toBe('Sophie Graf')
     await userEvent.click(within(sophie).getByRole('button', { name: 'Resend: Sophie Graf' }))
     expect(resent).toBe(true)
     await waitFor(() => expect(within(sophie).queryByRole('button', { name: 'Resend: Sophie Graf' })).toBeNull())
@@ -135,7 +144,7 @@ describe('overview', () => {
   it('keeps the resend action and names the failure when the server refuses it', async () => {
     server.use(http.post('*/api/invitations/5/resend', () => HttpResponse.json({ errors: [] }, { status: 422 })))
     organizerPage()
-    const sophie = (await screen.findByText('Sophie Graf')).closest('tr')!
+    const sophie = await actionsOf('Sophie Graf')
     await userEvent.click(within(sophie).getByRole('button', { name: 'Resend: Sophie Graf' }))
     await waitFor(() => expect(within(sophie).getByRole('alert').textContent).toBe('Something went wrong. Try again.'))
     expect(within(sophie).getByRole('button', { name: 'Resend: Sophie Graf' })).toBeTruthy()
@@ -144,11 +153,33 @@ describe('overview', () => {
   it('names every column of a member in the cell, so the narrow layout keeps them all', async () => {
     organizerPage()
     const table = await screen.findByRole('table')
-    for (const row of within(table).getAllByRole('row').slice(1)) {
-      const labels = within(row)
-        .getAllByRole('cell')
-        .map((cell) => cell.firstElementChild?.textContent)
-      expect(labels).toEqual(['Name', 'Status', 'Period', 'Beds', 'Comment'])
-    }
+    expect(within(table).getAllByRole('columnheader').at(-1)!.textContent).toBe('Actions')
+    const cells = within(table)
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => within(row).getAllByRole('cell'))
+    const columns = ['Name', 'Status', 'Period', 'Beds', 'Comment']
+    expect(cells.map((row) => row.map((cell) => cell.firstElementChild?.textContent))).toEqual([
+      ...Array.from({ length: 4 }, () => [...columns, undefined]),
+      [...columns, 'Actions'],
+    ])
+    expect(cells.map((row) => row.at(-1)!.childNodes.length)).toEqual([0, 0, 0, 0, 2])
+  })
+
+  it('shows a revoked link with the resend action in the last cell', async () => {
+    const revoked = { ...base, invitationId: 6, firstName: 'Paul', lastName: 'Roth', linkActive: false }
+    organizerPage(weekend, { ...overview, rows: [...rows, revoked] })
+    const paul = await actionsOf('Paul Roth')
+    expect(within(paul).getByText(/link revoked/)).toBeTruthy()
+    expect(within(paul).getByRole('button', { name: 'Resend: Paul Roth' })).toBeTruthy()
+  })
+
+  it('shows the notice without the resend action on an ended gathering', async () => {
+    const { container } = organizerPage({ ...weekend, ended: true })
+    const sophie = await actionsOf('Sophie Graf')
+    expect(sophie.firstElementChild?.textContent).toBe('Actions')
+    expect(within(sophie).getByText(/mail failed/)).toBeTruthy()
+    expect(within(sophie).queryByRole('button')).toBeNull()
+    expect(await violations(container)).toEqual([])
   })
 })

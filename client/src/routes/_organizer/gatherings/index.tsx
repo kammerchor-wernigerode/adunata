@@ -18,10 +18,14 @@ function GatheringListPage() {
 
   return (
     <>
-      <PageTitle title={translate('gatherings-title')} />
-      <Button asChild className="mb-6">
-        <Link to="/gatherings/new">{translate('gatherings-create')}</Link>
-      </Button>
+      <PageTitle
+        title={translate('gatherings-title')}
+        action={
+          <Button asChild>
+            <Link to="/gatherings/new">{translate('gatherings-create')}</Link>
+          </Button>
+        }
+      />
       {list && (
         <>
           <GatheringSection title={translate('gatherings-upcoming')} gatherings={list.upcoming} />

@@ -87,7 +87,7 @@ A status is a pill that shows an icon from `lucide-react` next to its text. The 
 
 The frame around every page carries a header, the main area and a footer. The header is a band in the primary color with the product name in Literata. Organizer pages put their navigation into the band and underline the current page. Main headings are set in Literata at about 1.6 rem with a tight line height, so a long title still fits a phone. The footer links the privacy notice and the imprint when the operator set them.
 
-Every route sets its own page title through the main heading. After a route change, focus moves to the main heading. Forms follow these patterns:
+Every route sets its own page title through the main heading. After a route change, focus moves to the main heading. A page action such as creating or editing sits at the top right on the line of the main heading and wraps below it on a narrow screen, while form actions end the form. Forms follow these patterns:
 
 - A field with an error carries `aria-invalid` and links its message through `aria-describedby`.
 - After a rejected save, focus moves to the first invalid field.
