@@ -517,6 +517,7 @@ def advance(job, stage):
         feedback = sorted(d.glob("feedback-*.md"))
         require(feedback and feedback[-1].stat().st_mtime > (d / "decision.md").stat().st_mtime,
                 "use `job feedback` to send a job back to the builder")
+        require_slot(job["id"])
         job["round_limit"] = job["round"] + CONFIG["max_rounds"]
         if job["pr"] and gh_json("pr", "view", str(job["pr"]), "--json", "isDraft")["isDraft"] is False:
             gh("pr", "ready", "--undo", str(job["pr"]))
