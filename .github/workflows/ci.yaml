@@ -26,7 +26,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Paths outside openspec
+      - name: Paths that checks read
         id: paths
         env:
           EVENT: ${{ github.event_name }}
@@ -49,7 +49,7 @@ jobs:
           esac
           changed=$(git diff --name-only --no-renames "$range") || everything
           echo "$changed"
-          if [ -z "$changed" ] || grep --invert-match --quiet '^openspec/' <<< "$changed"; then everything; fi
+          if [ -z "$changed" ] || grep --invert-match --quiet --extended-regexp '^(openspec/|factory/|\.claude/|\.agents/|docs/|AGENTS\.md$|CLAUDE\.md$|\.coderabbit\.yaml$)' <<< "$changed"; then everything; fi
           echo "code=false" >> "$GITHUB_OUTPUT"
       - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
         if: steps.paths.outputs.code == 'false'

@@ -17,3 +17,6 @@ indent_size = unset
 
 [*.py]
 indent_size = 4
+
+[{factory/LICENSE,factory/bin/*,factory/dashboard.html}]
+indent_size = unset

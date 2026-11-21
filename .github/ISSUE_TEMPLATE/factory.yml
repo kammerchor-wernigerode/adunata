@@ -1,0 +1,45 @@
+name: Factory request
+description: Findings from exploring a change, for the software factory to build as one pull request
+title: "<short imperative title>"
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        The software factory builds this issue once someone with the role Triage or higher labels it `factory`.
+        This form never sets that label. Write down what exploring found, not a finished proposal.
+        The factory writes the proposal, design, specs and tasks from it.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is wrong or missing today, and why it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: findings
+    attributes:
+      label: Findings
+      description: What exploring showed, such as the behaviour you want, requirements you found and things in the code that matter.
+    validations:
+      required: true
+  - type: textarea
+    id: decisions
+    attributes:
+      label: Decisions
+      description: What is decided, one line each with its reason. The factory keeps these as they are.
+      placeholder: "- Members see only their own reply, because replies are personal data."
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What this issue does not cover, including later slices of the same topic.
+  - type: textarea
+    id: open-questions
+    attributes:
+      label: Open questions
+      description: Points the factory may decide itself. It records each one as a decision.
+  - type: textarea
+    id: depends-on
+    attributes:
+      label: Depends on
+      description: Issues or pull requests that must be merged before the factory starts.
