@@ -196,6 +196,8 @@
               }
               startMailpit() {
                 export ADNT_SMTP_PORT=$((20000 + RANDOM)) MAILPIT_UI_PORT=$((20000 + RANDOM))
+                [ "$ADNT_SMTP_PORT" -ne "$MAILPIT_UI_PORT" ] || return 1
+                ! portAnswers "$ADNT_SMTP_PORT" && ! portAnswers "$MAILPIT_UI_PORT" || return 1
                 mailpit --smtp "127.0.0.1:$ADNT_SMTP_PORT" --listen "127.0.0.1:$MAILPIT_UI_PORT" --quiet &
                 mailpitPid=$!
                 for _ in $(seq 100); do
