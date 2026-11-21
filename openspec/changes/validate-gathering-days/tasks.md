@@ -23,4 +23,4 @@
 
 ## 4. Documentation
 
-- [ ] 4.1 Add to the paragraph on the time zone of the instance in `docs/arc42/08-cross-cutting-concepts.md` that the calendars of the client may use the browser's date to disable days while the server alone decides whether a day lies in the past. Verify the paragraph stays one line and its links resolve.
+- [x] 4.1 Add to the paragraph on the time zone of the instance in `docs/arc42/08-cross-cutting-concepts.md` that the calendars of the client may use the browser's date to disable days while the server alone decides whether a day lies in the past. Verify the paragraph stays one line and its links resolve.
