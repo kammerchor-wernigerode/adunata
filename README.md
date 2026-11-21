@@ -54,6 +54,15 @@ Install these tools:
 - [pnpm](https://pnpm.io/installation) in the version that `packageManager` in [`client/package.json`](client/package.json) names
 - Docker or Podman with Compose
 
+### Software factory
+
+The [software factory](AGENTS.md#software-factory) needs these tools in addition, with and without Nix:
+
+- Python 3.10 or newer, for the scripts in `factory/bin/`
+- the [GitHub CLI](https://cli.github.com) `gh`, signed in with an account that may push to the repository and manage its labels
+- the [OpenSpec CLI](https://github.com/Fission-AI/OpenSpec) in version 2, the version that generated the skills in `.agents/skills/`. The development shell has no package for it yet. Install it with `npm install --global @fission-ai/openspec@2`
+- a coding agent such as Claude Code or Codex that runs the skill `factory`
+
 ### RustRover
 
 The repository tracks the project files of [RustRover](https://www.jetbrains.com/rust/) in `.idea/`. They exclude build output and linked worktrees from indexing, require the plugin NixIDEA and map the JSON schema of `rust-toolchain.toml`. Open the root of the checkout, not `server/`.
@@ -210,41 +219,13 @@ Commit the component together with those packages.
 
 Run the checks up to `integration` locally before each push. CI runs them in the job `build` and runs the end-to-end tests, the image and the NixOS VM test once a pull request is ready for review. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) lists every target and job.
 
-With Nix, one command runs them. Replace `x86_64-linux` with your system, such as `aarch64-darwin`:
+One script runs them, in the root of the checkout:
 
 ```sh
-nix build .#checks.x86_64-linux.integration
+factory/checks.sh
 ```
 
-Without Nix, run the same checks in the order of the lifecycle, with the services running:
-
-```sh
-cd client
-pnpm install --frozen-lockfile
-pnpm run lint
-pnpm run lint:editorconfig
-pnpm run lint:licenses
-cd ../server
-cargo fmt --check
-cargo clippy --all-targets -- --deny warnings
-cargo deny check bans licenses sources
-cd ../client
-pnpm run build
-cd ../server
-cargo about generate --frozen --fail about.hbs >> ../client/dist/licenses.txt
-cargo build
-cargo test --bins -- --skip integration::
-cd ../client
-pnpm test
-cd ../server
-cargo test --bins -- integration::
-cargo test --test startup
-cd ../client
-pnpm run test:integration
-pnpm run check:generated
-cd ..
-node --test .github/scripts/*.test.mjs
-```
+With Nix it builds `.#checks.<system>.integration` for the local system. Without Nix it runs the same checks one by one in the order of the lifecycle and needs the services running. The [software factory](AGENTS.md#software-factory) runs the same script on each of its branches.
 
 CI also checks the formatting of Nix files, the linkage of the release binary, the GitHub workflows with zizmor, whether `server/Cargo.toml`, `server/Cargo.lock` and `client/package.json` name the same version and whether the pinned versions of Rust, pnpm, `editorconfig-checker`, `cargo-deny` and `cargo-about` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
 

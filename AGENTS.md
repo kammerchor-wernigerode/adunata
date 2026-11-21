@@ -10,13 +10,16 @@ This file routes. It names where things live and the rules that apply everywhere
 |`openspec/changes/`|Proposed and in-progress changes|
 |`openspec/config.yaml`|Rules for OpenSpec artifacts|
 |`openspec/README.md`|OpenSpec skills in use and the profile they need, read before running `openspec update`|
+|`factory/`|The software factory: its configuration, checks, scripts and dashboard|
+|`.agents/skills/factory/`|The orchestrator of the factory|
+|`.claude/agents/`|The roles of the factory, one file each|
 |`docs/decisions/`|Architecture decision records, as described in [ADR 0001](docs/decisions/0001-record-architecture-decisions.md)|
 |`docs/arc42/`|Architecture documentation, see the [entry page](docs/arc42/README.md)|
 |`docs/operating/`|Documentation for operators who install and run an instance|
 
 ## Workflow
 
-- New features start with `/openspec-propose <name>`. Open ideas start with `/openspec-explore`.
+- Work starts as a GitHub issue labeled `factory`, which the [software factory](#software-factory) builds. By hand, new features start with `/openspec-propose <name>`. Open ideas start with `/openspec-explore`.
 - A person may have a change reviewed before its tasks with `/review-change [change] [model] [effort]`. Agents never start it on their own.
 - Small fixes need no change proposal.
 - An architecturally significant decision gets a record in `docs/decisions/`. Significant means that an operator or a running instance notices it. Tooling for development, tests and CI never is, even where a record mentions it. [ADR 0001](docs/decisions/0001-record-architecture-decisions.md) defines what counts. The development environment is not architecture. The README documents it.
@@ -24,15 +27,25 @@ This file routes. It names where things live and the rules that apply everywhere
 - Archive merged OpenSpec changes together in a pull request of their own, once every change of a piece of work is merged or whenever a maintainer chooses. Nobody pushes to `main` directly. CI checks only `editorconfig` for a pull request that touches nothing outside `openspec/`.
 - When an agent repeats a mistake, add a rule here.
 
+## Software factory
+
+`/factory run` builds every open GitHub issue labeled `factory` through intake → spec → build → gate → review → approve → CI, one pull request per issue. The skill `factory` describes each step and how it runs in coding agents other than Claude Code. State lives in `factory/jobs/`, and `factory/bin/job` is its only writer. Git ignores the folder through `.git/info/exclude`, where `factory/bin/job` adds it, so that a second repository on the same work tree can keep the state. The checks are in `factory/checks.sh`. For the dashboard, run `python3 -m http.server --bind 127.0.0.1` in `factory/` and open <http://localhost:8000/dashboard.html>.
+
+Each job works in its own worktree at `.worktrees/<job-id>`, which Git ignores. A tool run from the root of the repository that does not read `.gitignore` sees those copies too, so exclude `.worktrees/` in its configuration.
+
+A job's worktree gets its own ports and services when git-worktree-init with the plugin of the README is set up, as [Parallel worktrees](README.md#parallel-worktrees) describes. An agent then starts the services with `docker compose up --detach --wait` and Adunata as [Run Adunata](README.md#run-adunata) describes, with the ports from the files the plugin wrote. Without the plugin, a job's worktree shares the services of the main checkout, so an agent starts no services there and judges pages from the code.
+
 ## Pull requests
 
 CI runs the checks up to `integration` on every push to a pull request that changes files outside `openspec/`. Pull requests that are ready for review and pushes to `main` also run the jobs that take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes the checks.
 
-- A change is ready for human review when nothing local can still find a problem in it. Every local check is cheaper than a CI round, and every push after review starts one. So the agent that finishes a change runs `openspec-verify-change` (for OpenSpec changes), a code review of the whole branch with its own review command and the checks up to integration, and fixes what they find. Once all three pass, push the branch and open the pull request ready for review. The first push then carries the reviewed state, so the long jobs run once.
-- Open a draft pull request only for an intermediate state that someone should see.
-- Before each push, run the checks up to integration locally with `nix build .#checks.<system>.integration`, where `<system>` is the local Nix system such as `aarch64-linux`. Without Nix, run the commands that the [README](README.md#checks-before-a-push) lists. Never push a state that fails them.
+- The factory verifies its own pull requests. Its gate runs the checks up to integration, its reviewers check the change against the spec and the OpenSpec change, and its approver decides. An approved pull request becomes ready for review and merges once CI passes and CodeRabbit has nothing open. Failing checks and remarks of CodeRabbit send it back to the builder.
+- A person reviews only the pull requests that the factory labels `factory:needs-human`. Merging one approves it.
+- A pull request stays a draft until its change has passed every local check. Readiness starts the long jobs and the review of CodeRabbit.
+- Work done by hand gets a code review of the whole branch with the review command of the agent and `factory/checks.sh` before its pull request goes ready.
+- Before each push, run `factory/checks.sh` in the root of the checkout. With Nix it builds the target `integration`. Without Nix it runs the same checks one by one, with the services running. Never push a state that fails them.
 - Push once per round of feedback. Collect every remark of a review, fix them together and then push.
-- CodeRabbit reviews a pull request once it is ready for review. Its remarks fit well into the same round as the human ones, which saves a push and a CI run. A remark that does not hold up against the code is worth a short reply rather than a change.
+- CodeRabbit reviews every pull request once it is ready for review. A remark that does not hold up against the code is worth a short reply rather than a change.
 - An approval covers the commit the reviewer saw. A push after it needs a new review, so mention in the pull request what changed and why.
 - Dependabot opens its pull requests ready for review without the local checks above. Such a pull request may fail its checks, for example after an update of `flake.lock`. A maintainer then pushes the fix to its branch.
 
