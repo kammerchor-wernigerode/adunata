@@ -9,6 +9,7 @@ import {
   getLegalLinksMockHandler,
   getListGatheringsMockHandler,
   getListInvitationsMockHandler,
+  getListMembersMockHandler,
   getOverviewMockHandler,
 } from '@/api/generated/api.msw'
 import type { Gathering } from '@/api/generated/model'
@@ -117,6 +118,7 @@ describe('gathering form', () => {
     server.use(
       getGetGatheringMockHandler({ ...march, description: 'We rehearse the April programme.' }),
       getListInvitationsMockHandler([]),
+      getListMembersMockHandler([]),
       getOverviewMockHandler(emptyOverview),
     )
     const { container } = renderApp('/gatherings/1')
