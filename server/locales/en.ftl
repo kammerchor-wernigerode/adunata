@@ -71,6 +71,7 @@ date-picker-choose-day = Choose a day
 gathering-save = Save
 gathering-cancelled = Cancelled
 error-last-day-before-first-day = The last day cannot lie before the first day.
+error-first-day-in-past = The first day cannot lie in the past.
 error-gathering-ended = This gathering has ended and can no longer change.
 
 invitations-title = Invitations

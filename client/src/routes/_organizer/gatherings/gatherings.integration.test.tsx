@@ -93,6 +93,28 @@ describe('gathering form', () => {
     expect(await violations(container)).toEqual([])
   })
 
+  it('marks a first day in the past', async () => {
+    signedIn()
+    server.use(
+      http.post('*/api/gatherings', () =>
+        HttpResponse.json({ errors: [{ field: 'firstDay', code: 'firstDayInPast' }] }, { status: 422 }),
+      ),
+    )
+    const { container } = renderApp('/gatherings/new')
+    await userEvent.type(await screen.findByLabelText('Title'), 'Rehearsal weekend')
+    await userEvent.type(screen.getByLabelText('Location'), 'Drübeck Abbey')
+    await pickDay('First day', '18')
+    await pickDay('Last day', '20')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const firstDay = screen.getByLabelText('First day')
+    await waitFor(() => expect(firstDay.getAttribute('aria-invalid')).toBe('true'))
+    expect(document.activeElement).toBe(firstDay)
+    expect(document.getElementById(firstDay.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+      'The first day cannot lie in the past.',
+    )
+    expect(await violations(container)).toEqual([])
+  })
+
   it('opens the gathering with its span and the action to edit it', async () => {
     signedIn()
     server.use(

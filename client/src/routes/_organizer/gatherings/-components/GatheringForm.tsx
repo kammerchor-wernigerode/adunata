@@ -27,6 +27,8 @@ function message(translate: Translate, error: ServerFieldError): string {
       return translate('error-field-too-long')
     case 'beforeFirstDay':
       return translate('error-last-day-before-first-day')
+    case 'firstDayInPast':
+      return translate('error-first-day-in-past')
     case 'ended':
       return translate('error-gathering-ended')
     default:

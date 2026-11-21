@@ -11,8 +11,8 @@
 
 ## 2. Messages
 
-- [ ] 2.1 Add `error-first-day-in-past` to `server/locales/en.ftl` and `server/locales/de.ftl` with the texts of design.md, next to `error-last-day-before-first-day`. Verify the catalog tests in `client/src/l10n/` pass.
-- [ ] 2.2 Map `firstDayInPast` to `error-first-day-in-past` in `message` of `client/src/routes/_organizer/gatherings/-components/GatheringForm.tsx`. Verify with a test in `client/src/routes/_organizer/gatherings/gatherings.integration.test.tsx` where the mocked `POST */api/gatherings` answers 422 with `firstDayInPast` on `firstDay`: the first day is marked `aria-invalid`, has focus and its description reads "The first day cannot lie in the past.".
+- [x] 2.1 Add `error-first-day-in-past` to `server/locales/en.ftl` and `server/locales/de.ftl` with the texts of design.md, next to `error-last-day-before-first-day`. Verify the catalog tests in `client/src/l10n/` pass.
+- [x] 2.2 Map `firstDayInPast` to `error-first-day-in-past` in `message` of `client/src/routes/_organizer/gatherings/-components/GatheringForm.tsx`. Verify with a test in `client/src/routes/_organizer/gatherings/gatherings.integration.test.tsx` where the mocked `POST */api/gatherings` answers 422 with `firstDayInPast` on `firstDay`: the first day is marked `aria-invalid`, has focus and its description reads "The first day cannot lie in the past.".
 
 ## 3. Calendars and moving last day
 

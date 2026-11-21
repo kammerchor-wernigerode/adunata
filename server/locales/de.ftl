@@ -71,6 +71,7 @@ date-picker-choose-day = Tag wählen
 gathering-save = Speichern
 gathering-cancelled = Abgesagt
 error-last-day-before-first-day = Der letzte Tag kann nicht vor dem ersten liegen.
+error-first-day-in-past = Der erste Tag kann nicht in der Vergangenheit liegen.
 error-gathering-ended = Dieses Treffen ist vorbei und lässt sich nicht mehr ändern.
 
 invitations-title = Einladungen
