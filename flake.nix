@@ -187,7 +187,7 @@
               pg_ctl start --wait --silent --options="-k $PGHOST -c listen_addresses="
               export ADNT_DATABASE_URL="postgres:///postgres?host=$PGHOST&user=$PGUSER"
               stopTestServices() {
-                kill "$mailpitPid"
+                kill "''${mailpitPid:-}" 2>/dev/null || true
                 pg_ctl stop --wait --silent
               }
               failureHooks+=(stopTestServices)
