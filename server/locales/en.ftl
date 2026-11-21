@@ -137,6 +137,7 @@ overview-column-status = Status
 overview-column-period = Period
 overview-column-beds = Beds
 overview-column-comment = Comment
+overview-column-actions = Actions
 overview-beds-need = { $count ->
         [one] needs one
        *[other] needs { $count }
