@@ -88,6 +88,15 @@ describe('account menu', () => {
     await waitFor(() => expect(document.activeElement?.tagName).toBe('H1'))
   })
 
+  it('returns focus to the trigger when the own member entry is already open', async () => {
+    signedIn()
+    renderApp('/members/1')
+    await screen.findByDisplayValue('Lovelace')
+    await openMenu()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'My member entry' }))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Account of Ada Lovelace' })))
+  })
+
   it('signs out with the keyboard alone', async () => {
     let signedOut = false
     signedIn()

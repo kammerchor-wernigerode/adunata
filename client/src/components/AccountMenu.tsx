@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { ChevronDownIcon } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { getCurrentSessionQueryKey, signOut } from '@/api/generated/api'
@@ -26,11 +26,13 @@ export function AccountMenu({ organizer }: AccountMenuProps) {
   const translate = useTranslate()
   const { locale, setLocale } = useLocale()
   const navigate = useNavigate()
+  const matchRoute = useMatchRoute()
   const queryClient = useQueryClient()
   const { pending, failed, submit } = useSubmission()
   const [header, setHeader] = useState<HTMLDivElement | null>(null)
   const leavingPage = useRef(false)
   const name = `${organizer.firstName} ${organizer.lastName}`
+  const ownEntry = { to: '/members/$memberId', params: { memberId: String(organizer.id) } } as const
 
   function leave() {
     return submit(async () => {
@@ -65,8 +67,8 @@ export function AccountMenu({ organizer }: AccountMenuProps) {
             leavingPage.current = false
           }}
         >
-          <DropdownMenuItem asChild onSelect={() => (leavingPage.current = true)}>
-            <Link to="/members/$memberId" params={{ memberId: String(organizer.id) }}>
+          <DropdownMenuItem asChild onSelect={() => (leavingPage.current = !matchRoute(ownEntry))}>
+            <Link {...ownEntry}>
               {translate('account-own-entry')}
             </Link>
           </DropdownMenuItem>
