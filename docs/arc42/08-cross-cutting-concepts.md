@@ -16,7 +16,7 @@ Every text that people read comes from a Fluent catalog per language in [`server
 
 English is the fallback. When a catalog lacks a text, the English text appears instead of a key. The client loads the English catalog next to the chosen one for this purpose.
 
-The client starts in the language the browser prefers among German and English. A switch next to the title changes it. The choice stays on the device. The document language follows the choice, so screen readers pronounce text correctly.
+The client starts in the language the browser prefers among German and English. A signed-in organizer changes it in the account menu, everyone else in a select in the header. The choice stays on the device. The document language follows the choice, so screen readers pronounce text correctly.
 
 Mail goes out in the language stored for the member who receives it. The default language of the instance applies to the first organizer and to members that `grant-organizer` creates. The client formats dates with the browser's own date formatting. The server spells out date ranges in mail through the catalog, because Fluent in Rust has no date formatting.
 
@@ -85,7 +85,7 @@ A status is a pill that shows an icon from `lucide-react` next to its text. The 
 
 ### Pages and forms
 
-The frame around every page carries a header, the main area and a footer. The header is a band in the primary color with the product name in Literata. Organizer pages put their navigation into the band and underline the current page. Main headings are set in Literata at about 1.6 rem with a tight line height, so a long title still fits a phone. The footer links the privacy notice and the imprint when the operator set them.
+The frame around every page carries a header, the main area and a footer. The header is a band in the primary color with the product name in Literata. Organizer pages put their navigation into the band and underline the current page. They end the band with an account menu that names the organizer and holds the own member entry, the language and, last and set apart, sign-out. Main headings are set in Literata at about 1.6 rem with a tight line height, so a long title still fits a phone. The footer links the privacy notice and the imprint when the operator set them.
 
 Every route sets its own page title through the main heading. After a route change, focus moves to the main heading. Forms follow these patterns:
 
