@@ -46,13 +46,14 @@ export function AccountMenu({ organizer }: AccountMenuProps) {
   }
 
   return (
-    <div ref={setHeader} className="flex min-w-0 items-center gap-2">
-      <span role="alert">{failed ? translate('error-unexpected') : ''}</span>
+    <div ref={setHeader} className="flex min-w-0 flex-wrap items-center justify-end gap-y-2">
+      <span role="alert" className="mr-2 empty:mr-0">{failed ? translate('error-unexpected') : ''}</span>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <Button
+            variant="outline"
             aria-label={translate('account-menu-label', { name })}
-            className="max-w-full min-w-0 shrink text-base font-normal focus-visible:ring-primary-foreground sm:max-w-xs"
+            className="max-w-full min-w-0 shrink text-base font-normal text-foreground dark:bg-background dark:hover:bg-muted focus-visible:ring-primary-foreground sm:max-w-xs"
           >
             <span className="truncate">{name}</span>
             <ChevronDownIcon aria-hidden />
