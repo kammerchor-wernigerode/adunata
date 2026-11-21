@@ -17,7 +17,7 @@ function beds(translate: Translate, row: OverviewRow): string {
 
 export function OverviewTable({ gathering, rows }: { gathering: Gathering; rows: OverviewRow[] }) {
   const translate = useTranslate()
-  const columns = ['name', 'status', 'period', 'beds', 'comment'] as const
+  const columns = ['name', 'status', 'period', 'beds', 'comment', 'actions'] as const
   return (
     <div className="@container">
       <Table className="overflow-hidden rounded-lg border border-border bg-card @max-[40rem]:block">
@@ -35,16 +35,13 @@ export function OverviewTable({ gathering, rows }: { gathering: Gathering; rows:
             <TableRow key={row.invitationId} className="even:bg-muted/50 @max-[40rem]:block @max-[40rem]:px-3 @max-[40rem]:py-2">
               <TableCell className={`${cell} font-semibold`}>
                 <span className={label}>{translate('overview-column-name')}</span>
-                <span>
-                  <Link
-                    to="/gatherings/$gatheringId/invitations/$invitationId"
-                    params={{ gatheringId: String(gathering.id), invitationId: String(row.invitationId) }}
-                    className="text-foreground underline underline-offset-4"
-                  >
-                    {row.firstName} {row.lastName}
-                  </Link>
-                  <MailNotice row={row} gathering={gathering} />
-                </span>
+                <Link
+                  to="/gatherings/$gatheringId/invitations/$invitationId"
+                  params={{ gatheringId: String(gathering.id), invitationId: String(row.invitationId) }}
+                  className="text-foreground underline underline-offset-4"
+                >
+                  {row.firstName} {row.lastName}
+                </Link>
               </TableCell>
               <TableCell className={cell}>
                 <span className={label}>{translate('overview-column-status')}</span>
@@ -61,6 +58,9 @@ export function OverviewTable({ gathering, rows }: { gathering: Gathering; rows:
               <TableCell className={`${cell} text-muted-foreground`}>
                 <span className={label}>{translate('overview-column-comment')}</span>
                 <span className="break-words">{row.comment ?? '–'}</span>
+              </TableCell>
+              <TableCell className={`${cell} @max-[40rem]:empty:hidden`}>
+                <MailNotice row={row} gathering={gathering} labelClassName={label} />
               </TableCell>
             </TableRow>
           ))}

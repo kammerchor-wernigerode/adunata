@@ -25,12 +25,12 @@ status-accepted = Accepted
 status-tentative = Tentative
 status-declined = Declined
 
-invitation-mail-subject = Invitation: { $title }
+invitation-mail-subject = Invitation: { $title }, { $span }
 invitation-mail-greeting = Hello { $firstName },
 invitation-mail-details = you are invited to { $title } in { $location }, { $span }.
 invitation-mail-answer = Tell us through your personal link whether and when you come. Please do not forward it, because it works without a password.
 
-cancellation-mail-subject = Cancelled: { $title }
+cancellation-mail-subject = Cancelled: { $title }, { $span }
 cancellation-mail-body = { $title } in { $location }, { $span }, does not take place.
 
 sign-in-mail-subject = Your sign-in link for Adunata
@@ -139,6 +139,7 @@ overview-column-status = Status
 overview-column-period = Period
 overview-column-beds = Beds
 overview-column-comment = Comment
+overview-column-actions = Actions
 overview-beds-need = { $count ->
         [one] needs one
        *[other] needs { $count }
