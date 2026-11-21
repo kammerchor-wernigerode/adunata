@@ -88,7 +88,9 @@ describe('member list', () => {
     renderApp('/members')
     const navigation = await screen.findByRole('navigation', { name: 'Main navigation' })
     expect(within(navigation).getByRole('link', { name: 'Members' }).getAttribute('aria-current')).toBe('page')
-    expect(within(navigation).getByRole('button', { name: 'Sign out' })).toBeTruthy()
+    expect(within(navigation).queryAllByRole('button')).toEqual([])
+    expect(within(navigation).getAllByRole('link').map((link) => link.textContent)).toEqual(['Gatherings', 'Members'])
+    expect(screen.getByRole('button', { name: 'Account of Ada Lovelace' }).textContent).toBe('Ada Lovelace')
   })
 })
 

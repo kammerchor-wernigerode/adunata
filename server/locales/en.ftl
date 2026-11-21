@@ -40,6 +40,8 @@ sign-in-mail-ignore = If you did not ask to sign in, ignore this mail.
 nav-label = Main navigation
 nav-members = Members
 nav-sign-out = Sign out
+account-menu-label = Account of { $name }
+account-own-entry = My member entry
 
 sign-in-title = Sign in
 sign-in-mail = Mail address

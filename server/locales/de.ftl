@@ -40,6 +40,8 @@ sign-in-mail-ignore = Wenn du keine Anmeldung angefordert hast, ignoriere diese 
 nav-label = Hauptnavigation
 nav-members = Mitglieder
 nav-sign-out = Abmelden
+account-menu-label = Konto von { $name }
+account-own-entry = Mein Mitgliedseintrag
 
 sign-in-title = Anmelden
 sign-in-mail = Mailadresse
