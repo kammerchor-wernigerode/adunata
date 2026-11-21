@@ -60,7 +60,7 @@ The [software factory](AGENTS.md#software-factory) needs these tools in addition
 
 - Python 3.10 or newer, for the scripts in `factory/bin/`
 - the [GitHub CLI](https://cli.github.com) `gh`, signed in with an account that may push to the repository and manage its labels
-- the [OpenSpec CLI](https://github.com/Fission-AI/OpenSpec) in version 2, the version that generated the skills in `.agents/skills/`. The development shell has no package for it yet. Install it with `npm install --global @fission-ai/openspec@2`
+- the [OpenSpec CLI](https://github.com/Fission-AI/OpenSpec) in version 2, the version that generated the skills in `.agents/skills/`. The development shell has no package for it yet. Install it with `npm install --global --prefix ~/.local @fission-ai/openspec@2` and put `~/.local/bin` on `PATH`. The prefix keeps npm out of the Nix store, which the development shell makes read-only
 - a coding agent such as Claude Code or Codex that runs the skill `factory`
 
 ### RustRover
@@ -225,9 +225,9 @@ One script runs them, in the root of the checkout:
 factory/checks.sh
 ```
 
-With Nix it builds `.#checks.<system>.integration` for the local system. Without Nix it runs the same checks one by one in the order of the lifecycle and needs the services running. The [software factory](AGENTS.md#software-factory) runs the same script on each of its branches.
+With Nix it builds `.#checks.<system>.integration` for the local system. Without Nix it runs the checks of that target that need no Nix, one by one in the order of the lifecycle, and needs the services running. It skips the checks that need Nix, which the next paragraph lists, so CI may still fail on one of them. The [software factory](AGENTS.md#software-factory) runs the same script on each of its branches.
 
-CI also checks the formatting of Nix files, the linkage of the release binary, the GitHub workflows with zizmor, whether `server/Cargo.toml`, `server/Cargo.lock` and `client/package.json` name the same version and whether the pinned versions of Rust, pnpm, `editorconfig-checker`, `cargo-deny` and `cargo-about` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
+CI also checks the formatting of Nix files, the linkage of the release binary, the closure of the image, the GitHub workflows with zizmor, whether `server/Cargo.toml`, `server/Cargo.lock` and `client/package.json` name the same version and whether the pinned versions of Rust, pnpm, `editorconfig-checker`, `cargo-deny` and `cargo-about` match nixpkgs, which needs Nix. The end-to-end tests stay optional before a push.
 
 ### Dependency updates
 

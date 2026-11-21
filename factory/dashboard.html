@@ -268,7 +268,7 @@
 
 <div id="overlay">
   <div class="scrim" data-close></div>
-  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title">
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title" inert>
     <div class="d-head">
       <div class="num" id="d-num"></div>
       <h3 id="d-title"></h3>
@@ -307,6 +307,7 @@ const roundCache = new Map() // "<job>/<n>" -> verdicts of a finished round
 let openJobId = null
 let openPath = null
 let openText = null
+let lastFocus = null
 
 async function fetchText(url) {
   const res = await fetch(url, { cache: 'no-store' })
@@ -320,9 +321,11 @@ async function fetchFirst(url) {
 
 // ---- Board ---------------------------------------------------------------
 
-function verdictOf(line) {
+const VERDICTS = { gate: /^GATE:\s*(PASS|FAIL)$/, review: /^VERDICT:\s*(PASS|CHANGES)$/ }
+
+function verdictOf(line, kind) {
   if (line === null) return 'pending'
-  const m = line.match(/^(?:VERDICT|GATE):\s*(PASS|CHANGES|FAIL)$/)
+  const m = line.match(VERDICTS[kind])
   return m ? m[1] : 'invalid'
 }
 
@@ -331,10 +334,10 @@ async function roundVerdicts(job, n) {
   const key = `${job.id}/${n}`
   if (roundCache.has(key)) return roundCache.get(key)
   const dir = `jobs/${job.id}/round-${n}/`
-  const v = { gate: verdictOf(await fetchFirst(dir + 'checks.md')), reviews: {} }
+  const v = { gate: verdictOf(await fetchFirst(dir + 'checks.md'), 'gate'), reviews: {} }
   if (v.gate === 'PASS') {
     await Promise.all(Object.keys(job.agents?.reviewers || {}).map(async (r) => {
-      v.reviews[r] = verdictOf(await fetchFirst(`${dir}review-${r}.md`))
+      v.reviews[r] = verdictOf(await fetchFirst(`${dir}review-${r}.md`), 'review')
     }))
   }
   const settled = v.gate === 'FAIL' || (v.gate === 'PASS' && Object.values(v.reviews).every((x) => x === 'PASS' || x === 'CHANGES'))
@@ -450,7 +453,10 @@ async function poll() {
 // factory/bin/job writes each jobs/<id>/job.json.
 async function loadJobs() {
   let listing
-  try { listing = await fetchText('jobs/') } catch { return [] }
+  try { listing = await fetchText('jobs/') } catch (err) {
+    if (err.message.endsWith('HTTP 404')) return [] // no job has run yet
+    throw err
+  }
   const doc = new DOMParser().parseFromString(listing, 'text/html')
   const ids = [...doc.querySelectorAll('a')]
     .map((a) => decodeURIComponent(a.getAttribute('href')))
@@ -510,15 +516,20 @@ async function refreshDrawer() {
   const base = `jobs/${job.id}/`
   const files = sortFiles(await listFiles(base))
   if (!openPath || !files.includes(openPath)) openPath = files[0] || null
+  const path = openPath
+  const selection = `${openJobId}/${path}`
 
   let text = null
-  if (openPath) {
-    text = await fetchText(base + openPath)
-    firstLines.set(base + openPath, text.split('\n')[0].trim())
+  if (path) {
+    text = await fetchText(base + path)
+    firstLines.set(base + path, text.split('\n')[0].trim())
   }
   await Promise.all(files.filter((f) => !firstLines.has(base + f)).map(async (f) => {
     firstLines.set(base + f, (await fetchText(base + f)).split('\n')[0].trim())
   }))
+  if (`${openJobId}/${openPath}` !== selection) return // a newer selection won
+
+  const focused = document.activeElement?.dataset?.file
 
   let group = null
   $('d-files').innerHTML = files.map((f) => {
@@ -533,6 +544,7 @@ async function refreshDrawer() {
     return `${head}<button class="file ${f === openPath ? 'on' : ''}" data-file="${esc(f)}">
       <span class="v ${t || ''}"></span>${name}</button>`
   }).join('') || '<div class="empty">No files yet.</div>'
+  if (focused) $('d-files').querySelector(`[data-file="${CSS.escape(focused)}"]`)?.focus()
 
   if (text !== openText) {
     openText = text
@@ -544,7 +556,11 @@ async function openDrawer(id) {
   openJobId = id
   openPath = null
   openText = undefined
+  lastFocus = document.activeElement
   document.body.classList.add('open')
+  $('board').inert = true
+  $('drawer').inert = false
+  $('drawer').querySelector('.close').focus()
   try {
     await refreshDrawer()
   } catch (err) {
@@ -555,6 +571,9 @@ async function openDrawer(id) {
 function closeDrawer() {
   openJobId = null
   document.body.classList.remove('open')
+  $('drawer').inert = true
+  $('board').inert = false
+  lastFocus?.focus()
 }
 
 document.addEventListener('click', (e) => {
@@ -572,6 +591,7 @@ document.addEventListener('click', (e) => {
 })
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') return closeDrawer()
+  if (e.target.closest?.('a')) return
   const cardEl = e.target.closest?.('[data-job]')
   if (cardEl && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openDrawer(cardEl.dataset.job) }
 })

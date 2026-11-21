@@ -426,11 +426,12 @@ def advance(job, stage):
 
     elif old == "needs-info":
         require_slot(job["id"])
-        k = len(list(d.glob("intake-*.md"))) + 1
-        (d / "intake.md").rename(d / f"intake-{k}.md")
-        job["intake"] = None
         write_issue_md(job)
         label("issue", job["issue"], remove=LABELS["needs_info"])
+        if (d / "intake.md").exists():
+            k = len(list(d.glob("intake-*.md"))) + 1
+            (d / "intake.md").rename(d / f"intake-{k}.md")
+        job["intake"] = None
 
     elif old == "spec":
         require((d / "spec.md").exists(), "spec.md doesn't exist")
@@ -673,16 +674,18 @@ def cmd_merge(job):
         if gate.returncode != 0:
             return fail(f"The gate failed after syncing with {BASE}. "
                         f"See round-{job['round']}/merge-checks.md.\n\n{gate.stdout.strip()}")
-        try:
-            git(job, "push", "origin", job["branch"])
-            if gh_json("pr", "view", str(job["pr"]), "--json", "isDraft")["isDraft"]:
-                gh("pr", "ready", str(job["pr"]))
-        except Refused as e:
-            return fail(f"The push failed:\n\n```\n{e}\n```")
+        # Saved before the PR goes ready, so a resumed run still counts the first bot review.
         job = load(job_id)
         job["ci_since"] = now()
         save(job)
         unlock(job_id)
+    head = git(job, "rev-parse", "HEAD").stdout.strip()
+    try:
+        git(job, "push", "origin", job["branch"])
+        if gh_json("pr", "view", str(job["pr"]), "--json", "isDraft")["isDraft"]:
+            gh("pr", "ready", str(job["pr"]))
+    except Refused as e:
+        return fail(f"The push failed:\n\n```\n{e}\n```")
 
     checks = await_checks(job)
     job = sync(load(job_id))
@@ -708,7 +711,7 @@ def cmd_merge(job):
         return
     write_ci_md(job, "PASS", checks, [], [], [])
     try:
-        gh("pr", "merge", str(job["pr"]), f"--{CONFIG['merge_method']}")
+        gh("pr", "merge", str(job["pr"]), f"--{CONFIG['merge_method']}", "--match-head-commit", head)
     except Refused as e:
         return fail(f"The merge failed:\n\n```\n{e}\n```")
     # GitHub may already have deleted the branch on merge.
@@ -732,17 +735,19 @@ def await_checks(job):
         time.sleep(ci["poll_seconds"])
 
 
-THREADS_QUERY = """query($owner: String!, $name: String!, $pr: Int!) {
+THREADS_QUERY = """query($owner: String!, $name: String!, $pr: Int!, $endCursor: String) {
   repository(owner: $owner, name: $name) { pullRequest(number: $pr) {
-    reviewThreads(first: 100) { nodes { id isResolved isOutdated path line
-      comments(first: 1) { nodes { databaseId url body author { login } } } } } } } }"""
+    reviewThreads(first: 100, after: $endCursor) { pageInfo { hasNextPage endCursor }
+      nodes { id isResolved isOutdated path line
+        comments(first: 1) { nodes { databaseId url body author { login } } } } } } } }"""
 
 
 def open_bot_threads(job):
     """Unresolved, current review threads that a review bot started."""
-    data = gh_json("api", "graphql", "-F", "owner={owner}", "-F", "name={repo}",
-                   "-F", f"pr={job['pr']}", "-f", f"query={THREADS_QUERY}")
-    nodes = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+    pages = gh("api", "graphql", "--paginate", "--slurp", "-F", "owner={owner}", "-F", "name={repo}",
+               "-F", f"pr={job['pr']}", "-f", f"query={THREADS_QUERY}")
+    nodes = [t for page in json.loads(pages)
+             for t in page["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]]
     bots = set(CONFIG["ci"]["review_bots"])
     return [t for t in nodes if not t["isResolved"] and not t["isOutdated"] and t["comments"]["nodes"]
             and t["comments"]["nodes"][0]["author"]["login"] in bots]
@@ -788,6 +793,10 @@ def cmd_feedback(job, text):
         die(f"{job['id']} is in {job['stage']}, not needs-human")
     if not text.strip():
         die("no feedback on stdin")
+    try:
+        require_slot(job["id"])
+    except Refused as e:
+        die(f"{e}; the job keeps waiting")
     d = job_dir(job["id"])
     k = len(list(d.glob("feedback-*.md"))) + 1
     (d / f"feedback-{k}.md").write_text(f"# Feedback {k}\n\nFrom @{operator()} after the job escalated.\n\n{text.strip()}\n")
