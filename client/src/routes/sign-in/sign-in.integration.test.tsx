@@ -100,10 +100,12 @@ describe('sign-in page', () => {
       http.get('*/api/members', () => HttpResponse.json([ada])),
     )
     const { router } = renderApp('/members')
-    await userEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Account of Ada Lovelace' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Sign out' }))
     await screen.findByRole('heading', { level: 1, name: 'Sign in' })
     expect(router.state.location.pathname).toBe('/sign-in')
     await waitFor(() => expect(screen.queryByRole('navigation', { name: 'Main navigation' })).toBeNull())
+    expect(screen.queryByRole('button', { name: /^Account of/ })).toBeNull()
   })
 
   it('signs in with a link and shows the organizer navigation', async () => {

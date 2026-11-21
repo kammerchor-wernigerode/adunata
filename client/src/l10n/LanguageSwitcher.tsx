@@ -1,10 +1,8 @@
 import { useId } from 'react'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { isLocale, type Locale } from './bundle'
+import { isLocale, supportedLocales } from './bundle'
 import { useLocale, useTranslate } from './translate'
-
-const languageNames: Record<Locale, string> = { de: 'Deutsch', en: 'English' }
 
 export function LanguageSwitcher() {
   const id = useId()
@@ -20,9 +18,9 @@ export function LanguageSwitcher() {
         onChange={(event) => isLocale(event.target.value) && setLocale(event.target.value)}
         className="rounded-lg bg-background text-foreground"
       >
-        {Object.entries(languageNames).map(([value, name]) => (
-          <NativeSelectOption key={value} value={value} lang={value}>
-            {name}
+        {supportedLocales.map((language) => (
+          <NativeSelectOption key={language} value={language} lang={language}>
+            {translate(`language-name-${language}`)}
           </NativeSelectOption>
         ))}
       </NativeSelect>
