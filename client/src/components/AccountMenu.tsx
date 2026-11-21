@@ -46,7 +46,7 @@ export function AccountMenu({ organizer }: AccountMenuProps) {
   return (
     <div ref={setHeader} className="flex min-w-0 items-center gap-2">
       <span role="alert">{failed ? translate('error-unexpected') : ''}</span>
-      <DropdownMenu>
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <Button
             aria-label={translate('account-menu-label', { name })}
