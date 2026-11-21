@@ -24,7 +24,7 @@ This file routes. It names where things live and the rules that apply everywhere
 - Small fixes need no change proposal.
 - An architecturally significant decision gets a record in `docs/decisions/`. Significant means that an operator or a running instance notices it. Tooling for development, tests and CI never is, even where a record mentions it. [ADR 0001](docs/decisions/0001-record-architecture-decisions.md) defines what counts. The development environment is not architecture. The README documents it.
 - Plan each change from its own problem and the current code. Archived changes are no template.
-- Archive merged OpenSpec changes together in a pull request of their own, once every change of a piece of work is merged or whenever a maintainer chooses. Nobody pushes to `main` directly. CI checks only `editorconfig` for a pull request that touches nothing outside `openspec/`.
+- Archive merged OpenSpec changes together in a pull request of their own, once every change of a piece of work is merged or whenever a maintainer chooses. Nobody pushes to `main` directly. CI checks only `editorconfig` for a pull request that touches only files no other check reads, such as `openspec/`, `factory/` or the documentation. The job `changes` in `.github/workflows/ci.yaml` lists them.
 - When an agent repeats a mistake, add a rule here.
 
 ## Software factory
@@ -37,7 +37,7 @@ A job's worktree gets its own ports and services when git-worktree-init with the
 
 ## Pull requests
 
-CI runs the checks up to `integration` on every push to a pull request that changes files outside `openspec/`. Pull requests that are ready for review and pushes to `main` also run the jobs that take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes the checks.
+CI runs the checks up to `integration` on every push to a pull request that changes a file one of those checks reads. Pull requests that are ready for review and pushes to `main` also run the jobs that take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes the checks.
 
 - The factory verifies its own pull requests. Its gate runs the checks up to integration, its reviewers check the change against the spec and the OpenSpec change, and its approver decides. An approved pull request becomes ready for review and merges once CI passes and CodeRabbit has nothing open. Failing checks and remarks of CodeRabbit send it back to the builder.
 - A person reviews only the pull requests that the factory labels `factory:needs-human`. Merging one approves it.
