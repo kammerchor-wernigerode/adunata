@@ -164,8 +164,10 @@ describe('gathering form', () => {
   it('keeps the stored past first day of a running gathering', async () => {
     signedIn()
     server.use(getGetGatheringMockHandler({ ...march, firstDay: '2027-03-08', lastDay: '2027-03-12' }))
-    renderApp('/gatherings/1/edit')
-    await userEvent.click(await screen.findByLabelText('First day'))
+    const { container } = renderApp('/gatherings/1/edit')
+    const firstDay = await screen.findByLabelText('First day')
+    expect(await violations(container)).toEqual([])
+    await userEvent.click(firstDay)
     const enabled = enabledDays(await screen.findByRole('grid', { name: 'First day' }))
     expect(enabled.slice(0, 2).map((day) => /March (\d+)th/.exec(day)?.[1])).toEqual(['8', '10'])
   })
