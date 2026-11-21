@@ -24,7 +24,7 @@ The worktree is a checkout of the job branch in `.worktrees/<job-id>` inside the
 4. When a round's gate failed, `round-<N>/checks.md` and `checks.log` in the job folder: the failing output of `factory/checks.sh`.
 5. When reviews asked for changes, every `review-*.md` in the round folder the message names. Address each finding in a `VERDICT: CHANGES` file. Notes in `VERDICT: PASS` files are optional.
 6. When the message names `round-<N>/ci.md`, CI or CodeRabbit objected after the PR went ready. Fix every failing check, using `gh run view --log-failed` on its link. Handle every review thread it lists: fix the code, or, when the remark does not hold up against the code, reply on the thread with the reason (`gh api repos/{owner}/{repo}/pulls/<pr>/comments/<comment>/replies -f body=...`). Then resolve the thread (`gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "<thread>"}) { thread { isResolved } } }'`). Address the review remarks outside threads too, or say in build.md why not.
-7. When the prompt names a `feedback-*.md` file, read it: the user's feedback after the job escalated. Read `decision.md` and every round folder too, so you know the history. The feedback comes before the reviews and the spec where they disagree. When it contradicts the OpenSpec change, update the affected artifacts first, as point 3 says.
+7. In every round, read every `feedback-*.md` in the job folder, in order, when one exists: the user's feedback after the job escalated. Read `decision.md` and every round folder too, so you know the history. The feedback comes before the reviews and the spec where they disagree. When it contradicts the OpenSpec change, update the affected artifacts first, as point 3 says.
 
 ## Build
 
