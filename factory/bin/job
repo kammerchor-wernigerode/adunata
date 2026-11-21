@@ -306,6 +306,10 @@ def cost_usd(job):
             if p is None:
                 print(f"job: no price for model {model} in config.json, counted as $0", file=sys.stderr)
                 continue
+            prompt = (u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
+                      + u.get("cache_read_input_tokens", 0))
+            if prompt > 100_000 and "above_100k_tokens" in p:
+                p = p["above_100k_tokens"]
             split = u.get("cache_creation") or {}
             write_1h = split.get("ephemeral_1h_input_tokens", 0)
             write_5m = u.get("cache_creation_input_tokens", 0) - write_1h
