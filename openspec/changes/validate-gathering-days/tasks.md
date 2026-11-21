@@ -16,10 +16,10 @@
 
 ## 3. Calendars and moving last day
 
-- [ ] 3.1 Let `DatePicker` in `client/src/components/DatePicker.tsx` disable days before `firstDay` and after `lastDay` each on its own and never the day of `value`. Verify the existing tests of `ResponseForm` still pass.
-- [ ] 3.2 In `GatheringForm`, pass today by the browser's date as `firstDay` to the calendar of the first day and the chosen first day as `firstDay` to the calendar of the last day. Verify with tests in `gatherings.integration.test.tsx` under a pinned date: in the calendar of the first day the day before today is disabled and today is enabled, the stored past first day of a running gathering opened at `/gatherings/1/edit` is enabled, and in the calendar of the last day every day before the chosen first day is disabled and the first day itself is enabled.
-- [ ] 3.3 In `GatheringForm`, move the last day by the difference in calendar days when the first day changes while both days are set, using `differenceInCalendarDays` and `addDays` from `date-fns`. Verify with tests under a pinned date: first day 12 March and last day 14 March, changing the first day to 15 March shows 17 March as the last day, and choosing a first day while it is empty leaves a set last day as it was.
-- [ ] 3.4 Pin the date in the test "marks a last day before the first day" and pick the last day before the first day, so it still reaches `beforeFirstDay` on every run date. Verify the test passes.
+- [x] 3.1 Let `DatePicker` in `client/src/components/DatePicker.tsx` disable days before `firstDay` and after `lastDay` each on its own and never the day of `value`. Verify the existing tests of `ResponseForm` still pass.
+- [x] 3.2 In `GatheringForm`, pass today by the browser's date as `firstDay` to the calendar of the first day and the chosen first day as `firstDay` to the calendar of the last day. Verify with tests in `gatherings.integration.test.tsx` under a pinned date: in the calendar of the first day the day before today is disabled and today is enabled, the stored past first day of a running gathering opened at `/gatherings/1/edit` is enabled, and in the calendar of the last day every day before the chosen first day is disabled and the first day itself is enabled.
+- [x] 3.3 In `GatheringForm`, move the last day by the difference in calendar days when the first day changes while both days are set, using `differenceInCalendarDays` and `addDays` from `date-fns`. Verify with tests under a pinned date: first day 12 March and last day 14 March, changing the first day to 15 March shows 17 March as the last day, and choosing a first day while it is empty leaves a set last day as it was.
+- [x] 3.4 Pin the date in the test "marks a last day before the first day" and pick the last day before the first day, so it still reaches `beforeFirstDay` on every run date. Verify the test passes.
 
 ## 4. Documentation
 

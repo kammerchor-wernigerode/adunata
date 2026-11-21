@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { useId, useState, type ReactNode } from 'react'
-import { Controller, useForm, type FieldPath } from 'react-hook-form'
+import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import {
   changeGathering,
   createGathering,
@@ -55,6 +56,8 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
       : { title: '', location: '', description: '', firstDay: '', lastDay: '' },
   })
   const { errors, isSubmitting } = form.formState
+  const chosenFirstDay = useWatch({ control: form.control, name: 'firstDay' })
+  const [today] = useState(() => format(new Date(), 'yyyy-MM-dd'))
 
   async function saveOrRefuse(values: GatheringInput) {
     if (!(await finished(() => save(values)))) setRefusal(translate('error-unexpected'))
@@ -93,6 +96,13 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
     )
   }
 
+  function moveLastDay(firstDay: string) {
+    const { firstDay: previous, lastDay } = form.getValues()
+    if (!previous || !lastDay) return
+    const moved = addDays(parseISO(lastDay), differenceInCalendarDays(parseISO(firstDay), parseISO(previous)))
+    form.setValue('lastDay', format(moved, 'yyyy-MM-dd'))
+  }
+
   function described(name: FieldPath<GatheringInput>) {
     return {
       'aria-invalid': errors[name] ? true : undefined,
@@ -115,7 +125,11 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
             id={`${id}-${name}`}
             labelId={`${id}-${name}-label`}
             value={value}
-            onChange={onChange}
+            onChange={(chosen) => {
+              if (name === 'firstDay') moveLastDay(chosen)
+              onChange(chosen)
+            }}
+            firstDay={name === 'firstDay' ? today : chosenFirstDay || undefined}
             gridLabel={translate(name === 'firstDay' ? 'gathering-first-day' : 'gathering-last-day')}
             navigationLabel={translate(name === 'firstDay' ? 'gathering-first-day-months' : 'gathering-last-day-months')}
             displayFormat={{ weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }}
