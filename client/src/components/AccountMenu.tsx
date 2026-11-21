@@ -53,7 +53,7 @@ export function AccountMenu({ organizer }: AccountMenuProps) {
           <Button
             variant="outline"
             aria-label={translate('account-menu-label', { name })}
-            className="max-w-full min-w-0 shrink text-base font-normal text-foreground dark:bg-background dark:hover:bg-muted focus-visible:ring-primary-foreground sm:max-w-xs"
+            className="max-w-full min-w-0 shrink text-base font-normal text-foreground dark:bg-[color-mix(in_oklch,var(--input)_30%,var(--background))] dark:hover:bg-[color-mix(in_oklch,var(--input)_50%,var(--background))] focus-visible:ring-primary-foreground sm:max-w-xs"
           >
             <span className="truncate">{name}</span>
             <ChevronDownIcon aria-hidden />
