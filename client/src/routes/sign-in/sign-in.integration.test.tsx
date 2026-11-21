@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
-import { act, cleanup, screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { getCurrentSessionMockHandler, getLegalLinksMockHandler } from '@/api/generated/api.msw'
 import type { Member } from '@/api/generated/model'
 import { renderApp, violations } from '@/testing/app'
+import { setupApiServer } from '@/testing/server'
 
-const server = setupServer()
+const server = setupApiServer()
 
 const ada: Member = {
   id: 1,
@@ -20,13 +20,7 @@ const ada: Member = {
   organizer: true,
 }
 
-beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
-afterEach(() => {
-  server.resetHandlers()
-  cleanup()
-  window.history.replaceState(null, '', '/')
-})
-afterAll(() => server.close())
+afterEach(() => window.history.replaceState(null, '', '/'))
 
 function signedOut() {
   server.use(

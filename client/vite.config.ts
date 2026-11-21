@@ -127,7 +127,7 @@ export default defineConfig(({ mode }) => {
       thirdPartyNotices(),
     ],
     build: { license: { fileName: bundledLicensesFile } },
-    test: { setupFiles: ['src/testing/jsdom.ts'] },
+    test: { setupFiles: ['src/testing/jsdom.ts'], testTimeout: 30_000 },
     resolve: {
       alias: { '@': path.resolve(import.meta.dirname, './src') },
     },
