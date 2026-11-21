@@ -19,7 +19,7 @@ You are the factory's only orchestrator. You work through GitHub issues labeled 
 intake (fable)     → ACCEPT (scope possibly changed) | NEEDS-INFO | REJECT, posted as an issue comment
 route (script)     → reviewers + models from risk/surfaces via config.json
 worktree           → factory/<job-id> from origin/<base>
-spec-writer (opus) → spec.md, plus an OpenSpec change committed on the branch for a feature
+spec-writer (opus) → an OpenSpec change on the branch, with spec.md pointing to it; a small fix gets only spec.md
 builder (opus)     → commits; the first push opens a draft PR "Closes #<n>"
 gate (script)      → checks.sh; FAIL → builder gets the log, no reviewers start
 reviewers (routed) → parallel, WAIT FOR ALL; CHANGES → builder → gate → reviewers
@@ -43,7 +43,7 @@ A job has at most `max_rounds` build rounds (`config.json`). A round is one buil
 <repo>/factory/jobs/<job-id>/job.json          the job's state; the dashboard reads it
 <repo>/factory/jobs/<job-id>/issue.md          the issue, quoted as data
 <repo>/factory/jobs/<job-id>/intake.md         intake's decision, scope, risk, surfaces
-<repo>/factory/jobs/<job-id>/spec.md           the spec, naming the OpenSpec change if there is one
+<repo>/factory/jobs/<job-id>/spec.md           points to the OpenSpec change, or the spec of a small fix
 <repo>/factory/jobs/<job-id>/build.md
 <repo>/factory/jobs/<job-id>/round-<N>/checks.md        the gate's verdict for round N
 <repo>/factory/jobs/<job-id>/round-<N>/review-<r>.md    one per routed reviewer
@@ -61,6 +61,7 @@ Each role is a file in `<repo>/.claude/agents/<role>.md`: frontmatter with `name
 
 - **Claude Code**: use the Agent tool in the background with `subagent_type` set to the role. Pass `model` from `job.json` `agents` for the reviewers, and never for intake, spec-writer, builder or approver: their frontmatter sets it.
 - **Another harness with subagents**, such as Codex or Antigravity: start a subagent with your harness's own tool. Its prompt is `Read <repo>/.claude/agents/<role>.md and follow everything after its frontmatter as your instructions.` followed by the prompt below. Pick the model from the frontmatter or from `agents` if your harness offers a matching one, else use its default. The tool list and the builder's Stop hook bind only in Claude Code. The gate still decides.
+- **A frontend that can start an agent in an existing directory**, such as T3 Code with a thread bound to an existing worktree: start every role that works in the worktree there, at the job's `worktree` from `job.json`. The role's reply is its last line in that thread. The scripts still create and remove the worktree, so hooks such as git-worktree-init run as for any `git worktree add`.
 - **A harness without subagents**: act as each role yourself, one at a time, by reading its file and following it. Run one job at a time then, whatever `concurrency` says, and keep to the one file each role writes.
 
 Each agent replies with one line. When it runs in the background, you are notified when it finishes, and you advance that job then. While agents run, don't poll and don't wait: end your turn with a one-line status.
@@ -121,7 +122,7 @@ A person can merge a job's PR by hand at any stage. `factory/bin/job queue` then
 3. Each time a job finishes, run `factory/bin/job queue` again and start its `resume` lines you aren't already running and its `new` lines.
 4. When nothing is queued or running, print `factory/bin/job summary <ids>` for the jobs this run touched, then list what waits on a human: PRs to review (merge one to approve it, or give feedback with `/factory`) and questions waiting on authors.
 
-**Resuming.** State lives in files, so a new session picks up where a dead one stopped. For a `resume` job, run its stage's step again: `intake` and `spec` restart their agent. `build` starts a new builder told it is resuming (it reads `build.md` and `git log` to see how far the last one got). `gate` runs the gate. `review` starts only the reviewers whose `review-<r>.md` is missing in the current round. If none is missing, run `factory/bin/job sync <id>` and go on as if the last reviewer had just finished. `approve` restarts the approver. `merging` runs `factory/bin/job merge <id>`, which picks up the wait for CI. A `needs-info` job the author has answered shows as `resume`: run `factory/bin/job advance <id> intake` and go to **intake**.
+**Resuming.** State lives in files, so a new session picks up where a dead one stopped. For a `resume` job, run its stage's step again: `intake` and `spec` restart their agent. `build` starts a new builder told it is resuming (it reads `build.md` and `git log` to see how far the last one got), with the same reason for the round as **build** names, such as the newest `feedback-<k>.md`. `gate` runs the gate. `review` starts only the reviewers whose `review-<r>.md` is missing in the current round. If none is missing, run `factory/bin/job sync <id>` and go on as if the last reviewer had just finished. `approve` restarts the approver. `merging` runs `factory/bin/job merge <id>`, which picks up the wait for CI. A `needs-info` job the author has answered shows as `resume`: run `factory/bin/job advance <id> intake` and go to **intake**.
 
 ## /factory run <n>
 

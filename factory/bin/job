@@ -676,8 +676,9 @@ def cmd_merge(job):
                         f"See round-{job['round']}/merge-checks.md.\n\n{gate.stdout.strip()}")
         # Saved before the PR goes ready, so a resumed run still counts the first bot review.
         job = load(job_id)
-        job["ci_since"] = now()
-        save(job)
+        if not job.get("ci_since"):  # a second `job merge` may have set it meanwhile
+            job["ci_since"] = now()
+            save(job)
         unlock(job_id)
     head = git(job, "rev-parse", "HEAD").stdout.strip()
     try:

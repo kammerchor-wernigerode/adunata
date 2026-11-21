@@ -507,7 +507,8 @@ function tone(first) {
 const firstLines = new Map()
 
 async function refreshDrawer() {
-  const job = jobs.find((j) => j.id === openJobId)
+  const jobId = openJobId
+  const job = jobs.find((j) => j.id === jobId)
   if (!job) return
   $('d-num').textContent = `${job.id} · ${job.stage}${job.round ? ` · round ${job.round}` : ''} · $${Number(job.cost_usd).toFixed(2)} · ${elapsed(job)}`
   $('d-title').textContent = job.title
@@ -515,9 +516,10 @@ async function refreshDrawer() {
 
   const base = `jobs/${job.id}/`
   const files = sortFiles(await listFiles(base))
+  if (openJobId !== jobId) return // another job was opened meanwhile
   if (!openPath || !files.includes(openPath)) openPath = files[0] || null
   const path = openPath
-  const selection = `${openJobId}/${path}`
+  const selection = `${jobId}/${path}`
 
   let text = null
   if (path) {
