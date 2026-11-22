@@ -443,6 +443,7 @@ def next_round(job):
     job["remote"] = None
     job["ci_since"] = None
     job["published_head"] = None
+    job["stale_checks"] = []
 
 
 def local_head(job):
@@ -849,6 +850,14 @@ def find_open_pr(job):
         save(job)
 
 
+def finished_action_links(job):
+    """Links of the finished GitHub Actions checks of `ci.wait_for`, which a new run replaces."""
+    res = run(["gh", "pr", "checks", str(job["pr"]), "--json", "name,bucket,link,workflow"], check=False)
+    checks = json.loads(res.stdout) if res.stdout.strip().startswith("[") else []
+    return [c["link"] for c in checks
+            if c["name"] in CONFIG["ci"]["wait_for"] and c["bucket"] != "pending" and c.get("workflow")]
+
+
 def ready_pr(job):
     """Find or open the job's PR, store it in the job and mark it ready."""
     if not job["pr"]:
@@ -859,6 +868,8 @@ def ready_pr(job):
         find_open_pr(job)
         require(job["pr"], f"no open PR from {job['branch']} after opening one")
     if gh_json("pr", "view", str(job["pr"]), "--json", "isDraft")["isDraft"]:
+        job["stale_checks"] = finished_action_links(job)
+        save(job)
         gh("pr", "ready", str(job["pr"]))
 
 
@@ -1036,24 +1047,27 @@ def await_checks(job):
     When two polls in a row find nothing pending but a `ci.wait_for` check
     missing, no run will report it, as after a run that saw the PR as a draft.
     Converting the PR to draft and back to ready then starts one, once per wait.
+    Checks that were finished before the PR went ready (`stale_checks`) belong to an
+    earlier run of the same head. They do not count, and they start no restart.
     The wait ends early when the job leaves `remote`, as after `job feedback`.
     """
     ci = CONFIG["ci"]
     deadline = time.monotonic() + ci["timeout_minutes"] * 60
+    stale = set(job.get("stale_checks") or [])
     stalled, restarted = False, False
     while True:
         if left_stage(job):
             return None
         res = run(["gh", "pr", "checks", str(job["pr"]), "--json", "name,bucket,link"], check=False)
         checks = json.loads(res.stdout) if res.stdout.strip().startswith("[") else []
-        done = {c["name"] for c in checks if c["bucket"] != "pending"}
+        done = {c["name"] for c in checks if c["bucket"] != "pending" and c.get("link") not in stale}
         if all(w in done for w in ci["wait_for"]):
             return checks
         if time.monotonic() > deadline:
             return None
         none_reported = res.returncode != 0 and "no checks reported" in res.stderr
         idle = none_reported or (bool(checks) and all(c["bucket"] != "pending" for c in checks))
-        if idle and stalled and not restarted:
+        if idle and stalled and not restarted and not stale:
             current = load(job["id"])
             if current["stage"] == job["stage"] and current["round"] == job["round"]:
                 drafted = run(["gh", "pr", "ready", "--undo", str(job["pr"])], check=False).returncode == 0
