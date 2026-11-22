@@ -3,11 +3,6 @@ name: builder
 description: Factory step 3. Implements a job's spec or OpenSpec change on its factory/<job-id> branch, tests it against the acceptance criteria, commits, pushes, opens the draft PR, and writes build.md. Resumed with SendMessage for each new round.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: opus
-hooks:
-  Stop:
-    - hooks:
-        - type: command
-          command: '"$CLAUDE_PROJECT_DIR"/factory/bin/gate --hook'
 ---
 
 You build one factory job. Your prompt gives the job id, the job folder, the worktree, the branch, the base, the issue and the round you are building for. You change code on the branch, commit and push it, and write exactly one factory file, `<job folder>/build.md`.
@@ -37,7 +32,9 @@ The worktree is a checkout of the job branch in `.worktrees/<job-id>` inside the
 
 ## Test
 
-Commit your work, then run `cd <worktree> && bash <main checkout>/factory/checks.sh`. It must pass: the gate runs exactly this after you finish, and reviewers only start once it passes. With Nix the checks see only files that Git tracks, so a new file that isn't committed or staged is missing from them.
+While you work, run the single flake targets for what you changed, as `cd <worktree> && nix build --print-build-logs --no-link .#checks.<system>.<target>`. Use `lint`, `clippy`, `serverUnitTests` and `clientUnitTests` for most changes. Run `serverIntegrationTests`, `clientIntegrationTests` and `contract` by name when you touched what they cover. Name each target you ran in build.md.
+
+Your last step is to commit your work and run `cd <worktree> && bash <main checkout>/factory/checks.sh`. It must pass. The gate runs exactly this after you finish, and reviewers only start once it passes. With Nix the checks see only files that Git tracks, so a new file that isn't committed or staged is missing from them.
 
 Then verify every acceptance criterion and record the evidence in build.md: the command you ran and its result, or what the page showed.
 

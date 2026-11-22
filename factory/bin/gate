@@ -4,7 +4,6 @@
 Usage:
   gate <job-id>            write round-N/checks.md; exit 0 on PASS, 1 on FAIL
   gate <job-id> --merge    same, as round-N/merge-checks.md (job merge runs it)
-  gate --hook              builder SubagentStop hook: run the checks once, exit 2 on failure
 
 The gate runs the main checkout's factory/checks.sh inside the job's worktree,
 so a branch can't change the checks it is judged by. It also fails when the
@@ -88,28 +87,8 @@ def gate(job_id, merge):
     sys.exit(0 if verdict == "PASS" else 1)
 
 
-def hook():
-    event = json.load(sys.stdin)
-    if event.get("stop_hook_active"):
-        sys.exit(0)  # one nudge per stop; the gate decides
-    with open(Path(event["agent_transcript_path"]).expanduser()) as f:
-        content = json.loads(f.readline())["message"]["content"]
-    prompt = content if isinstance(content, str) else " ".join(b.get("text", "") for b in content)
-    job_dir = Path(prompt.split("Job folder: ", 1)[1].split(" ", 1)[0])
-    job = json.loads((job_dir / "job.json").read_text())
-    code, log, _ = run_checks(job["worktree"])
-    if code != 0:
-        tail = "\n".join(log.rstrip().splitlines()[-40:])
-        print(f"factory/checks.sh fails in your worktree (exit {code}). The gate will reject this "
-              f"build. Fix it, or write STATUS: BLOCKED in build.md if you can't.\n\n{tail}",
-              file=sys.stderr)
-        sys.exit(2)
-
-
 def main(argv):
-    if argv == ["--hook"]:
-        hook()
-    elif len(argv) == 1 and not argv[0].startswith("-"):
+    if len(argv) == 1 and not argv[0].startswith("-"):
         gate(argv[0], merge=False)
     elif len(argv) == 2 and argv[1] == "--merge":
         gate(argv[0], merge=True)

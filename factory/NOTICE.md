@@ -20,3 +20,4 @@ The main changes:
 - `factory/bin/job feedback` also sends an approved job back to the builder, with the person's feedback in place of the approver's decision.
 - The dashboard is fixed for keyboard use and for answers that arrive out of order.
 - A job has up to five rounds instead of three.
+- The builder has no Stop hook. It runs single checks while it works and `factory/checks.sh` as its last step. The gate confirms that run.
