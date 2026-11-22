@@ -874,6 +874,7 @@
           "invalid",
           "lastOrganizer",
           "beforeFirstDay",
+          "firstDayInPast",
           "ended",
           "cancelled",
           "begun",

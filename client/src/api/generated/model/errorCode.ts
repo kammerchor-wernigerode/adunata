@@ -19,6 +19,7 @@ export const ErrorCode = {
   invalid: 'invalid',
   lastOrganizer: 'lastOrganizer',
   beforeFirstDay: 'beforeFirstDay',
+  firstDayInPast: 'firstDayInPast',
   ended: 'ended',
   cancelled: 'cancelled',
   begun: 'begun',

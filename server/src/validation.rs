@@ -15,6 +15,7 @@ pub enum ErrorCode {
     Invalid,
     LastOrganizer,
     BeforeFirstDay,
+    FirstDayInPast,
     Ended,
     Cancelled,
     Begun,
