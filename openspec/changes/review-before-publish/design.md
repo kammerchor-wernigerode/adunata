@@ -81,9 +81,9 @@ This is not significant, because it changes the order of steps in development to
 In stage `publish` it does this, in order:
 
 1. Move `review → publish`. This requires every review of the round to be `PASS` and the judgments of decision 6 to be complete.
-2. If the pull request exists, poll until no check of `ci.wait_for` is pending on it, for at most `ci.timeout_minutes`. This covers CodeRabbit without a new key in `config.json`. The command releases the lock of the job during this wait, as `cmd_merge` does today. Afterwards it checks that the job is still in `publish`. `job feedback` can therefore interrupt the wait. A timeout moves the job to `needs-human`, as a timeout in `remote` does.
+2. If the pull request exists, poll until no check of `ci.wait_for` is pending on it, for at most `ci.timeout_minutes`. This covers CodeRabbit without a new key in `config.json`. The command releases the lock of the job during this wait, as `cmd_merge` does today. Afterwards it checks that the job is still in `publish` and in the same round. `job feedback` moves the job to `build` and starts a new round, so it interrupts the wait. The round is part of the check because a job can reach `publish` again before an old wait ends. A timeout moves the job to `needs-human`, as a timeout in `remote` does.
 3. Merge `origin/<base>` into the branch. A conflict sends the job to `needs-human`, as today. Decision 7 says why the sync sits here.
-4. Save `ci_since` and push the branch.
+4. Save `ci_since`, push the branch and store the pushed head as `published_head` in `job.json`.
 5. If there is no pull request, open one that is ready from the start. Its title is the heading of `build.md` without `Build: `. Its body is `Closes #<issue>`, a blank line and the section `Summary` of `build.md`. No `pull_request` run can exist before the pull request does, so `push` skips its wait in this case. Opening it ready starts the full CI run at once, with no draft run to race against.
 6. If the pull request exists, keep the wait in `push` for a run of the new head and then mark it ready.
 7. Resolve the threads that `reviewer-code` judged, as decision 6 describes. This happens only after the push succeeded, so a thread is never resolved for code that GitHub does not have.
@@ -91,7 +91,7 @@ In stage `publish` it does this, in order:
 
 In stage `remote` it calls `await_checks`, collects failed checks of `ci.wait_for`, open threads and remarks and writes `round-<N>/review-remote.md`. `PASS` moves the job to `approve`. `CHANGES` converts the pull request to draft and moves the job to `build`. In the last round it moves the job to `needs-human`. A timeout moves it to `needs-human`.
 
-Every step is safe to repeat. A push of a pushed head does nothing, the pull request is looked up by its head branch before one is opened, a resolved thread stays resolved and `ci_since` is saved once per pass.
+Every step is safe to repeat. Run again while `HEAD` equals `published_head`, the command skips steps 2 to 4, so it does not merge a base that moved since the push and does not push a second head in the same round. A stop before the push stores no head, so the next run repeats those steps in full. The pull request is looked up by its head branch before one is opened, a resolved thread stays resolved and `ci_since` is saved once per pass.
 
 One alternative is two commands, `job publish` and `job remote`. It is rejected because the orchestrator would only ever run one right after the other.
 
