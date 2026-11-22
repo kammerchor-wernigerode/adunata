@@ -457,7 +457,7 @@ fn unreachable_database_is_a_temporary_failure() {
     assert!(log.contains("database is not ready"), "{log}");
 }
 
-/// The settings of a confined test system reach the readiness check instead of failing as a configuration problem.
+/// The settings of a confined instance reach the readiness check instead of failing as a configuration problem.
 #[test]
 fn healthcheck_accepts_confinement_settings() {
     let (code, log) = healthcheck(&[
