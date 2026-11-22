@@ -509,11 +509,11 @@ def push_before_escalation(job):
     return True
 
 
-def advance(job, stage, push_unpushed=True):
+def advance(job, stage, push_unpushed=True, why=None):
     """Move a job to `stage`, or refuse.
 
     A move to needs-human with a PR pushes commits that GitHub lacks first, unless
-    `push_unpushed` is false.
+    `push_unpushed` is false. `why` becomes the decision of a move to needs-human.
     """
     old = job["stage"]
     require(stage in TRANSITIONS.get(old, set()) or (stage == "merged" and old not in TERMINAL),
@@ -656,6 +656,8 @@ def advance(job, stage, push_unpushed=True):
         label("issue", job["issue"], remove=LABELS["needs_human"])
 
     if stage == "needs-human":
+        if why:
+            escalate(job, why)
         body = f"### Factory: needs a human\n\n{(d / 'decision.md').read_text().split(chr(10), 1)[1].strip()}"
         where = f"the branch `{job['branch']}` in the worktree `{Path(job['worktree']).relative_to(REPO)}`"
         if job["pr"]:
@@ -787,8 +789,7 @@ def give_up(job_id, stage, why, push_unpushed=True, rnd=None):
     current = load(job_id)
     if current["stage"] != stage or (rnd is not None and current["round"] != rnd):
         die(f"{job_id} moved to {current['stage']} round {current['round']} while in {stage}")
-    escalate(current, why)
-    save(advance(sync(current), "needs-human", push_unpushed=push_unpushed))
+    save(advance(sync(current), "needs-human", push_unpushed=push_unpushed, why=why))
     print(f"{job_id}: needs-human: {why.splitlines()[0]}")
 
 
@@ -1204,7 +1205,9 @@ def main(argv):
         elif cmd == "create" and len(args) == 1 and args[0].isdigit():
             cmd_create(args[0])
         elif cmd == "advance" and len(args) == 2:
-            job = advance(sync(resolve(args[0])), args[1])
+            job = sync(resolve(args[0]))
+            by_hand = f"The job was sent to needs-human from {job['stage']} by hand."
+            job = advance(job, args[1], why=by_hand if args[1] == "needs-human" and job["stage"] in {"publish", "remote", "merging"} else None)
             save(sync(job))
             print(f"{job['id']}: {job['stage']} (round {job['round']})")
         elif cmd == "publish" and len(args) == 1:
