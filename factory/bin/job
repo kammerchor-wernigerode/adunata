@@ -354,8 +354,9 @@ def sync(job):
                 line = first_line(rd / f"review-{r}.md")
                 m = re.fullmatch(r"VERDICT:\s*(PASS|CHANGES)", line or "")
                 job["reviews"][r] = m.group(1) if m else ("pending" if line is None else "invalid")
-                remote = newest_remote(job)
-                if m and r == "code" and remote and findings_problems((rd / "review-code.md").read_text(), remote_items(remote)):
+                earlier_remote = newest_remote(job)
+                if m and r == "code" and earlier_remote and findings_problems(
+                        (rd / "review-code.md").read_text(), remote_items(earlier_remote)):
                     job["reviews"][r] = "invalid"
     job["cost_usd"] = cost_usd(job)
     return job
@@ -610,6 +611,9 @@ def advance(job, stage, push_unpushed=True):
                               f"from: {', '.join(changes)}.")
             else:
                 next_round(job)
+
+    elif old == "publish" and stage == "remote":
+        require(job["pr"] and job.get("published_head"), "nothing is published yet; run factory/bin/job publish")
 
     elif old == "remote":
         verdict = first_line(round_dir(job) / "review-remote.md")
@@ -876,7 +880,7 @@ def publish_branch(job):
             merged = git(job, "merge", "--no-edit", f"origin/{BASE}", check=False)
             if merged.returncode != 0:
                 git(job, "merge", "--abort", check=False)
-                give_up(job_id, "publish", f"The branch conflicts with {BASE}:\n\n```\n{merged.stdout.strip()}\n```")
+                give_up(job_id, "publish", f"Merging {BASE} into the branch failed:\n\n```\n{(merged.stdout + merged.stderr).strip()}\n```")
                 return False
             if not job.get("ci_since"):
                 job["ci_since"] = now()
@@ -1067,7 +1071,7 @@ def bot_review_remarks(job):
     bots = {f"{b}[bot]" for b in CONFIG["ci"]["review_bots"]}
     markers = ("Nitpick comments", "Outside diff range comments")
     return [r for page in reviews for r in page
-            if r["user"]["login"] in bots and (r.get("submitted_at") or "") >= (job.get("ci_since") or "")
+            if (r["user"] or {}).get("login") in bots and (r.get("submitted_at") or "") >= (job.get("ci_since") or "")
             and any(m in (r["body"] or "") for m in markers)]
 
 
