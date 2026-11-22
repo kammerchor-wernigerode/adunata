@@ -16,7 +16,7 @@ Usage:
   job feedback <job>             needs-human, publish, remote, approve or merging → build, with your
                                  feedback (stdin) as feedback-<k>.md; a job in another stage escalates first
   job reject <job>               needs-info or needs-human → rejected, with your reason (stdin) as rejection.md
-  job agents <job> <json>        record the routed agent set (called by factory/bin/route)
+  job agents <job> <json>        record the routed agent set in the stage intake or spec (called by factory/bin/route)
   job sync <job>                 refresh reviews, gate and cost from the job's files
   job summary [<job>...]         table of jobs: issue, stage, PR, cost, time
   job self-check                 assert the parser of the remote findings; run by hand, wired into nothing
@@ -568,6 +568,8 @@ def advance(job, stage, push_unpushed=True, why=None):
 
     elif old == "spec":
         require((d / "spec.md").exists(), "spec.md doesn't exist")
+        require((job["agents"] or {}).get("routed") == "spec",
+                "route the job again after the spec step: factory/bin/route " + job["id"])
         next_round(job)
 
     elif old == "build" and stage == "gate":
@@ -1182,9 +1184,9 @@ def cmd_reject(job, text):
 
 
 def cmd_agents(job, spec):
-    if job["stage"] != "intake" or (job["intake"] or {}).get("decision") != "ACCEPT":
-        die(f"{job['id']}: route only an intake job that intake ACCEPTed")
-    job["agents"] = json.loads(spec)
+    if job["stage"] not in {"intake", "spec"} or (job["intake"] or {}).get("decision") != "ACCEPT":
+        die(f"{job['id']}: route only a job in the stage intake or spec that intake ACCEPTed")
+    job["agents"] = {**json.loads(spec), "routed": job["stage"]}
     save(job)
 
 

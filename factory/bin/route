@@ -1,25 +1,42 @@
 #!/usr/bin/env python3
-"""Map intake's risk and surfaces to the job's agent set.
+"""Map intake's risk and surfaces, and the OpenSpec change of the spec, to the job's agent set.
 
 Usage: route <job-id>
 
-Reads `risk` and `surfaces` from intake.md (through job.json), looks them up in
-config.json's `routing` and `surface_reviewers` tables, and records the result
-in job.json with `job agents`. Prints the agent set.
+Runs twice per job. In the stage `intake` it reads `risk` and `surfaces` from
+intake.md (through job.json), looks them up in config.json's `routing` and
+`surface_reviewers` tables, and records the result in job.json with `job agents`.
+In the stage `spec` it yields the same set and adds the entry of the risk from
+`change_reviewers` when the first `CHANGE: <name>` line of spec.md names a
+change. `CHANGE: none` adds nothing. A risk that `change_reviewers` lacks is an
+error in both stages. Prints the agent set.
 """
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 FACTORY = Path(__file__).resolve().parents[1]
 CONFIG = json.loads((FACTORY / "config.json").read_text())
+CHANGE_LINE = re.compile(r"^CHANGE:[ \t]*(\S+)[ \t]*$", re.MULTILINE)
+VERIFY_SKILL = ".agents/skills/openspec-verify-change/SKILL.md"
 
 
 def die(msg):
     print(f"route: {msg}", file=sys.stderr)
     sys.exit(1)
+
+
+def named_change(job_id):
+    spec = FACTORY / "jobs" / job_id / "spec.md"
+    if not spec.exists():
+        die(f"{job_id} has no spec.md")
+    match = CHANGE_LINE.search(spec.read_text())
+    if match is None:
+        die(f"{spec} has no line 'CHANGE: <name>' or 'CHANGE: none'")
+    return None if match.group(1) == "none" else match.group(1)
 
 
 def main(argv):
@@ -34,12 +51,19 @@ def main(argv):
     intake = job["intake"] or die(f"{job_id} has no intake.md")
     risk = CONFIG["routing"].get(intake["risk"]) or die(
         f"risk {intake['risk']!r} isn't in config.json routing ({', '.join(CONFIG['routing'])})")
+    change_risk = CONFIG["change_reviewers"].get(intake["risk"]) or die(
+        f"risk {intake['risk']!r} isn't in config.json change_reviewers ({', '.join(CONFIG['change_reviewers'])})")
     reviewers = dict(risk)
     for surface in intake["surfaces"]:
         extra = CONFIG["surface_reviewers"].get(surface)
         if extra is None:
             die(f"surface {surface!r} isn't in config.json surface_reviewers ({', '.join(CONFIG['surface_reviewers'])})")
         reviewers.update(extra)
+    if job["stage"] == "spec" and named_change(job_id):
+        skill = Path(job["worktree"]) / VERIFY_SKILL
+        if not skill.exists():
+            die(f"{skill} doesn't exist; run `openspec update` with the profile custom, see openspec/README.md")
+        reviewers.update(change_risk)
     agents = {"reviewers": reviewers}
     res = subprocess.run([job_bin, "agents", job_id, json.dumps(agents)], capture_output=True, text=True)
     if res.returncode != 0:

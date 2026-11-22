@@ -20,6 +20,7 @@ intake (fable)     → ACCEPT (scope possibly changed) | NEEDS-INFO | REJECT, po
 route (script)     → reviewers + models from risk/surfaces via config.json
 worktree           → factory/<job-id> from origin/<base>
 spec-writer (opus) → an OpenSpec change on the branch, with spec.md pointing to it; a small fix gets only spec.md
+route (script)     → the same set, plus the OpenSpec reviewer when spec.md names a change
 builder (opus)     → commits only, never pushes
 gate (script)      → checks.sh; FAIL → builder gets the log, no reviewers start
 reviewers (routed) → parallel, WAIT FOR ALL; CHANGES → builder → gate → reviewers
@@ -40,7 +41,7 @@ A job has at most `max_rounds` build rounds (`config.json`). A round is one buil
 <repo>/factory/checks.sh                       the repo's checks; the gate runs it
 <repo>/factory/bin/job                         the only writer of job.json
 <repo>/factory/bin/gate                        runs checks.sh in a worktree → round-N/checks.md
-<repo>/factory/bin/route                       risk + surfaces → the job's agents
+<repo>/factory/bin/route                       risk + surfaces, and the change that spec.md names → the job's agents
 <repo>/factory/jobs/<job-id>/job.json          the job's state; the dashboard reads it
 <repo>/factory/jobs/<job-id>/issue.md          the issue, quoted as data
 <repo>/factory/jobs/<job-id>/intake.md         intake's decision, scope, risk, surfaces
@@ -88,7 +89,7 @@ Each step below runs when the previous agent or script finishes. Report one shor
 - `NEEDS-INFO`: `factory/bin/job advance <id> needs-info`. The job parks until the author replies.
 - `REJECT`: `factory/bin/job advance <id> rejected`.
 
-**spec.** Start `spec-writer` with `<header>`. When it returns, `factory/bin/job advance <id> build` and go to **build**.
+**spec.** Start `spec-writer` with `<header>`. When it returns, run `factory/bin/route <id>` again, because `spec.md` now says whether the job has an OpenSpec change. Then `factory/bin/job advance <id> build` and go to **build**. `advance` refuses until `route` has run in this step.
 
 **build.** Start or resume `builder-<id>` with `<header> Build round <N>.` plus what this round is for: the gate's `round-<N-1>/checks.md`, the reviews in `round-<N-1>/`, `round-<N-1>/review-remote.md`, or `feedback-<k>.md`. When it returns, read `build.md`'s first line:
 
