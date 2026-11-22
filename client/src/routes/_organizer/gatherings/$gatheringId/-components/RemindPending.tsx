@@ -50,7 +50,7 @@ export function RemindPending({
       <DialogTrigger asChild>
         <Button variant="outline">{translate('overview-remind', { count })}</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{translate('overview-remind-title')}</DialogTitle>
           <DialogDescription>{translate('overview-remind-text', { count })}</DialogDescription>

@@ -232,11 +232,12 @@ describe('remind pending members', () => {
       }),
     )
     await userEvent.click(await screen.findByRole('button', { name: 'Remind 2 members' }))
+    const loadsBefore = loads
     const dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Send reminders' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(calls).toHaveLength(1)
-    expect(loads).toBeGreaterThan(0)
+    await waitFor(() => expect(loads).toBeGreaterThan(loadsBefore))
     const notice = within(screen.getByRole('region', { name: 'Responses' })).getByRole('status')
     await waitFor(() => expect(notice.textContent).toBe('2 reminders sent.'))
   })
