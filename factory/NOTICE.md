@@ -23,3 +23,4 @@ The main changes:
 - The builder has no Stop hook. It runs single checks while it works and `factory/checks.sh` as its last step. The gate confirms that run.
 - Two steps follow the reviews. `factory/bin/job publish` waits for pending checks, syncs the base branch, pushes once per round, opens the pull request ready and writes `round-N/review-remote.md` from CI and CodeRabbit. `factory/bin/job merge` then only merges the verified head.
 - The builder commits and never pushes. Only the scripts push.
+- `reviewer-code` judges every reply of the builder on a thread of CodeRabbit as `FIXED`, `HOLDS` or `OPEN` with a reason. `factory/bin/job` fetches the replies as quoted data from the review bots and the operator, and a script resolves the thread after the push when the reply holds or the code fixes the remark.
