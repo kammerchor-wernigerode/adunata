@@ -603,6 +603,8 @@ def advance(job, stage, push_unpushed=True):
         changes = [r for r, v in job["reviews"].items() if v == "CHANGES"]
         if stage == "publish":
             require(not changes, f"reviews want CHANGES: {', '.join(changes)}")
+            require(header(round_dir(job) / "checks.md").get("COMMIT") == local_head(job),
+                    "the branch changed after the gate ran; run the gate again")
         else:
             require(changes, "every review passed")
             last = job["round"] >= job["round_limit"]
