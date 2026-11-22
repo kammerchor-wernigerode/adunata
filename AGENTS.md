@@ -29,7 +29,7 @@ This file routes. It names where things live and the rules that apply everywhere
 
 ## Software factory
 
-`/factory run` builds every open GitHub issue labeled `factory` through intake → spec → build → gate → review → approve → CI, one pull request per issue. The skill `factory` describes each step and how it runs in coding agents other than Claude Code. State lives in `factory/jobs/`, and `factory/bin/job` is its only writer. Git ignores the folder through `.git/info/exclude`, where `factory/bin/job` adds it, so that a second repository on the same work tree can keep the state. The checks are in `factory/checks.sh`. For the dashboard, run `python3 -m http.server --bind 127.0.0.1` in `factory/` and open <http://localhost:8000/dashboard.html>.
+`/factory run` builds every open GitHub issue labeled `factory` through intake → spec → build → gate → review → publish → remote → approve → merge, one pull request per issue. The skill `factory` describes each step and how it runs in coding agents other than Claude Code. A job that escalates without a pull request stays local. A person sends it on with feedback through `/factory` or rejects it, because there is no pull request to merge. State lives in `factory/jobs/`, and `factory/bin/job` is its only writer. Git ignores the folder through `.git/info/exclude`, where `factory/bin/job` adds it, so that a second repository on the same work tree can keep the state. The checks are in `factory/checks.sh`. For the dashboard, run `python3 -m http.server --bind 127.0.0.1` in `factory/` and open <http://localhost:8000/dashboard.html>.
 
 Each job works in its own worktree at `.worktrees/<job-id>`, which Git ignores. A tool run from the root of the repository that does not read `.gitignore` sees those copies too, so exclude `.worktrees/` in its configuration.
 
@@ -39,7 +39,7 @@ A job's worktree gets its own ports and services when git-worktree-init with the
 
 CI runs the checks up to `integration` on every push to a pull request that changes a file one of those checks reads. Pull requests that are ready for review and pushes to `main` also run the jobs that take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes the checks.
 
-- The factory verifies its own pull requests. Its gate runs the checks up to integration, its reviewers check the change against the spec and the OpenSpec change, and its approver decides. An approved pull request becomes ready for review and merges once CI passes and CodeRabbit has nothing open. Failing checks and remarks of CodeRabbit send it back to the builder.
+- The factory verifies its own pull requests. Its gate runs the checks up to integration. Its reviewers check the change against the spec and the OpenSpec change. A script then publishes the branch, and its approver decides once CI and CodeRabbit have raised nothing. An approved pull request merges at once. Failing checks and remarks of CodeRabbit still send it back to the builder.
 - A person reviews only the pull requests that the factory labels `factory:needs-human`. Merging one approves it.
 - A pull request stays a draft until its change has passed every local check. Readiness starts the long jobs and the review of CodeRabbit.
 - Work done by hand gets a code review of the whole branch with the review command of the agent and `factory/checks.sh` before its pull request goes ready.
