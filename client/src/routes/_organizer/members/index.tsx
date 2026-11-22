@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { Check, Copy } from 'lucide-react'
 import { useId, useState } from 'react'
 import { getListMembersQueryOptions, useListMembers } from '@/api/generated/api'
 import type { Member } from '@/api/generated/model'
@@ -8,8 +9,10 @@ import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { useTranslate } from '@/l10n/translate'
 import { dataOf } from '@/lib/dataOf'
+import { mailRecipient } from '@/lib/mailRecipient'
 
 export const Route = createFileRoute('/_organizer/members/')({
   loader: ({ context: { queryClient } }) => queryClient.query(getListMembersQueryOptions()),
@@ -31,6 +34,7 @@ function MemberListPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const members = useListMembers()
+  const { copiedKey, failed, copy } = useCopyToClipboard()
 
   const list = dataOf(members.data)
   const shown = list?.filter((member) => matches(member, search, filter)) ?? []
@@ -65,6 +69,9 @@ function MemberListPage() {
       <p role="status" className="mb-2 text-sm text-muted-foreground">
         {list ? translate('members-count', { count: shown.length }) : ''}
       </p>
+      <p role="status" className="mb-2 min-h-5 text-sm">
+        {copiedKey !== undefined ? translate('members-mail-copied') : failed ? translate('members-copy-failed') : ''}
+      </p>
       {list && shown.length === 0 ? (
         <p>{translate('members-empty')}</p>
       ) : (
@@ -89,7 +96,19 @@ function MemberListPage() {
                     {member.lastName}, {member.firstName}
                   </Link>
                 </TableCell>
-                <TableCell className="px-3 py-2 break-all whitespace-normal">{member.mail}</TableCell>
+                <TableCell className="px-3 py-2 whitespace-normal">
+                  <span className="flex items-center gap-1">
+                    <span className="min-w-0 break-words">{member.mail}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={translate(copiedKey === member.id ? 'members-mail-copied' : 'members-copy-mail')}
+                      onClick={() => copy(member.id, mailRecipient(member))}
+                    >
+                      {copiedKey === member.id ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                    </Button>
+                  </span>
+                </TableCell>
                 <TableCell className="px-3 py-2">{translate(member.active ? 'member-active' : 'member-inactive')}</TableCell>
                 <TableCell className="px-3 py-2">{member.organizer ? translate('member-organizer') : ''}</TableCell>
               </TableRow>
