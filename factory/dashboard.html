@@ -51,7 +51,7 @@
 
   /* Board */
   .board {
-    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px;
+    display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 12px;
     padding: 20px 32px 40px; align-items: start;
   }
   .col { min-width: 0; }
@@ -289,12 +289,13 @@ const COLUMNS = [
   { label: 'Spec', who: 'spec-writer · opus', stages: ['spec'] },
   { label: 'Build', who: 'builder · gate', stages: ['build', 'gate'] },
   { label: 'Review', who: 'routed reviewers', stages: ['review'] },
+  { label: 'Remote', who: 'publish · CI · CodeRabbit', stages: ['publish', 'remote'] },
   { label: 'Approve', who: 'approver · merge', stages: ['approve', 'merging'] },
   { label: 'Needs human', who: 'you', stages: ['needs-human'], cls: 'human' },
   { label: 'Done', who: 'merged · rejected', stages: ['merged', 'rejected'], cls: 'merged-col' },
 ]
 const STAGES = new Set(COLUMNS.flatMap((c) => c.stages))
-const LIVE = new Set(['intake', 'spec', 'build', 'gate', 'review', 'approve', 'merging'])
+const LIVE = new Set(['intake', 'spec', 'build', 'gate', 'review', 'publish', 'remote', 'approve', 'merging'])
 const SHORT = { code: 'code', ux: 'ux', ui: 'ui', security: 'sec' }
 
 const $ = (id) => document.getElementById(id)
@@ -329,7 +330,8 @@ function verdictOf(line, kind) {
   return m ? m[1] : 'invalid'
 }
 
-// A round's verdicts come from its files: the gate first, then each routed reviewer.
+// A round's verdicts come from its files: the gate first, then each routed reviewer,
+// then the remote review once every reviewer passed.
 async function roundVerdicts(job, n) {
   const key = `${job.id}/${n}`
   if (roundCache.has(key)) return roundCache.get(key)
@@ -340,8 +342,13 @@ async function roundVerdicts(job, n) {
       v.reviews[r] = verdictOf(await fetchFirst(`${dir}review-${r}.md`), 'review')
     }))
   }
-  const settled = v.gate === 'FAIL' || (v.gate === 'PASS' && Object.values(v.reviews).every((x) => x === 'PASS' || x === 'CHANGES'))
-  if (settled && n < job.round) roundCache.set(key, v)
+  const verdicts = Object.values(v.reviews)
+  if (v.gate === 'PASS' && verdicts.length && verdicts.every((x) => x === 'PASS')) {
+    v.remote = verdictOf(await fetchFirst(dir + 'review-remote.md'), 'review')
+  }
+  const settled = v.gate === 'FAIL' || (v.gate === 'PASS' && verdicts.every((x) => x === 'PASS' || x === 'CHANGES'))
+  const over = n < job.round || job.stage === 'merged' || job.stage === 'rejected'
+  if (settled && over) roundCache.set(key, v)
   return v
 }
 
@@ -356,6 +363,10 @@ function roundRow(job, n, v) {
   if (v.gate === 'PASS') {
     for (const r of Object.keys(job.agents.reviewers)) {
       cells.push(chip(SHORT[r] || r, v.reviews[r], current && job.stage === 'review', r))
+    }
+    const waiting = current && (job.stage === 'publish' || job.stage === 'remote')
+    if (v.remote !== undefined && (v.remote !== 'pending' || waiting)) {
+      cells.push(chip('remote', v.remote, waiting, 'remote'))
     }
   }
   return `<div class="round"><span class="r">R${n}</span>${cells.join('')}</div>`
@@ -481,7 +492,7 @@ async function listFiles(dir) {
 }
 
 const ORDER = ['issue.md', 'intake.md', 'spec.md', 'build.md', 'decision.md', 'rejection.md']
-const ROUND_ORDER = ['checks', 'review-code', 'review-security', 'review-ux', 'review-ui', 'merge-checks', 'ci']
+const ROUND_ORDER = ['checks', 'review-code', 'review-security', 'review-ux', 'review-ui', 'review-remote', 'merge-checks', 'ci']
 
 function fileRank(path) {
   if (ORDER.includes(path)) return [0, ORDER.indexOf(path), path]
