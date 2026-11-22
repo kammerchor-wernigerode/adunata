@@ -218,9 +218,9 @@ The command reads the same settings as the server, so pass it the same `--config
 
 ### Mail confinement
 
-A test system often holds a copy of real member data. `adunata serve --dev` with `ADNT_MAIL_CONFINE=true` and `ADNT_MAIL_CONFINE_TO` set to a mailbox of yours keeps its mail away from members. Every mail then goes to that mailbox instead of its recipient, including mail that waited in the outbox before the start. The header `X-Original-To` names the original recipient. Subject and content stay as a member would see them. At start `serve` logs the warning `mail confinement is on`. It exits with status 78 when `confine-to` is missing or no valid mail address.
+`adunata serve --dev` with `ADNT_MAIL_CONFINE=true` and `ADNT_MAIL_CONFINE_TO` set to a mailbox of yours keeps mail away from its recipients. Every mail then goes to that mailbox instead of its recipient, including mail that waited in the outbox before the start. The header `X-Original-To` names the original recipient. Subject and content stay as a member would see them. At start `serve` logs the warning `mail confinement is on`. It exits with status 78 when `confine-to` is missing or no valid mail address.
 
-`serve` without `--dev` refuses to start with status 78 when either setting is present, even `ADNT_MAIL_CONFINE=false`. A configuration copied from a test system therefore never starts without the option. A test system without the settings sends to its members like any instance. `--dev` alone changes nothing. It has no guard on the public URL or the listen address and works with or without `--local`. `healthcheck` and `grant-organizer` accept both settings. Turning confinement off later delivers the mail still waiting in the outbox to its recipients.
+`serve` without `--dev` refuses to start with status 78 when either setting is present, even `ADNT_MAIL_CONFINE=false`. A configuration with the settings therefore never starts without the option. An instance without the settings sends to its recipients, with or without `--dev`. `--dev` alone changes nothing. It has no guard on the public URL or the listen address and works with or without `--local`. `healthcheck` and `grant-organizer` accept both settings. Turning confinement off later delivers the mail still waiting in the outbox to its recipients.
 
 ## Updates
 

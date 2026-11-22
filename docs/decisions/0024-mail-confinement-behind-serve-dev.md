@@ -2,9 +2,9 @@
 
 ## Context
 
-A test system often holds a copy of real member data. Every invitation or sign-in link it sends then reaches real members. [ADR 0023](0023-local-mode-on-localhost.md) left `serve --dev` without effect for a meaning on test systems.
+Adunata sends invitations and sign-in links to the addresses of its members. An operator who wants to see these mails without reaching their recipients has no way to stop delivery. [ADR 0023](0023-local-mode-on-localhost.md) left `serve --dev` without effect.
 
-A test system runs on another host than `localhost`, so a guard on the public URL would block it. An operator who copies the configuration of a test system to production must not send mail to members by mistake.
+Such an instance may run on any host, so a guard on the public URL would block it. A configuration that confines mail may be copied to an instance that should send mail. That instance must not start with confinement settings it was never meant to have.
 
 ## Decision
 
@@ -14,7 +14,7 @@ Without `--dev`, `serve` refuses to start with status 78 when either setting is 
 
 `--dev` alone changes nothing. It applies no guard to the public URL or the listen address. `--dev` and `--local` are independent. `healthcheck` and `grant-organizer` accept both settings.
 
-We rejected an allowlist of recipients or domains, because one mailbox is enough to check the mail of a test system.
+We rejected an allowlist of recipients or domains, because one mailbox is enough to see every mail an instance sends.
 
 ## Status
 
@@ -22,10 +22,12 @@ Accepted
 
 ## Consequences
 
-A test system sets `--dev` and both settings. A configuration copied to production without `--dev` refuses to start instead of sending mail to members.
+An operator who wants confined mail sets `--dev` and both settings. A configuration with the settings but without `--dev` refuses to start instead of silently ignoring them.
 
-A test system without the settings still sends to its members. Confinement protects only when an operator turns it on.
+An instance without the settings sends mail to its recipients, with or without `--dev`. Confinement takes effect only when an operator turns it on.
 
-The outbox keeps the original recipient. Turning confinement off later delivers the mail still waiting to its members.
+The redirect mailbox receives working invitation and sign-in links.
 
-`healthcheck` and `grant-organizer` accept the settings, so the container healthcheck of a test system keeps working.
+The outbox keeps the original recipient. Turning confinement off later delivers the mail still waiting to its recipients.
+
+`healthcheck` and `grant-organizer` accept the settings, so a container healthcheck keeps working on a confined instance.

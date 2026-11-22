@@ -47,7 +47,7 @@ enum Command {
         /// Creates a default organizer if the instance has none and writes sign-in links to the log. Refuses to start unless the public URL is on localhost.
         #[arg(long)]
         local: bool,
-        /// Allow mail confinement for a test system
+        /// Allow mail confinement
         ///
         /// Allows the settings `ADNT_MAIL_CONFINE` and `ADNT_MAIL_CONFINE_TO`, which send every mail to one address instead of its recipient. Without this option, serve refuses to start when either setting is present.
         #[arg(long)]
