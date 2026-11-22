@@ -652,7 +652,7 @@ def advance(job, stage, push_unpushed=True):
 
     if stage == "needs-human":
         body = f"### Factory: needs a human\n\n{(d / 'decision.md').read_text().split(chr(10), 1)[1].strip()}"
-        where = f"the branch `{job['branch']}` in the worktree `{job['worktree']}`"
+        where = f"the branch `{job['branch']}` in the worktree `{Path(job['worktree']).relative_to(REPO)}`"
         if job["pr"]:
             if not (head_is_published(job) or (push_unpushed and push_before_escalation(job))):
                 body += f"\n\nThe newest commits are local only. They are on {where}."
