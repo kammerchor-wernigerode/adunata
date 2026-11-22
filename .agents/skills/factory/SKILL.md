@@ -102,7 +102,9 @@ Each step below runs when the previous agent or script finishes. Report one shor
 
 **review.** Start every reviewer in `job.json` `agents.reviewers` **at once**, so they run in parallel: role `reviewer-<r>`, model from the same map, prompt `<header> Review round <N>.` **WAIT FOR ALL.** Each time one finishes, run `factory/bin/job sync <id>` so the dashboard fills in. When every reviewer has finished:
 
-- all PASS, and no review is `invalid`: go to **publish**. `factory/bin/job sync <id>` reports a review as `invalid` when its first line is no verdict or its judgments of remote findings are incomplete or malformed. Delete that `review-<r>.md` and start the reviewer again, once. If the new file is invalid too, stop this job and tell the user.
+First check every review. `factory/bin/job sync <id>` reports a review as `invalid` when its first line is no verdict or its judgments of remote findings are incomplete or malformed. Delete that `review-<r>.md` and start the reviewer again, once. If the new file is invalid too, stop this job and tell the user. Choose a branch only when every review is valid.
+
+- all PASS: go to **publish**.
 - any CHANGES: `factory/bin/job advance <id> build` (or `needs-human` when it refuses because this was the last round), then resume the builder: `Round <N-1> reviews are in round-<N-1>/. Address every VERDICT: CHANGES, commit, and update build.md for round <N>.`
 
 **publish.** Run `factory/bin/job publish <id>` in the background. It moves the job to `publish`, waits until no check of `ci.wait_for` is pending, merges the base into the branch, pushes once, opens the PR ready with `Closes #<n>` and the summary of `build.md` or marks the existing PR ready, and resolves the CodeRabbit threads that the reviewer judged. It then waits in stage `remote` until CI and CodeRabbit are done, for up to `ci.timeout_minutes`, and writes `round-<N>/review-remote.md`. If no run reports a check of `ci.wait_for`, it converts the PR to draft and back to ready once to start one. Then it prints one line:

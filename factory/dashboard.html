@@ -320,6 +320,16 @@ async function fetchFirst(url) {
   try { return (await fetchText(url)).split('\n')[0].trim() } catch { return null }
 }
 
+// A missing file is a normal answer. Any other failure is worth a retry, so it must not be cached.
+async function fetchFirstOrFail(url) {
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (res.status === 404) return { line: null }
+    if (!res.ok) return { failed: true }
+    return { line: (await res.text()).split('\n')[0].trim() }
+  } catch { return { failed: true } }
+}
+
 // ---- Board ---------------------------------------------------------------
 
 const VERDICTS = { gate: /^GATE:\s*(PASS|FAIL)$/, review: /^VERDICT:\s*(PASS|CHANGES)$/ }
@@ -344,11 +354,13 @@ async function roundVerdicts(job, n) {
   }
   const verdicts = Object.values(v.reviews)
   if (v.gate === 'PASS' && verdicts.length && verdicts.every((x) => x === 'PASS')) {
-    v.remote = verdictOf(await fetchFirst(dir + 'review-remote.md'), 'review')
+    const remote = await fetchFirstOrFail(dir + 'review-remote.md')
+    v.remote = verdictOf(remote.line ?? null, 'review')
+    v.fetchFailed = Boolean(remote.failed)
   }
   const settled = v.gate === 'FAIL' || (v.gate === 'PASS' && verdicts.every((x) => x === 'PASS' || x === 'CHANGES'))
   const over = n < job.round || job.stage === 'merged' || job.stage === 'rejected'
-  if (settled && over) roundCache.set(key, v)
+  if (settled && over && !v.fetchFailed) roundCache.set(key, v)
   return v
 }
 

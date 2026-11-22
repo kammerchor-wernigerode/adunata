@@ -498,7 +498,9 @@ def push_before_escalation(job):
     if outcome == "timeout":
         return False
     try:
-        push(job, local_head(job))
+        head = local_head(job)
+        push_head(job, head)
+        wait_for_run(job, head)
     except Refused:
         return False
     return True
@@ -775,11 +777,11 @@ def cmd_queue():
         print("\t".join(str(c) for c in row))
 
 
-def give_up(job_id, stage, why, push_unpushed=True):
-    """Send a job that sits in `stage` to needs-human, with `why` as the decision."""
+def give_up(job_id, stage, why, push_unpushed=True, rnd=None):
+    """Send a job that sits in `stage`, and in round `rnd` when given, to needs-human with `why` as the decision."""
     current = load(job_id)
-    if current["stage"] != stage:
-        die(f"{job_id} moved to {current['stage']} while in {stage}")
+    if current["stage"] != stage or (rnd is not None and current["round"] != rnd):
+        die(f"{job_id} moved to {current['stage']} round {current['round']} while in {stage}")
     escalate(current, why)
     save(advance(sync(current), "needs-human", push_unpushed=push_unpushed))
     print(f"{job_id}: needs-human: {why.splitlines()[0]}")
@@ -863,7 +865,7 @@ def publish_branch(job):
         try:
             pr_text(job)
         except Refused as e:
-            give_up(job_id, "publish", str(e), push_unpushed=False)
+            give_up(job_id, "publish", str(e), push_unpushed=False, rnd=rnd)
             return False
     if job.get("published_head") != local_head(job):
         if job["pr"]:
@@ -872,7 +874,7 @@ def publish_branch(job):
             if outcome == "timeout":
                 give_up(job_id, "publish", f"CI or CodeRabbit were still running after "
                         f"{CONFIG['ci']['timeout_minutes']} minutes, so nothing was pushed. "
-                        f"Check PR #{job['pr']}.", push_unpushed=False)
+                        f"Check PR #{job['pr']}.", push_unpushed=False, rnd=rnd)
                 return False
             job = reload_unless_moved(job_id, "publish", rnd)
         if job.get("published_head") != local_head(job):
@@ -880,21 +882,24 @@ def publish_branch(job):
             merged = git(job, "merge", "--no-edit", f"origin/{BASE}", check=False)
             if merged.returncode != 0:
                 git(job, "merge", "--abort", check=False)
-                give_up(job_id, "publish", f"Merging {BASE} into the branch failed:\n\n```\n{(merged.stdout + merged.stderr).strip()}\n```")
+                give_up(job_id, "publish", f"Merging {BASE} into the branch failed:\n\n```\n"
+                       f"{(merged.stdout + merged.stderr).strip()}\n```", rnd=rnd)
                 return False
             if not job.get("ci_since"):
                 job["ci_since"] = now()
                 save(job)
             head = local_head(job)
-            unlock(job_id)
             try:
-                push(job, head, wait_run=bool(job["pr"]))
+                push_head(job, head)
             except Refused as e:
-                give_up(job_id, "publish", f"The push failed:\n\n```\n{e}\n```", push_unpushed=False)
+                give_up(job_id, "publish", f"The push failed:\n\n```\n{e}\n```", push_unpushed=False, rnd=rnd)
                 return False
-            job = reload_unless_moved(job_id, "publish", rnd)
             job["published_head"] = head
             save(job)
+    if job["pr"]:
+        unlock(job_id)
+        wait_for_run(job, local_head(job))
+        job = reload_unless_moved(job_id, "publish", rnd)
     ready_pr(job)
     resolve_judged_threads(job)
     save(advance(job, "remote"))
@@ -919,22 +924,22 @@ def await_remote(job):
         return
     if checks is None:
         return give_up(job_id, "remote", f"CI or CodeRabbit didn't finish within "
-                       f"{CONFIG['ci']['timeout_minutes']} minutes. Check PR #{job['pr']}.")
+                       f"{CONFIG['ci']['timeout_minutes']} minutes. Check PR #{job['pr']}.", rnd=rnd)
     head = gh_json("pr", "view", str(job["pr"]), "--json", "headRefOid")["headRefOid"]
     if job.get("published_head") and head != job["published_head"]:
         return give_up(job_id, "remote", f"The head of PR #{job['pr']} is {head[:7]}, not the pushed {job['published_head'][:7]}. "
-                       "Someone pushed to the branch while the checks ran.")
+                       "Someone pushed to the branch while the checks ran.", rnd=rnd)
     failed = [c for c in checks if c["name"] in CONFIG["ci"]["wait_for"] and c["bucket"] in {"fail", "cancel"}]
     threads, remarks = open_bot_threads(job), bot_review_remarks(job)
     if not (failed or threads or remarks):
-        write_remote_md(job, "PASS", checks, [], [], [])
+        write_remote_md(job, "PASS", head, checks, [], [], [])
         save(advance(sync(job), "approve"))
         print(f"{job_id}: remote PASS, round {rnd}")
         return
-    write_remote_md(job, "CHANGES", checks, failed, threads, remarks)
+    write_remote_md(job, "CHANGES", head, checks, failed, threads, remarks)
     if rnd >= job["round_limit"]:
         return give_up(job_id, "remote", f"CI or CodeRabbit still object in round {rnd}, the last allowed round. "
-                       f"See round-{rnd}/review-remote.md.")
+                       f"See round-{rnd}/review-remote.md.", rnd=rnd)
     save(advance(sync(job), "build"))
     print(f"{job_id}: remote CHANGES ({len(failed)} checks, {len(threads)} threads, {len(remarks)} remarks), "
           f"round {job['round']}")
@@ -949,8 +954,12 @@ def cmd_publish(job):
     sync(job)
     if job["stage"] == "review":
         save(advance(job, "publish"))
-    if job["stage"] == "publish" and not publish_branch(job):
-        return
+    if job["stage"] == "publish":
+        check_reviews_done(job)
+        changes = [r for r, v in job["reviews"].items() if v == "CHANGES"]
+        require(not changes, f"reviews want CHANGES: {', '.join(changes)}")
+        if not publish_branch(job):
+            return
     job = sync(load(job["id"]))
     if job["stage"] != "remote":
         die(f"{job['id']} is in {job['stage']}, not review, publish or remote")
@@ -976,32 +985,35 @@ def cmd_merge(job):
     require(remote.exists(), f"round-{job['round']}/review-remote.md is missing; run factory/bin/job publish {job_id}")
     verified = header(remote)["COMMIT"]
     git(job, "fetch", "origin", BASE)
-    probe = git(job, "merge-tree", "--write-tree", "HEAD", f"origin/{BASE}", check=False)
+    probe = git(job, "merge-tree", "--write-tree", verified, f"origin/{BASE}", check=False)
     if probe.returncode == 1:
         return give_up(job_id, "merging", f"The branch conflicts with {BASE}:\n\n```\n{probe.stdout.strip()}\n```",
-                       push_unpushed=False)
+                       push_unpushed=False, rnd=job["round"])
     require(probe.returncode == 0, f"`git merge-tree` failed: {probe.stderr.strip()}")
     try:
         gh("pr", "merge", str(job["pr"]), f"--{CONFIG['merge_method']}", "--match-head-commit", verified)
     except Refused as e:
-        return give_up(job_id, "merging", f"The merge failed:\n\n```\n{e}\n```", push_unpushed=False)
+        return give_up(job_id, "merging", f"The merge failed:\n\n```\n{e}\n```", push_unpushed=False, rnd=job["round"])
     run(["git", "push", "origin", "--delete", job["branch"]], check=False)
     save(advance(sync(job), "merged"))
     print(f"{job_id}: merged PR #{job['pr']}")
 
 
-def push(job, head, wait_run=True):
-    """Push the branch and wait until a CI run for the new head left the queue.
+def push_head(job, head):
+    """Push the captured head to the job's branch."""
+    git(job, "push", "origin", f"{head}:refs/heads/{job['branch']}")
+
+
+def wait_for_run(job, head):
+    """When the PR is a draft, wait until a CI run for `head` left the queue.
 
     Marking the PR ready only after that run joined the `concurrency` group of
     the CI workflow makes the ready run the newer one, which the group keeps. A
     ready run that starts in the same second as the push may lose to the draft
     run, and so may one that starts while the draft run is still queued. A new PR
-    is opened ready, so no draft run exists and `wait_run` is false.
+    is opened ready, so no draft run exists.
     """
-    remote = git(job, "ls-remote", "origin", f"refs/heads/{job['branch']}").stdout.split()
-    git(job, "push", "origin", job["branch"])
-    if not wait_run or (remote and remote[0] == head):
+    if not gh_json("pr", "view", str(job["pr"]), "--json", "isDraft")["isDraft"]:
         return
     deadline = time.monotonic() + RUN_START_SECONDS
     while time.monotonic() < deadline:
@@ -1033,7 +1045,8 @@ def await_checks(job):
             return checks
         if time.monotonic() > deadline:
             return None
-        idle = bool(checks) and all(c["bucket"] != "pending" for c in checks)
+        none_reported = res.returncode != 0 and "no checks reported" in res.stderr
+        idle = none_reported or (bool(checks) and all(c["bucket"] != "pending" for c in checks))
         if idle and stalled and not restarted:
             current = load(job["id"])
             if current["stage"] == job["stage"] and current["round"] == job["round"]:
@@ -1075,8 +1088,7 @@ def bot_review_remarks(job):
             and any(m in (r["body"] or "") for m in markers)]
 
 
-def write_remote_md(job, verdict, checks, failed, threads, remarks):
-    head = gh_json("pr", "view", str(job["pr"]), "--json", "headRefOid")["headRefOid"]
+def write_remote_md(job, verdict, head, checks, failed, threads, remarks):
     summary = [
         f"{len(checks)} checks finished, {len(failed)} failed" + (f": {', '.join(c['name'] for c in failed)}" if failed else ""),
         f"{len(threads)} open review threads from {', '.join(CONFIG['ci']['review_bots'])}",

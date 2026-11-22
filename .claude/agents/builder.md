@@ -32,7 +32,7 @@ The worktree is a checkout of the job branch in `.worktrees/<job-id>` inside the
 
 ## Test
 
-While you work, run the single flake targets for what you changed, as `cd <worktree> && nix build --print-build-logs --no-link .#checks.<system>.<target>`. Use `lint`, `clippy`, `serverUnitTests` and `clientUnitTests` for most changes. Run `serverIntegrationTests`, `clientIntegrationTests` and `contract` by name when you touched what they cover. Name each target you ran in build.md.
+While you work, run the single flake targets for what you changed when Nix is installed, as `cd <worktree> && nix build --print-build-logs --no-link .#checks.<system>.<target>`. Use `lint`, `clippy`, `serverUnitTests` and `clientUnitTests` for most changes. Run `serverIntegrationTests`, `clientIntegrationTests` and `contract` by name when you touched what they cover. Name each target you ran in build.md. Without Nix, skip the single targets. Your last run of `factory/checks.sh` is then your only check before the gate, so record its result in build.md.
 
 Your last step is to commit your work and run `cd <worktree> && bash <main checkout>/factory/checks.sh`. It must pass. The gate runs exactly this after you finish, and reviewers only start once it passes. With Nix the checks see only files that Git tracks, so a new file that isn't committed or staged is missing from them.
 
