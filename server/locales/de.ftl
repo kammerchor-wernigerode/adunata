@@ -59,6 +59,7 @@ gatherings-create = Treffen anlegen
 gatherings-upcoming = Kommende
 gatherings-past = Vergangene
 gatherings-none = Noch keine.
+gatherings-count = { $count } Treffen
 gathering-new-title = Treffen anlegen
 gathering-edit-title = { $title } bearbeiten
 gathering-edit = Treffen bearbeiten

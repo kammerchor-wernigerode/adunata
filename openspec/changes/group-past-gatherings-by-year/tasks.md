@@ -2,7 +2,7 @@
 
 ## 1. Count of gatherings
 
-- [ ] 1.1 Add the message `gatherings-count` with `$count` to `server/locales/en.ftl` ("1 gathering", "2 gatherings") and `server/locales/de.ftl` ("1 Treffen", "2 Treffen"), next to `gatherings-none`. Verify with cases in `client/src/l10n/bundle.integration.test.ts` that format it for 1 and 2 in both languages from the served catalogs
+- [x] 1.1 Add the message `gatherings-count` with `$count` to `server/locales/en.ftl` ("1 gathering", "2 gatherings") and `server/locales/de.ftl` ("1 Treffen", "2 Treffen"), next to `gatherings-none`. Verify with cases in `client/src/l10n/bundle.integration.test.ts` that format it for 1 and 2 in both languages from the served catalogs
 
 ## 2. Years in the section "Past"
 

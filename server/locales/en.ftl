@@ -59,6 +59,10 @@ gatherings-create = Create gathering
 gatherings-upcoming = Upcoming
 gatherings-past = Past
 gatherings-none = None yet.
+gatherings-count = { $count ->
+        [one] { $count } gathering
+       *[other] { $count } gatherings
+    }
 gathering-new-title = Create gathering
 gathering-edit-title = Edit { $title }
 gathering-edit = Edit gathering
