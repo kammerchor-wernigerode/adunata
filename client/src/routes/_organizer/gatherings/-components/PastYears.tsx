@@ -35,7 +35,7 @@ export function PastYears({ gatherings }: { gatherings: Gathering[] }) {
     <Collapsible key={year} open={choices[year] ?? index === 0} onOpenChange={(open) => choose(year, open)} className="mb-4">
       <h3 className="mb-2">
         <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="group px-2 font-heading text-base font-semibold">
+          <Button variant="ghost" className="group -ml-2 px-2 font-heading text-base font-semibold">
             {year}{' '}
             <span className="font-sans text-sm font-normal text-muted-foreground">
               {translate('gatherings-count', { count: ofYear.length })}
