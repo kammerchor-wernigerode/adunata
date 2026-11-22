@@ -873,6 +873,14 @@ def ready_pr(job):
         gh("pr", "ready", str(job["pr"]))
 
 
+def branch_matches_gate(job):
+    """True when HEAD is the commit that the gate checked, or a merge of the base into it."""
+    checked = header(round_dir(job) / "checks.md").get("COMMIT")
+    commits = git(job, "rev-list", "--parents", "-n", "1", "HEAD").stdout.split()
+    head, parents = commits[0], commits[1:]
+    return checked == head or (len(parents) == 2 and checked == parents[0])
+
+
 def publish_branch(job):
     """Sync with the base branch, push once and ready the PR. False when the job went to needs-human."""
     job_id, rnd = job["id"], job["round"]
@@ -895,6 +903,10 @@ def publish_branch(job):
                 return False
             job = reload_unless_moved(job_id, "publish", rnd)
         if job.get("published_head") != local_head(job):
+            if not branch_matches_gate(job):
+                give_up(job_id, "publish", f"The branch changed after the gate ran in round {rnd}, so nothing was "
+                        "pushed. Run the gate on the newest commit.", push_unpushed=False, rnd=rnd)
+                return False
             git(job, "fetch", "origin", BASE)
             merged = git(job, "merge", "--no-edit", f"origin/{BASE}", check=False)
             if merged.returncode != 0:
