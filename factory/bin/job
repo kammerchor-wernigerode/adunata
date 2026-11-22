@@ -700,10 +700,11 @@ def cmd_merge(job):
     head = git(job, "rev-parse", "HEAD").stdout.strip()
     try:
         push(job, head)
-        if stage_of(job_id) != "merging":
+        if load(job_id)["stage"] != "merging":
             die(f"{job_id} moved to {stage_of(job_id)} while pushing")
         if gh_json("pr", "view", str(job["pr"]), "--json", "isDraft")["isDraft"]:
             gh("pr", "ready", str(job["pr"]))
+        unlock(job_id)
     except Refused as e:
         return fail(f"The push failed:\n\n```\n{e}\n```")
 
@@ -783,9 +784,11 @@ def await_checks(job):
         if time.monotonic() > deadline:
             return None
         idle = bool(checks) and all(c["bucket"] != "pending" for c in checks)
-        if idle and stalled and not restarted and stage_of(job["id"]) == "merging":
-            run(["gh", "pr", "ready", "--undo", str(job["pr"])], check=False)
-            run(["gh", "pr", "ready", str(job["pr"])], check=False)
+        if idle and stalled and not restarted:
+            if load(job["id"])["stage"] == "merging":
+                run(["gh", "pr", "ready", "--undo", str(job["pr"])], check=False)
+                run(["gh", "pr", "ready", str(job["pr"])], check=False)
+            unlock(job["id"])
             restarted = True
         stalled = idle
         time.sleep(ci["poll_seconds"])
