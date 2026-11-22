@@ -741,11 +741,12 @@ def cmd_merge(job):
 
 
 def push(job, head):
-    """Push the branch and wait until CI has started a run for the new head.
+    """Push the branch and wait until a CI run for the new head left the queue.
 
-    Marking the PR ready only after that run started makes the ready run the
-    newer one, which the `concurrency` group of the CI workflow keeps. A ready
-    run that starts in the same second as the push may lose to the draft run.
+    Marking the PR ready only after that run joined the `concurrency` group of
+    the CI workflow makes the ready run the newer one, which the group keeps. A
+    ready run that starts in the same second as the push may lose to the draft
+    run, and so may one that starts while the draft run is still queued.
     """
     remote = git(job, "ls-remote", "origin", f"refs/heads/{job['branch']}").stdout.split()
     git(job, "push", "origin", job["branch"])
@@ -754,8 +755,8 @@ def push(job, head):
     deadline = time.monotonic() + RUN_START_SECONDS
     while time.monotonic() < deadline:
         runs = gh_json("run", "list", "--branch", job["branch"], "--commit", head,
-                       "--event", "pull_request", "--json", "databaseId")
-        if runs:
+                       "--event", "pull_request", "--json", "status")
+        if any(r["status"] in {"in_progress", "completed"} for r in runs):
             return
         time.sleep(5)
 
