@@ -1,4 +1,4 @@
-import { format, parseISO } from 'date-fns'
+import { format, isAfter, isBefore, isSameDay, parseISO } from 'date-fns'
 import { CalendarDays } from 'lucide-react'
 import type { ComponentProps } from 'react'
 import { de, enUS } from 'react-day-picker/locale'
@@ -20,7 +20,7 @@ type DatePickerProps = Omit<ComponentProps<typeof Button>, 'id' | 'value' | 'onC
   lastDay?: string
 }
 
-/** A button that names an ISO day such as 2027-03-14 and opens a calendar to choose another. The day is a local date, so it never moves between time zones. */
+/** A button that names an ISO day such as 2027-03-14 and opens a calendar to choose another. The day is a local date, so it never moves between time zones. The calendar disables days before `firstDay` and after `lastDay`, except the chosen day. */
 export function DatePicker({
   id,
   labelId,
@@ -63,7 +63,7 @@ export function DatePicker({
           defaultMonth={selected ?? first}
           selected={selected}
           onSelect={(day) => onChange(format(day, 'yyyy-MM-dd'))}
-          disabled={first && last ? { before: first, after: last } : undefined}
+          disabled={(day) => !(selected && isSameDay(day, selected)) && ((!!first && isBefore(day, first)) || (!!last && isAfter(day, last)))}
           labels={{ labelGrid: () => gridLabel, labelNav: () => navigationLabel }}
         />
       </PopoverContent>
