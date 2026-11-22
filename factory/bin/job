@@ -755,7 +755,7 @@ def push(job, head):
         return
     deadline = time.monotonic() + RUN_START_SECONDS
     while time.monotonic() < deadline:
-        runs = gh_json("run", "list", "--branch", job["branch"], "--commit", head,
+        runs = gh_json("run", "list", "--branch", job["branch"], "--commit", head, "--workflow", "ci.yaml",
                        "--event", "pull_request", "--json", "status")
         if any(r["status"] in {"in_progress", "completed"} for r in runs):
             return
