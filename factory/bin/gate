@@ -3,7 +3,6 @@
 
 Usage:
   gate <job-id>            write round-N/checks.md; exit 0 on PASS, 1 on FAIL
-  gate <job-id> --merge    same, as round-N/merge-checks.md (job merge runs it)
 
 The gate runs the main checkout's factory/checks.sh inside the job's worktree,
 so a branch can't change the checks it is judged by. It also fails when the
@@ -57,7 +56,7 @@ def run_checks(worktree):
     return res.returncode, res.stdout + res.stderr, int(time.monotonic() - start)
 
 
-def gate(job_id, merge):
+def gate(job_id):
     job = json.loads((FACTORY / "jobs" / job_id / "job.json").read_text())
     worktree = job["worktree"]
     if job["round"] < 1:
@@ -67,20 +66,19 @@ def gate(job_id, merge):
     protected = protected_changes(worktree)
     code, log, seconds = run_checks(worktree)
     verdict = "PASS" if code == 0 and not protected else "FAIL"
-    name = "merge-checks" if merge else "checks"
-    (round_dir / f"{name}.log").write_text(log)
+    (round_dir / "checks.log").write_text(log)
     tail = "\n".join(log.rstrip().splitlines()[-TAIL:])
     summary = [
         f"checks.sh {'passed' if code == 0 else f'failed with exit {code}'} in {seconds}s",
         f"Protected paths: {'changed: ' + ', '.join(protected) if protected else 'none changed'}",
-        f"Commit {commit[:7]}" + (", synced with the latest main before merging" if merge else ""),
+        f"Commit {commit[:7]}",
     ]
-    (round_dir / f"{name}.md").write_text(
+    (round_dir / "checks.md").write_text(
         f"GATE: {verdict}\nCOMMIT: {commit}\n\n"
         "## Summary\n" + "\n".join(f"- {s}" for s in summary) + "\n\n"
         "## Protected paths\n"
         + ("\n".join(f"- {p}" for p in protected) if protected else "None changed.")
-        + f"\n\n## checks.sh\nExit {code} in {seconds}s. Last {TAIL} lines of {name}.log:\n\n```\n{tail}\n```\n"
+        + f"\n\n## checks.sh\nExit {code} in {seconds}s. Last {TAIL} lines of checks.log:\n\n```\n{tail}\n```\n"
     )
     print(f"GATE: {verdict} ({job_id} round {job['round']}, checks.sh exit {code} in {seconds}s"
           + (f", protected paths changed: {', '.join(protected)}" if protected else "") + ")")
@@ -89,9 +87,7 @@ def gate(job_id, merge):
 
 def main(argv):
     if len(argv) == 1 and not argv[0].startswith("-"):
-        gate(argv[0], merge=False)
-    elif len(argv) == 2 and argv[1] == "--merge":
-        gate(argv[0], merge=True)
+        gate(argv[0])
     else:
         die(__doc__.strip())
 
