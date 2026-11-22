@@ -492,9 +492,9 @@ def push_before_escalation(job):
     """Push the branch once no check is pending. False when the commits stay local."""
     outcome = wait_until_quiet(job)
     require(outcome != "moved", f"{job['id']} moved on while waiting to push")
+    reload_unless_moved(job["id"], job["stage"], job["round"])
     if outcome == "timeout":
         return False
-    reload_unless_moved(job["id"], job["stage"], job["round"])
     try:
         push(job, local_head(job))
     except Refused:
@@ -813,7 +813,7 @@ def resolve_judged_threads(job):
         return
     verdicts, _ = parse_findings(review.read_text())
     for thread_id in remote_items(remote):
-        if verdicts.get(thread_id) in {"FIXED", "HOLDS"}:
+        if not thread_id.startswith("review ") and verdicts.get(thread_id) in {"FIXED", "HOLDS"}:
             gh("api", "graphql", "-f", "query=mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) "
                "{ thread { isResolved } } }", "-f", f"id={thread_id}")
 
@@ -847,7 +847,11 @@ def publish_branch(job):
     """Sync with the base branch, push once and ready the PR. False when the job went to needs-human."""
     job_id, rnd = job["id"], job["round"]
     if not job["pr"]:
-        pr_text(job)
+        try:
+            pr_text(job)
+        except Refused as e:
+            give_up(job_id, "publish", str(e), push_unpushed=False)
+            return False
     if job.get("published_head") != local_head(job):
         if job["pr"]:
             outcome = wait_until_quiet(job)
@@ -891,6 +895,7 @@ def await_remote(job):
     """
     job_id, rnd = job["id"], job["round"]
     (round_dir(job) / "review-remote.md").unlink(missing_ok=True)
+    unlock(job_id)
     checks = await_checks(job)
     job = sync(load(job_id))
     if job["stage"] != "remote" or job["round"] != rnd:
@@ -902,6 +907,10 @@ def await_remote(job):
     if checks is None:
         return give_up(job_id, "remote", f"CI or CodeRabbit didn't finish within "
                        f"{CONFIG['ci']['timeout_minutes']} minutes. Check PR #{job['pr']}.")
+    head = gh_json("pr", "view", str(job["pr"]), "--json", "headRefOid")["headRefOid"]
+    if job.get("published_head") and head != job["published_head"]:
+        return give_up(job_id, "remote", f"The head of PR #{job['pr']} is {head[:7]}, not the pushed {job['published_head'][:7]}. "
+                       "Someone pushed to the branch while the checks ran.")
     failed = [c for c in checks if c["name"] in CONFIG["ci"]["wait_for"] and c["bucket"] in {"fail", "cancel"}]
     threads, remarks = open_bot_threads(job), bot_review_remarks(job)
     if not (failed or threads or remarks):
@@ -963,7 +972,7 @@ def cmd_merge(job):
         gh("pr", "merge", str(job["pr"]), f"--{CONFIG['merge_method']}", "--match-head-commit", verified)
     except Refused as e:
         return give_up(job_id, "merging", f"The merge failed:\n\n```\n{e}\n```", push_unpushed=False)
-    run(["git", "push", "origin", "--delete", job["branch"]], check=False)  # GitHub may have deleted it on merge
+    run(["git", "push", "origin", "--delete", job["branch"]], check=False)
     save(advance(sync(job), "merged"))
     print(f"{job_id}: merged PR #{job['pr']}")
 
@@ -1040,7 +1049,7 @@ def open_bot_threads(job):
     """Unresolved, current review threads that a review bot started."""
     bots = set(CONFIG["ci"]["review_bots"])
     return [t for t in fetch_threads(job) if not t["isResolved"] and not t["isOutdated"] and t["comments"]["nodes"]
-            and t["comments"]["nodes"][0]["author"]["login"] in bots]
+            and (t["comments"]["nodes"][0]["author"] or {}).get("login") in bots]
 
 
 def bot_review_remarks(job):

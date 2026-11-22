@@ -97,7 +97,7 @@ Each step below runs when the previous agent or script finishes. Report one shor
 
 **gate.** Run `factory/bin/gate <id>`. It prints `GATE: PASS` or `GATE: FAIL`.
 
-- PASS: `factory/bin/job advance <id> review` and go to **review**.
+- PASS: `factory/bin/job advance <id> review` and go to **review**. It reads comments from GitHub when the last remote review said CHANGES. If it refuses because that call failed, run it once more. If it refuses again, stop this job and tell the user.
 - FAIL: `factory/bin/job advance <id> build`. If it refuses because this was the last round, `factory/bin/job advance <id> needs-human` instead. Otherwise resume the builder for the next round with `The gate failed: read round-<N-1>/checks.md and checks.log, fix it, commit, and update build.md.` No reviewer runs on a failing build.
 
 **review.** Start every reviewer in `job.json` `agents.reviewers` **at once**, so they run in parallel: role `reviewer-<r>`, model from the same map, prompt `<header> Review round <N>.` **WAIT FOR ALL.** Each time one finishes, run `factory/bin/job sync <id>` so the dashboard fills in. When every reviewer has finished:
