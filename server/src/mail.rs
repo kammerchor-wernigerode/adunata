@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use lettre::message::header::{HeaderName, HeaderValue};
 use lettre::message::{Mailbox, MultiPart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
@@ -25,6 +26,8 @@ pub struct Delivery {
     pub transport: Transport,
     pub sender: Mailbox,
     pub max_attempts: i32,
+    /// While mail confinement is on, the address that receives every mail instead of its recipient.
+    pub confine_to: Option<lettre::Address>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -113,17 +116,25 @@ pub async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx:
     Ok(())
 }
 
-/// Sends one mail. A failure names only its kind, because messages from mail servers often repeat the recipient.
+/// Sends one mail, to the redirect address while mail confinement is on. A failure names only its kind, because messages from mail servers often repeat the recipient.
 async fn send(delivery: &Delivery, mail: &PendingMail) -> Result<(), String> {
-    let recipient = Mailbox::new(
-        mail.recipient_name.clone(),
-        mail.recipient
-            .parse()
-            .map_err(|_| "invalid recipient".to_owned())?,
-    );
-    let message = Message::builder()
-        .from(delivery.sender.clone())
-        .to(recipient)
+    let address: lettre::Address = mail
+        .recipient
+        .parse()
+        .map_err(|_| "invalid recipient".to_owned())?;
+    let builder = Message::builder().from(delivery.sender.clone());
+    let builder = match &delivery.confine_to {
+        Some(redirect) => {
+            builder
+                .to(Mailbox::new(None, redirect.clone()))
+                .raw_header(HeaderValue::new(
+                    HeaderName::new_from_ascii_str("X-Original-To"),
+                    address.to_string(),
+                ))
+        }
+        None => builder.to(Mailbox::new(mail.recipient_name.clone(), address)),
+    };
+    let message = builder
         .subject(&mail.subject)
         .multipart(MultiPart::alternative_plain_html(
             mail.text_body.clone(),
@@ -268,7 +279,105 @@ mod tests {
                 transport: transport(&smtp(port, Encryption::None)).unwrap(),
                 sender: "Adunata <adunata@example.org>".parse().unwrap(),
                 max_attempts: 3,
+                confine_to: None,
             }
+        }
+
+        fn confined_delivery() -> Delivery {
+            Delivery {
+                confine_to: Some("test@example.org".parse().unwrap()),
+                ..delivery(setting_port("ADNT_SMTP_PORT"))
+            }
+        }
+
+        async fn mailpit_headers(token: &str) -> serde_json::Value {
+            let port = setting_port("MAILPIT_UI_PORT");
+            let search = mailpit_get(port, &format!("/api/v1/search?query={token}")).await;
+            let id = search["messages"][0]["ID"].as_str().unwrap().to_owned();
+            mailpit_get(port, &format!("/api/v1/message/{id}/headers")).await
+        }
+
+        async fn enqueue_member_mail(pool: &PgPool, token: &str) {
+            let member_id: i64 = sqlx::query_scalar(
+                    "INSERT INTO members (first_name, last_name, mail, language) VALUES ('Ada', 'Lovelace', 'ada@example.org', 'en') RETURNING id",
+                )
+                .fetch_one(pool)
+                .await
+                .unwrap();
+            let mut connection = pool.acquire().await.unwrap();
+            let mail = Mail {
+                recipient: "ada@example.org".to_owned(),
+                member_id: Some(member_id),
+                invitation_id: None,
+                subject: format!("Invitation {token}"),
+                text: format!("Plain {token}"),
+                html: format!("<p>Rich {token}</p>"),
+            };
+            enqueue(&mut connection, &mail).await.unwrap();
+        }
+
+        #[tokio::test]
+        async fn confined_mail_goes_to_the_redirect_address() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let token = unique_token();
+            enqueue_member_mail(&pool, &token).await;
+            deliver_due(&pool, &confined_delivery()).await.unwrap();
+            let message = mailpit_message(&token).await;
+            let to: Vec<&str> = message["To"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|to| to["Address"].as_str().unwrap())
+                .collect();
+            assert_eq!(to, ["test@example.org"]);
+            assert_eq!(message["Cc"].as_array().map_or(0, Vec::len), 0);
+            assert_eq!(message["Bcc"].as_array().map_or(0, Vec::len), 0);
+            assert_eq!(message["Subject"], format!("Invitation {token}"));
+            assert_eq!(
+                message["Text"].as_str().unwrap().trim(),
+                format!("Plain {token}")
+            );
+            assert_eq!(
+                message["HTML"].as_str().unwrap().trim(),
+                format!("<p>Rich {token}</p>")
+            );
+            assert_eq!(
+                mailpit_headers(&token).await["X-Original-To"],
+                serde_json::json!(["ada@example.org"])
+            );
+        }
+
+        #[tokio::test]
+        async fn mail_waiting_from_before_the_start_is_confined() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let token = unique_token();
+            enqueue_test_mail(&pool, &token).await;
+            let options = pool.connect_options().as_ref().clone();
+            pool.close().await;
+
+            let restarted = PgPool::connect_with(options).await.unwrap();
+            deliver_due(&restarted, &confined_delivery()).await.unwrap();
+            let message = mailpit_message(&token).await;
+            assert_eq!(message["To"][0]["Address"], "test@example.org");
+            assert_eq!(message["To"].as_array().unwrap().len(), 1);
+            assert_eq!(
+                mailpit_headers(&token).await["X-Original-To"],
+                serde_json::json!(["organizer@example.org"])
+            );
+        }
+
+        #[tokio::test]
+        async fn unconfined_mail_has_no_original_recipient() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let token = unique_token();
+            enqueue_test_mail(&pool, &token).await;
+            deliver_due(&pool, &delivery(setting_port("ADNT_SMTP_PORT")))
+                .await
+                .unwrap();
+            assert!(mailpit_headers(&token).await.get("X-Original-To").is_none());
         }
 
         fn unique_token() -> String {

@@ -252,7 +252,7 @@ fn serve_offers_local_mode_and_dev() {
     assert!(help.contains("--local"), "{help}");
     assert!(help.contains("local mode"), "{help}");
     assert!(help.contains("--dev"), "{help}");
-    assert!(help.contains("without effect"), "{help}");
+    assert!(help.contains("mail confinement"), "{help}");
 }
 
 #[test]
@@ -316,6 +316,92 @@ fn dev_starts_without_local_mode_on_another_host() {
     assert!(!log.contains("/sign-in#"), "{log}");
 }
 
+const SETTINGS_ON_ANOTHER_HOST: [(&str, &str); 5] = [
+    ("ADNT_HTTP_PUBLIC_URL", "https://test.example.org"),
+    ("ADNT_DATABASE_URL", UNREACHABLE_DATABASE),
+    ("ADNT_SMTP_HOST", "mail.example.org"),
+    ("ADNT_MAIL_SENDER", "Adunata <adunata@example.org>"),
+    ("ADNT_LOCALIZATION_TIME_ZONE", "Europe/Berlin"),
+];
+
+fn serve_with(arguments: &[&str], confinement: &[(&str, &str)]) -> (Option<i32>, String) {
+    let variables: Vec<(&str, &str)> = SETTINGS_ON_ANOTHER_HOST
+        .iter()
+        .chain(confinement)
+        .copied()
+        .collect();
+    let (code, output, error) = run(arguments, &variables);
+    (code, format!("{output}{error}"))
+}
+
+#[test]
+fn confinement_setting_without_dev_stops_before_the_database() {
+    let (code, log) = serve_with(&["serve"], &[("ADNT_MAIL_CONFINE_TO", "test@example.org")]);
+    assert_eq!(code, Some(78), "{log}");
+    assert!(log.contains("ADNT_MAIL_CONFINE_TO"), "{log}");
+    assert!(!log.contains("test@example.org"), "{log}");
+    assert!(!log.contains("database is not ready"), "{log}");
+}
+
+#[test]
+fn confinement_switched_off_without_dev_stops() {
+    let (code, log) = serve_with(&["serve"], &[("ADNT_MAIL_CONFINE", "false")]);
+    assert_eq!(code, Some(78), "{log}");
+    assert!(log.contains("ADNT_MAIL_CONFINE"), "{log}");
+}
+
+#[test]
+fn confinement_without_a_valid_redirect_address_stops() {
+    for confinement in [
+        vec![("ADNT_MAIL_CONFINE", "true")],
+        vec![
+            ("ADNT_MAIL_CONFINE", "true"),
+            ("ADNT_MAIL_CONFINE_TO", "not an address"),
+        ],
+    ] {
+        let (code, log) = serve_with(&["serve", "--dev"], &confinement);
+        assert_eq!(code, Some(78), "{log}");
+        assert!(log.contains("ADNT_MAIL_CONFINE_TO"), "{log}");
+        assert!(!log.contains("not an address"), "{log}");
+    }
+}
+
+#[test]
+fn malformed_confinement_switch_stops() {
+    let (code, log) = serve_with(&["serve", "--dev"], &[("ADNT_MAIL_CONFINE", "yes")]);
+    assert_eq!(code, Some(78), "{log}");
+    assert!(
+        log.contains("ADNT_MAIL_CONFINE must be true or false"),
+        "{log}"
+    );
+}
+
+/// Starts with confinement on. The warning comes before the database, which does not exist.
+#[test]
+fn confinement_on_warns_without_the_address() {
+    let (code, log) = serve_with(
+        &["serve", "--dev"],
+        &[
+            ("ADNT_MAIL_CONFINE", "true"),
+            ("ADNT_MAIL_CONFINE_TO", "test@example.org"),
+        ],
+    );
+    assert_eq!(code, Some(75), "{log}");
+    let warnings = log
+        .lines()
+        .filter(|line| line.contains("\"WARN\"") && line.contains("mail confinement is on"))
+        .count();
+    assert_eq!(warnings, 1, "{log}");
+    assert!(!log.contains("test@example.org"), "{log}");
+}
+
+#[test]
+fn dev_without_confinement_warns_about_nothing() {
+    let (code, log) = serve_with(&["serve", "--dev"], &[]);
+    assert_eq!(code, Some(75), "{log}");
+    assert!(!log.contains("confinement"), "{log}");
+}
+
 /// Runs `healthcheck` and returns the exit code and everything the binary printed.
 fn healthcheck(variables: &[(&str, &str)]) -> (Option<i32>, String) {
     let (code, output, error) = run(&["healthcheck"], variables);
@@ -369,4 +455,21 @@ fn unreachable_database_is_a_temporary_failure() {
     );
     assert_eq!(code, Some(75));
     assert!(log.contains("database is not ready"), "{log}");
+}
+
+/// The settings of a confined test system reach the readiness check instead of failing as a configuration problem.
+#[test]
+fn healthcheck_accepts_confinement_settings() {
+    let (code, log) = healthcheck(&[
+        ("ADNT_HTTP_LISTEN_ADDRESS", "127.0.0.1:1"),
+        ("ADNT_HTTP_PUBLIC_URL", "https://test.example.org"),
+        ("ADNT_DATABASE_URL", UNREACHABLE_DATABASE),
+        ("ADNT_SMTP_HOST", "mail.example.org"),
+        ("ADNT_MAIL_SENDER", "Adunata <adunata@example.org>"),
+        ("ADNT_LOCALIZATION_TIME_ZONE", "Europe/Berlin"),
+        ("ADNT_MAIL_CONFINE", "true"),
+        ("ADNT_MAIL_CONFINE_TO", "test@example.org"),
+    ]);
+    assert_eq!(code, Some(1));
+    assert!(log.contains("cannot be reached"), "{log}");
 }

@@ -17,6 +17,8 @@ const DEFAULT_TRUSTED_PROXIES: &str = "127.0.0.1/32,::1/128";
 const DEFAULT_RETENTION_COMMENT_DAYS: &str = "30";
 const DEFAULT_RETENTION_RESPONSE_DAYS: &str = "365";
 const FIRST_ORGANIZER_MAIL: &str = "ADNT_BOOTSTRAP_ORGANIZER_MAIL";
+const MAIL_CONFINE: &str = "ADNT_MAIL_CONFINE";
+const MAIL_CONFINE_TO: &str = "ADNT_MAIL_CONFINE_TO";
 
 pub struct Configuration {
     pub listen_address: SocketAddr,
@@ -31,6 +33,14 @@ pub struct Configuration {
     pub retention: Retention,
     pub legal_links: LegalLinks,
     pub first_organizer: Option<FirstOrganizer>,
+    pub mail_confinement: MailConfinement,
+}
+
+/// The confinement settings that are present, and the redirect address while confinement is on.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct MailConfinement {
+    pub present_settings: Vec<&'static str>,
+    pub redirect: Option<lettre::Address>,
 }
 
 /// How long Adunata keeps personal data after the last day of a gathering.
@@ -349,7 +359,7 @@ impl fmt::Display for Problem {
 }
 
 /// Every setting as its table and key. The name of each variable derives from them.
-const SETTINGS: [(&str, &str); 23] = [
+const SETTINGS: [(&str, &str); 25] = [
     ("http", "public-url"),
     ("http", "listen-address"),
     ("http", "trusted-proxies"),
@@ -364,6 +374,8 @@ const SETTINGS: [(&str, &str); 23] = [
     ("smtp", "password-file"),
     ("mail", "sender"),
     ("mail", "max-attempts"),
+    ("mail", "confine"),
+    ("mail", "confine-to"),
     ("localization", "default-language"),
     ("localization", "time-zone"),
     ("retention", "comment-days"),
@@ -374,6 +386,9 @@ const SETTINGS: [(&str, &str); 23] = [
     ("bootstrap", "organizer-first-name"),
     ("bootstrap", "organizer-last-name"),
 ];
+
+/// The only setting that takes a boolean, which Adunata turns into `true` or `false`.
+const SWITCH_SETTING: (&str, &str) = ("mail", "confine");
 
 /// The only setting that takes an array, whose strings Adunata joins with commas.
 const LIST_SETTING: (&str, &str) = ("http", "trusted-proxies");
@@ -621,6 +636,7 @@ impl Configuration {
             imprint: optional_link(&mut problems, "ADNT_LEGAL_IMPRINT_URL", variable),
         };
         let first_organizer = load_first_organizer(&mut problems, variable);
+        let mail_confinement = load_mail_confinement(&mut problems, variable);
 
         match (
             listen_address,
@@ -658,6 +674,7 @@ impl Configuration {
                 retention,
                 legal_links,
                 first_organizer,
+                mail_confinement,
             }),
             _ => Err(problems),
         }
@@ -799,6 +816,41 @@ fn load_mail_max_attempts(problems: &mut Vec<Problem>, variable: Source) -> Opti
                 .filter(|attempts| (1..=100).contains(attempts))
         },
     )
+}
+
+fn load_mail_confinement(problems: &mut Vec<Problem>, variable: Source) -> MailConfinement {
+    let present_settings = [MAIL_CONFINE, MAIL_CONFINE_TO]
+        .into_iter()
+        .filter(|setting| variable(setting).is_some())
+        .collect();
+    let confined = variable(MAIL_CONFINE).and_then(|value| {
+        parse(
+            problems,
+            MAIL_CONFINE,
+            "true or false",
+            Some(&value),
+            |value| match value {
+                "true" => Some(true),
+                "false" => Some(false),
+                _ => None,
+            },
+        )
+    });
+    let redirect = if confined == Some(true) {
+        parse(
+            problems,
+            MAIL_CONFINE_TO,
+            "a mail address such as test@example.org",
+            variable(MAIL_CONFINE_TO).as_deref(),
+            |value| value.parse::<lettre::Address>().ok(),
+        )
+    } else {
+        None
+    };
+    MailConfinement {
+        present_settings,
+        redirect,
+    }
 }
 
 fn load_time_zone(problems: &mut Vec<Problem>, variable: Source) -> Option<InstanceTimeZone> {
@@ -1018,12 +1070,15 @@ enum Shape {
     Text,
     TextOrNumber,
     TextOrList,
+    TextOrBoolean,
 }
 
 impl Shape {
     fn of(setting: (&str, &str)) -> Self {
         if setting == LIST_SETTING {
             Self::TextOrList
+        } else if setting == SWITCH_SETTING {
+            Self::TextOrBoolean
         } else if CREDENTIAL_SETTINGS.contains(&setting) {
             Self::Text
         } else {
@@ -1036,6 +1091,7 @@ impl Shape {
             Self::Text => "a string",
             Self::TextOrNumber => "a string or a whole number",
             Self::TextOrList => "a string or a non-empty array of strings",
+            Self::TextOrBoolean => "a string or a boolean",
         }
     }
 }
@@ -1045,6 +1101,7 @@ fn setting_value(shape: Shape, value: &toml::Value) -> Result<Option<String>, &'
     match (shape, value) {
         (_, toml::Value::String(text)) => Ok((!text.is_empty()).then(|| text.clone())),
         (Shape::TextOrNumber, toml::Value::Integer(number)) => Ok(Some(number.to_string())),
+        (Shape::TextOrBoolean, toml::Value::Boolean(switch)) => Ok(Some(switch.to_string())),
         (Shape::TextOrList, toml::Value::Array(items)) => items
             .iter()
             .map(toml::Value::as_str)
@@ -1547,6 +1604,89 @@ mod tests {
                 "ADNT_HTTP_TRUSTED_PROXIES",
                 "ADNT_LEGAL_PRIVACY_URL",
                 "ADNT_BOOTSTRAP_ORGANIZER_MAIL"
+            ]
+        );
+    }
+
+    fn with_confinement(settings: &[(&'static str, &str)]) -> HashMap<&'static str, String> {
+        let mut variables = required();
+        for (name, value) in settings {
+            variables.insert(name, (*value).to_owned());
+        }
+        variables
+    }
+
+    #[test]
+    fn mail_confinement_on() {
+        let configuration = load(&with_confinement(&[
+            ("ADNT_MAIL_CONFINE", "true"),
+            ("ADNT_MAIL_CONFINE_TO", "test@example.org"),
+        ]))
+        .unwrap();
+        assert_eq!(
+            configuration.mail_confinement,
+            MailConfinement {
+                present_settings: vec!["ADNT_MAIL_CONFINE", "ADNT_MAIL_CONFINE_TO"],
+                redirect: Some("test@example.org".parse().unwrap()),
+            }
+        );
+    }
+
+    #[test]
+    fn mail_confinement_settings_absent_or_off() {
+        assert_eq!(
+            load(&required()).unwrap().mail_confinement,
+            MailConfinement::default()
+        );
+        let off = load(&with_confinement(&[("ADNT_MAIL_CONFINE", "false")])).unwrap();
+        assert_eq!(off.mail_confinement.present_settings, ["ADNT_MAIL_CONFINE"]);
+        assert_eq!(off.mail_confinement.redirect, None);
+    }
+
+    #[test]
+    fn malformed_mail_confinement() {
+        for (settings, setting) in [
+            (
+                vec![("ADNT_MAIL_CONFINE", "yes")],
+                "ADNT_MAIL_CONFINE must be true or false",
+            ),
+            (
+                vec![("ADNT_MAIL_CONFINE", "true")],
+                "ADNT_MAIL_CONFINE_TO is required but not set",
+            ),
+            (
+                vec![
+                    ("ADNT_MAIL_CONFINE", "true"),
+                    ("ADNT_MAIL_CONFINE_TO", "not an address"),
+                ],
+                "ADNT_MAIL_CONFINE_TO must be a mail address such as test@example.org",
+            ),
+        ] {
+            let messages: Vec<String> = problems(&with_confinement(&settings))
+                .iter()
+                .map(ToString::to_string)
+                .collect();
+            assert_eq!(messages, [setting]);
+        }
+    }
+
+    #[test]
+    fn switch_in_file() {
+        assert_eq!(
+            file_settings("[mail]\nconfine = true\nconfine-to = \"test@example.org\"\n"),
+            HashMap::from([
+                ("ADNT_MAIL_CONFINE".to_owned(), "true".to_owned()),
+                (
+                    "ADNT_MAIL_CONFINE_TO".to_owned(),
+                    "test@example.org".to_owned()
+                ),
+            ])
+        );
+        assert_eq!(
+            file_problems("[mail]\nconfine = 1\nconfine-to = true\n"),
+            vec![
+                "mail.confine in the configuration file adunata.toml must be a string or a boolean",
+                "mail.confine-to in the configuration file adunata.toml must be a string or a whole number",
             ]
         );
     }

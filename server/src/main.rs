@@ -47,7 +47,9 @@ enum Command {
         /// Creates a default organizer if the instance has none and writes sign-in links to the log. Refuses to start unless the public URL is on localhost.
         #[arg(long)]
         local: bool,
-        /// Accepted without effect
+        /// Allow mail confinement for a test system
+        ///
+        /// Allows the settings `ADNT_MAIL_CONFINE` and `ADNT_MAIL_CONFINE_TO`, which send every mail to one address instead of its recipient. Without this option, serve refuses to start when either setting is present.
         #[arg(long)]
         dev: bool,
     },
@@ -99,8 +101,8 @@ async fn main() {
     tracing_subscriber::fmt().json().init();
     let file = cli.config.filter(|path| !path.is_empty());
     match command {
-        Command::Serve { local, dev: _ } => {
-            Box::pin(serve(configuration(file.as_deref()), local)).await;
+        Command::Serve { local, dev } => {
+            Box::pin(serve(configuration(file.as_deref()), local, dev)).await;
         }
         Command::GrantOrganizer {
             mail,
@@ -189,12 +191,22 @@ async fn grant_organizer(
     }
 }
 
-async fn serve(configuration: Configuration, local_mode: bool) {
+async fn serve(configuration: Configuration, local_mode: bool, dev: bool) {
+    if !dev && let Some(setting) = configuration.mail_confinement.present_settings.first() {
+        tracing::error!(
+            setting,
+            "mail confinement needs serve --dev, so remove the setting or add the option"
+        );
+        std::process::exit(INVALID_CONFIGURATION);
+    }
     if local_mode && !runs_only_on_this_machine(&configuration) {
         tracing::error!(
             "local mode needs ADNT_HTTP_PUBLIC_URL on localhost and ADNT_HTTP_LISTEN_ADDRESS on a loopback address, because it writes sign-in links to the log"
         );
         std::process::exit(INVALID_CONFIGURATION);
+    }
+    if configuration.mail_confinement.redirect.is_some() {
+        tracing::warn!("mail confinement is on, so every mail goes to the redirect address");
     }
     let pool = connect(&configuration).await;
     let delivery = mail::Delivery {
@@ -204,6 +216,7 @@ async fn serve(configuration: Configuration, local_mode: bool) {
         }),
         sender: configuration.mail_sender,
         max_attempts: configuration.mail_max_attempts,
+        confine_to: configuration.mail_confinement.redirect,
     };
     tokio::spawn(mail::run(pool.clone(), delivery, Duration::from_secs(2)));
     tokio::spawn(responses::run_retention(
