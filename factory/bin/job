@@ -787,9 +787,8 @@ def await_checks(job):
         if idle and stalled and not restarted:
             if load(job["id"])["stage"] == "merging":
                 run(["gh", "pr", "ready", "--undo", str(job["pr"])], check=False)
-                run(["gh", "pr", "ready", str(job["pr"])], check=False)
+                restarted = run(["gh", "pr", "ready", str(job["pr"])], check=False).returncode == 0
             unlock(job["id"])
-            restarted = True
         stalled = idle
         time.sleep(ci["poll_seconds"])
 
