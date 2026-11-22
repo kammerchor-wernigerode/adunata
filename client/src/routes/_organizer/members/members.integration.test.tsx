@@ -162,6 +162,22 @@ describe('member list', () => {
     expect(await violations(container)).toEqual([])
   })
 
+  it('reports only the result of the latest copy', async () => {
+    signedIn()
+    const user = userEvent.setup()
+    renderApp('/members')
+    await screen.findByRole('link', { name: 'Lovelace, Ada' })
+    let finishFirst: (() => void) | undefined
+    vi.spyOn(navigator.clipboard, 'writeText')
+      .mockReturnValueOnce(new Promise<void>((resolve) => (finishFirst = resolve)))
+      .mockRejectedValueOnce(new DOMException('denied', 'NotAllowedError'))
+    await user.click(copyButton('Lovelace, Ada'))
+    await user.click(copyButton('Schumann, Clara'))
+    await act(async () => finishFirst?.())
+    expect(copyStatus().textContent).toBe('Could not copy the mail address. Select and copy it by hand.')
+    expect(copyButton('Lovelace, Ada').getAttribute('aria-label')).toBe('Copy mail address')
+  })
+
   it('names a failed load of the list instead of showing an empty list', async () => {
     server.use(getLegalLinksMockHandler({}), getCurrentSessionMockHandler(ada), http.get('*/api/members', () => new HttpResponse(null, { status: 500 })))
     renderApp('/members')
