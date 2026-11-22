@@ -8,7 +8,7 @@
 ## 2. Tests
 
 - [x] 2.1 In `server/tests/startup.rs`, check that the help of `serve` lists `--local` and `--dev`, and start the guard tests with `serve --local`
-- [x] 2.2 Add a test that starts `serve --dev` with a public URL on another host and checks that Adunata starts and that no sign-in link and no warning of local mode reach the log
+- [x] 2.2 Add a test that starts `serve --dev` with a public URL on another host and checks that it gets past the guard of local mode to the database step (exit 75, "database is not ready") and that no sign-in link and no warning of local mode reach the log
 - [x] 2.3 Rename the tests in `main.rs` and `access.rs` that name development mode
 
 ## 3. Documentation
