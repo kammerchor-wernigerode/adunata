@@ -766,6 +766,7 @@ mod tests {
                 .unwrap(),
                 sender: "Adunata <adunata@example.org>".parse().unwrap(),
                 max_attempts: 8,
+                confine_to: None,
             };
             mail::deliver_due(&pool, &unreachable).await.unwrap();
             let waiting: i64 = sqlx::query_scalar("SELECT count(*) FROM mail_outbox WHERE sent_at IS NULL AND failed_at IS NULL AND recipient IS NOT NULL")

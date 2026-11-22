@@ -8,6 +8,8 @@ A development build also reads the files `.env.local` and `.env` in its working 
 
 The module `configuration` reads all settings at start-up and checks them together. It collects every problem before Adunata touches the database or opens a port, so an operator fixes all mistakes in one round. Each message names the setting and never a secret value. A message about the configuration file names the file and the key but never a value or the content of a line. Other modules receive typed settings, such as the public base URL, and never read the environment or the file themselves. The exceptions are `SSL_CERT_FILE` and `SSL_CERT_DIR`, which the TLS library of mail delivery and of the database connection reads to find the trust store, as every TLS tool on the host does. The module `configuration` does not check them. It checks the parameters of the database URL before sqlx parses it, because sqlx logs an unknown parameter with its value. It rejects every variable whose name starts with `PGSSL`, because sqlx would read some of them besides the URL.
 
+A setting that is a switch, such as `mail.confine`, takes a boolean in the file and `true` or `false` in the environment. The settings `mail.confine` and `mail.confine-to` belong to `serve --dev`, see [ADR 0024](../decisions/0024-mail-confinement-behind-serve-dev.md). The module `configuration` reads them for every command, and `serve` without `--dev` refuses to start when either is present.
+
 The settings and their defaults are listed in the [configuration reference](../operating/configuration.md).
 
 ## Localization
