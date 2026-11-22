@@ -6,6 +6,7 @@ import { useTranslate } from '@/l10n/translate'
 import { dataOf } from '@/lib/dataOf'
 import { GatheringList } from './-components/GatheringList'
 import { GatheringSection } from './-components/GatheringSection'
+import { PastYears } from './-components/PastYears'
 
 export const Route = createFileRoute('/_organizer/gatherings/')({
   loader: ({ context: { queryClient } }) => queryClient.query(getListGatheringsQueryOptions()),
@@ -33,7 +34,7 @@ function GatheringListPage() {
             <GatheringList gatherings={list.upcoming} />
           </GatheringSection>
           <GatheringSection title={translate('gatherings-past')} gatherings={list.past}>
-            <GatheringList gatherings={list.past} />
+            <PastYears gatherings={list.past} />
           </GatheringSection>
         </>
       )}
