@@ -16,4 +16,6 @@ The main changes:
 - An approved pull request merges only after CI passes and CodeRabbit has no open remark. Otherwise the job goes back to the builder.
 - The factory runs in coding agents other than Claude Code too.
 - `factory/bin/job` keeps the job state out of Git through `info/exclude`, holds no lock while it waits for CI and prices long prompts of Haiku 5.5 at their own rate.
+- `factory/bin/job` marks a pull request ready only after CI has started a run for the pushed commit and starts a missing ready run of CI, so the merge does not wait for a check that never comes.
+- `factory/bin/job feedback` also sends an approved job back to the builder, with the person's feedback in place of the approver's decision.
 - The dashboard is fixed for keyboard use and for answers that arrive out of order.
