@@ -26,6 +26,8 @@ Each setting has a key in a table of the [configuration file](#configuration-fil
 |`smtp`|`password-file`|`ADNT_SMTP_PASSWORD_FILE`|no||Path to a file that holds the password at the mail server.|
 |`mail`|`sender`|`ADNT_MAIL_SENDER`|yes||The sender of every mail, such as `Adunata <adunata@example.org>`.|
 |`mail`|`max-attempts`|`ADNT_MAIL_MAX_ATTEMPTS`|no|`8`|How often Adunata tries to deliver a mail before it marks the mail as failed. A whole number from 1 to 100.|
+|`mail`|`confine`|`ADNT_MAIL_CONFINE`|no||Mail confinement for a test system. With `true`, Adunata delivers every mail to `confine-to` instead of its recipient, see [mail confinement](installation.md#mail-confinement). Takes `true` or `false`, as a boolean in the file. Only `serve --dev` accepts it. `serve` without `--dev` exits with status 78 when it is set, even to `false`.|
+|`mail`|`confine-to`|`ADNT_MAIL_CONFINE_TO`|with `confine = true`||The mail address that receives every mail while confinement is on, such as `test@example.org`. Only `serve --dev` accepts it, like `confine`.|
 |`localization`|`default-language`|`ADNT_LOCALIZATION_DEFAULT_LANGUAGE`|no|`en`|Language of the first organizer and of members that `grant-organizer` creates. Organizers choose the language of every other member. One of `de` or `en`.|
 |`localization`|`time-zone`|`ADNT_LOCALIZATION_TIME_ZONE`|yes||The time zone of the instance as an IANA name, such as `Europe/Berlin`. Adunata shows times of arrival and departure in it and decides with it when a gathering begins and ends.|
 |`retention`|`comment-days`|`ADNT_RETENTION_COMMENT_DAYS`|no|`30`|Days after the last day of a gathering until Adunata deletes the comments of its responses. A whole number or `never`.|
@@ -55,7 +57,7 @@ If deliveries fail and the log shows `mail delivery failed` with `failure` set t
 
 Name a file in TOML with the option `--config <path>` or the variable `ADNT_CONFIG_FILE`. The option wins over the variable. Without either, or with an empty value, Adunata reads no file. It never looks for a file on its own.
 
-The file holds the tables and keys of the [settings](#settings) and nothing else. A key accepts only the spelling in the table, so `public_url` in `[http]` is an unknown key. A key takes a string or a whole number. `trusted-proxies` also takes a non-empty array of strings. `password` and `username` take only a string, because TOML would read a bare `0x1F` or `1_000` as a number and Adunata would sign in with its decimal text. An empty string counts as not set.
+The file holds the tables and keys of the [settings](#settings) and nothing else. A key accepts only the spelling in the table, so `public_url` in `[http]` is an unknown key. A key takes a string or a whole number. `trusted-proxies` also takes a non-empty array of strings. `confine` takes a string or a boolean. `password` and `username` take only a string, because TOML would read a bare `0x1F` or `1_000` as a number and Adunata would sign in with its decimal text. An empty string counts as not set.
 
 Adunata takes each setting from the first of these sources that sets it:
 

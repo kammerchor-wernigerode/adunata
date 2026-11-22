@@ -216,6 +216,12 @@ The command reads the same settings as the server, so pass it the same `--config
 
 `adunata serve --local` is meant for a debug run on your own machine, not for an instance that others use. It starts only when `ADNT_HTTP_PUBLIC_URL` is on `localhost` and `ADNT_HTTP_LISTEN_ADDRESS` is a loopback address such as the default `127.0.0.1:8080`, and exits with status 78 otherwise. If the instance has no active organizer, it creates the first organizer from the bootstrap settings or, without them, `organizer@example.org` named Ada Lovelace. Before it accepts requests it writes a sign-in link for the oldest active organizer to the log, with the message `sign-in link for local mode` and the link in the field `link`. While the mode is on, every sign-in link that Adunata sends by mail also goes to the log, and the limit of links per address does not apply. The limit of 20 requests per network address and hour still applies. Anyone who can read the log can therefore sign in as an organizer.
 
+### Mail confinement
+
+A test system often holds a copy of real member data. `adunata serve --dev` with `ADNT_MAIL_CONFINE=true` and `ADNT_MAIL_CONFINE_TO` set to a mailbox of yours keeps its mail away from members. Every mail then goes to that mailbox instead of its recipient, including mail that waited in the outbox before the start. The header `X-Original-To` names the original recipient. Subject and content stay as a member would see them. At start `serve` logs the warning `mail confinement is on`. It exits with status 78 when `confine-to` is missing or no valid mail address.
+
+`serve` without `--dev` refuses to start with status 78 when either setting is present, even `ADNT_MAIL_CONFINE=false`. A configuration copied from a test system therefore never starts without the option. A test system without the settings sends to its members like any instance. `--dev` alone changes nothing. It has no guard on the public URL or the listen address and works with or without `--local`. `healthcheck` and `grant-organizer` accept both settings. Turning confinement off later delivers the mail still waiting in the outbox to its recipients.
+
 ## Updates
 
 Install the newer release the same way and restart the service. Adunata applies pending database migrations on start. It exits with status 65 against a database that a newer release has already migrated, so going back to an older release needs a database backup from before the update.
