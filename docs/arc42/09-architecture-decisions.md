@@ -19,8 +19,9 @@
 |0015|[Release binary linked against glibc](../decisions/0015-release-binary-linked-against-glibc.md)|Accepted|
 |0016|[Trust store of the host for mail server certificates](../decisions/0016-trust-store-of-the-host-for-mail-server-certificates.md)|Accepted|
 |0017|[Third-party notices in every artifact](../decisions/0017-third-party-notices-in-every-artifact.md)|Accepted|
-|0018|[Development mode on localhost](../decisions/0018-development-mode-on-localhost.md)|Accepted|
+|0018|[Development mode on localhost](../decisions/0018-development-mode-on-localhost.md)|Superseded|
 |0019|[Exit statuses from sysexits for a failed start](../decisions/0019-exit-statuses-from-sysexits-for-a-failed-start.md)|Accepted|
 |0020|[TLS to the database configured in its URL](../decisions/0020-tls-to-the-database-configured-in-its-url.md)|Accepted|
 |0021|[Published artifacts, their tags and the project version](../decisions/0021-published-artifacts-their-tags-and-the-project-version.md)|Accepted|
 |0022|[Healthcheck as a command of the binary](../decisions/0022-healthcheck-as-a-command-of-the-binary.md)|Accepted|
+|0023|[Local mode on localhost](../decisions/0023-local-mode-on-localhost.md)|Accepted|

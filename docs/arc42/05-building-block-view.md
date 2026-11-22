@@ -65,7 +65,7 @@ flowchart LR
 |Building block|Responsibility|Interface|
 |-|-|-|
 |Client|The single-page application in the browser. It renders pages, validates forms and shows text in the reader's language.|Calls the API. Loads its catalog from the server.|
-|access|Signs organizers in by mail link, keeps their sessions, limits sign-in requests, checks the `Origin` of requests that change data, creates the first organizer and resolves the network address of a client behind trusted proxies.|The sign-in and session routes, the extractor `Organizer` for organizer routes, the layer for the `Origin` check, the function for the first organizer and, for development mode, the default first organizer and a sign-in link without mail.|
+|access|Signs organizers in by mail link, keeps their sessions, limits sign-in requests, checks the `Origin` of requests that change data, creates the first organizer and resolves the network address of a client behind trusted proxies.|The sign-in and session routes, the extractor `Organizer` for organizer routes, the layer for the `Origin` check, the function for the first organizer and, for local mode, the default first organizer and a sign-in link without mail.|
 |api|Collects the routes of all modules and describes them as one OpenAPI document.|The HTTP router and the OpenAPI document.|
 |client|Serves the files of the built client from the binary. Paths without a file extension get the client's entry page.|The HTTP router for all paths outside the API.|
 |configuration|Reads the settings of the instance from the environment and an optional configuration file.|The settings as one value.|

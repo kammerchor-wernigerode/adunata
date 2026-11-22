@@ -18,7 +18,7 @@ pub struct AppState {
     pub trusted_proxies: Vec<Network>,
     pub sign_in_limiter: SignInLimiter,
     pub time_zone: InstanceTimeZone,
-    pub development_mode: bool,
+    pub local_mode: bool,
 }
 
 #[derive(OpenApi)]
@@ -66,7 +66,7 @@ pub mod testing {
             trusted_proxies: vec![Network::parse("127.0.0.1/32").expect("loopback is a network")],
             sign_in_limiter: SignInLimiter::default(),
             time_zone: time_zone(),
-            development_mode: false,
+            local_mode: false,
         }
     }
 

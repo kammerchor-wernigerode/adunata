@@ -42,9 +42,12 @@ struct Cli {
 enum Command {
     /// Serve the API and the client until the service manager stops the process.
     Serve {
-        /// Start in development mode for a debug run on localhost
+        /// Start in local mode for a debug run on localhost
         ///
         /// Creates a default organizer if the instance has none and writes sign-in links to the log. Refuses to start unless the public URL is on localhost.
+        #[arg(long)]
+        local: bool,
+        /// Accepted without effect
         #[arg(long)]
         dev: bool,
     },
@@ -96,7 +99,9 @@ async fn main() {
     tracing_subscriber::fmt().json().init();
     let file = cli.config.filter(|path| !path.is_empty());
     match command {
-        Command::Serve { dev } => Box::pin(serve(configuration(file.as_deref()), dev)).await,
+        Command::Serve { local, dev: _ } => {
+            Box::pin(serve(configuration(file.as_deref()), local)).await;
+        }
         Command::GrantOrganizer {
             mail,
             first_name,
@@ -184,10 +189,10 @@ async fn grant_organizer(
     }
 }
 
-async fn serve(configuration: Configuration, development_mode: bool) {
-    if development_mode && !runs_only_on_this_machine(&configuration) {
+async fn serve(configuration: Configuration, local_mode: bool) {
+    if local_mode && !runs_only_on_this_machine(&configuration) {
         tracing::error!(
-            "development mode needs ADNT_HTTP_PUBLIC_URL on localhost and ADNT_HTTP_LISTEN_ADDRESS on a loopback address, because it writes sign-in links to the log"
+            "local mode needs ADNT_HTTP_PUBLIC_URL on localhost and ADNT_HTTP_LISTEN_ADDRESS on a loopback address, because it writes sign-in links to the log"
         );
         std::process::exit(INVALID_CONFIGURATION);
     }
@@ -218,7 +223,7 @@ async fn serve(configuration: Configuration, development_mode: bool) {
         configuration.first_organizer.clone(),
         &configuration.default_language,
         &configuration.public_url,
-        development_mode,
+        local_mode,
     )
     .await
     .unwrap_or_else(|error| {
@@ -232,7 +237,7 @@ async fn serve(configuration: Configuration, development_mode: bool) {
         trusted_proxies: configuration.trusted_proxies,
         sign_in_limiter: access::SignInLimiter::default(),
         time_zone: configuration.time_zone,
-        development_mode,
+        local_mode,
     };
     tracing::info!(address = %listener.local_addr().expect("listener must have an address"), "accepting requests");
     serving::serve_until(listener, app(state), serving::termination_signal())
@@ -247,7 +252,7 @@ async fn listen(address: SocketAddr) -> std::io::Result<TcpListener> {
     })
 }
 
-/// Whether only this machine can reach the instance, which development mode needs because its log grants access.
+/// Whether only this machine can reach the instance, which local mode needs because its log grants access.
 fn runs_only_on_this_machine(configuration: &Configuration) -> bool {
     configuration.public_url.localhost_port().is_some()
         && configuration.listen_address.ip().is_loopback()
@@ -269,23 +274,23 @@ async fn create_first_organizer(
     Ok(())
 }
 
-/// Creates the first organizer if the instance has none. In development mode the default organizer stands in for a first organizer that the settings do not name, and a sign-in link for the oldest active organizer goes to the log and is returned.
+/// Creates the first organizer if the instance has none. In local mode the default organizer stands in for a first organizer that the settings do not name, and a sign-in link for the oldest active organizer goes to the log and is returned.
 async fn prepare_organizers(
     pool: &sqlx::PgPool,
     first_organizer: Option<FirstOrganizer>,
     language: &str,
     public_url: &PublicUrl,
-    development_mode: bool,
+    local_mode: bool,
 ) -> Result<Option<String>, sqlx::Error> {
-    if !development_mode {
+    if !local_mode {
         create_first_organizer(pool, first_organizer.as_ref(), language).await?;
         return Ok(None);
     }
-    tracing::warn!("development mode is on, so the log contains sign-in links");
-    let first_organizer = first_organizer.unwrap_or_else(access::development_organizer);
+    tracing::warn!("local mode is on, so the log contains sign-in links");
+    let first_organizer = first_organizer.unwrap_or_else(access::local_organizer);
     create_first_organizer(pool, Some(&first_organizer), language).await?;
-    let link = access::development_sign_in_link(pool, public_url).await?;
-    tracing::info!(link, "sign-in link for development");
+    let link = access::local_sign_in_link(pool, public_url).await?;
+    tracing::info!(link, "sign-in link for local mode");
     Ok(Some(link))
 }
 
@@ -327,7 +332,7 @@ mod integration {
         assert!(!headers.contains_key(header::CACHE_CONTROL));
     }
 
-    mod development {
+    mod local {
         use axum::body::Body;
         use axum::http::{Request, StatusCode, header};
         use sqlx::PgPool;
@@ -364,15 +369,11 @@ mod integration {
             let link = prepare_organizers(&pool, None, "en", &localhost(), true)
                 .await
                 .unwrap()
-                .expect("development mode must create a link");
+                .expect("local mode must create a link");
             assert_eq!(organizers(&pool).await, ["organizer@example.org"]);
             let secret = link.split_once("/sign-in#").unwrap().1;
             assert!(logs.text().contains(secret), "{}", logs.text());
-            assert!(
-                logs.text().contains("development mode is on"),
-                "{}",
-                logs.text()
-            );
+            assert!(logs.text().contains("local mode is on"), "{}", logs.text());
 
             let request = Request::post("/api/sessions")
                 .header(header::AUTHORIZATION, format!("Bearer {secret}"))
@@ -417,7 +418,7 @@ mod integration {
         }
 
         #[tokio::test]
-        async fn start_without_development_mode_creates_no_link() {
+        async fn start_without_local_mode_creates_no_link() {
             let database = fresh_database().await;
             let pool = database.pool();
             let link = prepare_organizers(&pool, None, "en", &localhost(), false)

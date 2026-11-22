@@ -246,16 +246,19 @@ fn help_and_version_succeed() {
 }
 
 #[test]
-fn serve_offers_development_mode() {
+fn serve_offers_local_mode_and_dev() {
     let (code, help, _) = run(&["help", "serve"], &[]);
     assert_eq!(code, Some(0));
+    assert!(help.contains("--local"), "{help}");
+    assert!(help.contains("local mode"), "{help}");
     assert!(help.contains("--dev"), "{help}");
+    assert!(help.contains("without effect"), "{help}");
 }
 
 #[test]
-fn development_mode_needs_a_public_url_on_localhost() {
+fn local_mode_needs_a_public_url_on_localhost() {
     let (code, output, error) = run(
-        &["serve", "--dev"],
+        &["serve", "--local"],
         &[
             ("ADNT_HTTP_PUBLIC_URL", "https://adunata.example.org"),
             ("ADNT_DATABASE_URL", UNREACHABLE_DATABASE),
@@ -271,9 +274,9 @@ fn development_mode_needs_a_public_url_on_localhost() {
 }
 
 #[test]
-fn development_mode_needs_a_loopback_listen_address() {
+fn local_mode_needs_a_loopback_listen_address() {
     let (code, output, error) = run(
-        &["serve", "--dev"],
+        &["serve", "--local"],
         &[
             ("ADNT_HTTP_PUBLIC_URL", "http://localhost:8080"),
             ("ADNT_HTTP_LISTEN_ADDRESS", "0.0.0.0:8080"),
@@ -290,6 +293,27 @@ fn development_mode_needs_a_loopback_listen_address() {
         "{log}"
     );
     assert!(!log.contains("database is not ready"), "{log}");
+}
+
+/// Starts with `--dev` and a public URL on another host. The start passes the check of local mode and reaches the database, which does not exist.
+#[test]
+fn dev_starts_without_local_mode_on_another_host() {
+    let (code, output, error) = run(
+        &["serve", "--dev"],
+        &[
+            ("ADNT_HTTP_PUBLIC_URL", "https://adunata.example.org"),
+            ("ADNT_DATABASE_URL", UNREACHABLE_DATABASE),
+            ("ADNT_SMTP_HOST", "mail.example.org"),
+            ("ADNT_MAIL_SENDER", "Adunata <adunata@example.org>"),
+            ("ADNT_LOCALIZATION_TIME_ZONE", "Europe/Berlin"),
+        ],
+    );
+    let log = format!("{output}{error}");
+    assert_eq!(code, Some(75), "{log}");
+    assert!(log.contains("database is not ready"), "{log}");
+    assert!(!log.contains("local mode"), "{log}");
+    assert!(!log.contains("sign-in link"), "{log}");
+    assert!(!log.contains("/sign-in#"), "{log}");
 }
 
 /// Runs `healthcheck` and returns the exit code and everything the binary printed.

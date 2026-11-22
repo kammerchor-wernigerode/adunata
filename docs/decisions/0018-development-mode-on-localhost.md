@@ -18,7 +18,7 @@ We considered a separate subcommand, a setting in the configuration file, an env
 
 ## Status
 
-Accepted
+Superseded by [ADR 0023](0023-local-mode-on-localhost.md)
 
 ## Consequences
 
