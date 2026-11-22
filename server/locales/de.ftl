@@ -139,6 +139,22 @@ overview-filter-accepted = Zusagen
 overview-filter-tentative = Vorläufig
 overview-filter-declined = Absagen
 overview-filter-pending = Offen
+overview-remind = { $count ->
+        [one] Ein Mitglied erinnern
+       *[other] { $count } Mitglieder erinnern
+    }
+overview-remind-title = Mitglieder erinnern?
+overview-remind-text = { $count ->
+        [one] Ein Mitglied bekommt einen neuen Link. Sein alter Link funktioniert dann nicht mehr.
+       *[other] { $count } Mitglieder bekommen einen neuen Link. Ihr alter Link funktioniert dann nicht mehr.
+    }
+overview-remind-send = Erinnerungen senden
+overview-remind-back = Zurück
+reminders-sent = { $count ->
+        [0] Niemand mehr zu erinnern.
+        [one] Eine Erinnerung gesendet.
+       *[other] { $count } Erinnerungen gesendet.
+    }
 overview-column-name = Name
 overview-column-status = Status
 overview-column-period = Zeitraum

@@ -6,6 +6,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useTranslate, type Translate } from '@/l10n/translate'
 import { dataOf } from '@/lib/dataOf'
 import { OverviewTable } from './OverviewTable'
+import { RemindPending } from './RemindPending'
 
 type Filter = 'all' | InvitationStatus
 const statuses: InvitationStatus[] = ['accepted', 'tentative', 'declined', 'pending']
@@ -23,7 +24,7 @@ function bedBalance(translate: Translate, balance: number): string {
 }
 
 /** Totals, filter and the table of every invitation of a gathering. */
-export function Overview({ gathering }: { gathering: Gathering }) {
+export function Overview({ gathering, onReminded }: { gathering: Gathering; onReminded: (message: string) => Promise<void> }) {
   const translate = useTranslate()
   const overview = useOverview(gathering.id)
   const [filter, setFilter] = useState<Filter>('all')
@@ -31,6 +32,8 @@ export function Overview({ gathering }: { gathering: Gathering }) {
   if (!data) return null
   const { rows, totals } = data
   const shown = filter === 'all' ? rows : rows.filter((row) => row.status === filter)
+  const remindable = rows.filter((row) => row.status === 'pending' && row.linkActive).length
+  const open = !gathering.cancelled && !gathering.ended
 
   return (
     <section aria-labelledby="overview-heading" className="mt-6">
@@ -62,20 +65,22 @@ export function Overview({ gathering }: { gathering: Gathering }) {
           </dd>
         </div>
       </dl>
-      <ToggleGroup
-        type="single"
-        value={filter}
-        onValueChange={(value) => value && setFilter(value as Filter)}
-        aria-label={translate('overview-filter')}
-        className="mb-3"
-      >
-        <ToggleGroupItem value="all">{translate('overview-filter-all', { count: rows.length })}</ToggleGroupItem>
-        {statuses.map((status) => (
-          <ToggleGroupItem key={status} value={status}>
-            {translate(`overview-filter-${status}`)}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <ToggleGroup
+          type="single"
+          value={filter}
+          onValueChange={(value) => value && setFilter(value as Filter)}
+          aria-label={translate('overview-filter')}
+        >
+          <ToggleGroupItem value="all">{translate('overview-filter-all', { count: rows.length })}</ToggleGroupItem>
+          {statuses.map((status) => (
+            <ToggleGroupItem key={status} value={status}>
+              {translate(`overview-filter-${status}`)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        {open && remindable > 0 && <RemindPending gathering={gathering} count={remindable} onReminded={onReminded} />}
+      </div>
       <OverviewTable gathering={gathering} rows={shown} />
     </section>
   )

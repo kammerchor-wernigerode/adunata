@@ -1,5 +1,7 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useGetGathering } from '@/api/generated/api'
+import { useState } from 'react'
+import { getListInvitationsQueryKey, getOverviewQueryKey, useGetGathering } from '@/api/generated/api'
 import { PageTitle } from '@/components/PageTitle'
 import { Button } from '@/components/ui/button'
 import { formatSpan } from '@/l10n/dates'
@@ -16,6 +18,8 @@ function GatheringPage() {
   const { locale } = useLocale()
   const { gatheringId } = Route.useParams()
   const gathering = useGetGathering(Number(gatheringId))
+  const queryClient = useQueryClient()
+  const [notice, setNotice] = useState('')
   const data = dataOf(gathering.data)
   if (!data) return null
   const { title, firstDay, lastDay, location, description, cancelled, ended } = data
@@ -42,8 +46,15 @@ function GatheringPage() {
         {description && <p className="mt-2 max-w-prose whitespace-pre-line">{description}</p>}
         {cancelled && <p className="mt-2 font-semibold">{translate('gathering-cancelled')}</p>}
       </div>
-      <Overview gathering={data} />
-      <InvitationActions gathering={data} />
+      <Overview
+        gathering={data}
+        onReminded={async (message) => {
+          await queryClient.invalidateQueries({ queryKey: getOverviewQueryKey(data.id) })
+          await queryClient.invalidateQueries({ queryKey: getListInvitationsQueryKey(data.id) })
+          setNotice(message)
+        }}
+      />
+      <InvitationActions gathering={data} notice={notice} onNotice={setNotice} />
     </>
   )
 }

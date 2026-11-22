@@ -183,3 +183,85 @@ describe('overview', () => {
     expect(await violations(container)).toEqual([])
   })
 })
+
+function remindCalls(status = 201) {
+  const calls: string[] = []
+  server.use(
+    http.post('*/api/gatherings/5/reminders', ({ request }) => {
+      calls.push(request.url)
+      return status === 201 ? HttpResponse.json({ count: 2 }, { status }) : HttpResponse.json({ errors: [] }, { status })
+    }),
+  )
+  return calls
+}
+
+describe('remind pending members', () => {
+  const pending = { ...base, status: 'pending' as const, beds: null, bedCount: null, changedBy: null, changedAt: null }
+  const remindRows: OverviewRow[] = [
+    base,
+    { ...pending, invitationId: 7, firstName: 'Clara', lastName: 'Schmidt' },
+    { ...pending, invitationId: 8, firstName: 'Jonas', lastName: 'Weber', mail: 'failed' },
+    { ...pending, invitationId: 9, firstName: 'Paul', lastName: 'Roth', linkActive: false },
+  ]
+  const remindOverview: Overview = { ...overview, rows: remindRows }
+
+  it('names the members with a pending invitation and an active link', async () => {
+    organizerPage(weekend, remindOverview)
+    expect(await screen.findByRole('button', { name: 'Remind 2 members' })).toBeTruthy()
+  })
+
+  it('sends nothing when the organizer goes back', async () => {
+    const calls = remindCalls()
+    organizerPage(weekend, remindOverview)
+    await userEvent.click(await screen.findByRole('button', { name: 'Remind 2 members' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Remind members?' })
+    expect(within(dialog).getByText('2 members receive a new link. Their old link stops working.')).toBeTruthy()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Back' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(calls).toEqual([])
+  })
+
+  it('closes the dialog, reloads the overview and reports the count after confirmation', async () => {
+    const calls = remindCalls()
+    let loads = 0
+    organizerPage(weekend, remindOverview)
+    server.use(
+      http.get('*/api/gatherings/5/overview', () => {
+        loads += 1
+        return HttpResponse.json(remindOverview)
+      }),
+    )
+    await userEvent.click(await screen.findByRole('button', { name: 'Remind 2 members' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send reminders' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(calls).toHaveLength(1)
+    expect(loads).toBeGreaterThan(0)
+    expect((await screen.findByRole('status')).textContent).toBe('2 reminders sent.')
+  })
+
+  it('keeps the dialog open and names the failure when the server refuses', async () => {
+    remindCalls(422)
+    organizerPage(weekend, remindOverview)
+    await userEvent.click(await screen.findByRole('button', { name: 'Remind 2 members' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send reminders' }))
+    await waitFor(() => expect(within(dialog).getByRole('alert').textContent).toBe('Something went wrong. Try again.'))
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('offers no reminder when nobody is pending with an active link', async () => {
+    organizerPage(weekend, { ...overview, rows: [base, remindRows[3]!] })
+    await screen.findByRole('table')
+    expect(screen.queryByRole('button', { name: /Remind/ })).toBeNull()
+  })
+
+  it.each([
+    ['cancelled', { ...weekend, cancelled: true }],
+    ['ended', { ...weekend, ended: true }],
+  ])('offers no reminder for a %s gathering', async (_, gathering) => {
+    organizerPage(gathering, remindOverview)
+    await screen.findByRole('table')
+    expect(screen.queryByRole('button', { name: /Remind/ })).toBeNull()
+  })
+})

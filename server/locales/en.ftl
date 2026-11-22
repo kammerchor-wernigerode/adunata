@@ -142,6 +142,22 @@ overview-filter-accepted = Accepted
 overview-filter-tentative = Tentative
 overview-filter-declined = Declined
 overview-filter-pending = Pending
+overview-remind = { $count ->
+        [one] Remind one member
+       *[other] Remind { $count } members
+    }
+overview-remind-title = Remind members?
+overview-remind-text = { $count ->
+        [one] One member receives a new link. Their old link stops working.
+       *[other] { $count } members receive a new link. Their old link stops working.
+    }
+overview-remind-send = Send reminders
+overview-remind-back = Back
+reminders-sent = { $count ->
+        [0] Nobody left to remind.
+        [one] One reminder sent.
+       *[other] { $count } reminders sent.
+    }
 overview-column-name = Name
 overview-column-status = Status
 overview-column-period = Period
