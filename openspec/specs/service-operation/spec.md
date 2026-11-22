@@ -74,14 +74,14 @@ Adunata SHALL finish requests in progress before it exits on a termination signa
 - **THEN** Adunata completes that request and then exits with status zero
 
 ### Requirement: Logs for operators
-Adunata SHALL write its logs to standard output in a structured format. Logs SHALL contain no secrets, no invitation links and no message bodies. Development mode SHALL be the only exception. It SHALL add sign-in links with their secrets to the logs, as the capability development-mode describes, and nothing else.
+Adunata SHALL write its logs to standard output in a structured format. Logs SHALL contain no secrets, no invitation links and no message bodies. Local mode SHALL be the only exception. It SHALL add sign-in links with their secrets to the logs, as the capability local-mode describes, and nothing else.
 
 #### Scenario: Log a failed mail delivery
 - **WHEN** a mail delivery fails
 - **THEN** the log entry names the failure and the outbox entry but not the recipient's address or the message text
 
 #### Scenario: Sign-in link outside development mode
-- **WHEN** Adunata sends a sign-in link while development mode is off
+- **WHEN** Adunata sends a sign-in link while local mode is off
 - **THEN** no log entry contains the link or its secret
 
 ### Requirement: Third-party notices served by the instance
@@ -133,7 +133,7 @@ The commands `serve` and `grant-organizer` SHALL exit with 78 when the configura
 - **THEN** it exits with status 78 before it touches the database
 
 #### Scenario: Development mode outside localhost
-- **WHEN** an operator starts `serve --dev` with a public URL that is not on localhost
+- **WHEN** an operator starts `serve --local` with a public URL that is not on localhost
 - **THEN** Adunata exits with status 78
 
 #### Scenario: Wrong arguments
