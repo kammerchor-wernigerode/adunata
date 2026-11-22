@@ -444,6 +444,7 @@ def next_round(job):
     job["ci_since"] = None
     job["published_head"] = None
     job["stale_checks"] = []
+    job["synced_head"] = None
 
 
 def local_head(job):
@@ -874,11 +875,12 @@ def ready_pr(job):
 
 
 def branch_matches_gate(job):
-    """True when HEAD is the commit that the gate checked, or a merge of the base into it."""
+    """True when HEAD is the commit that the gate checked, or the merge of the base that publish recorded."""
     checked = header(round_dir(job) / "checks.md").get("COMMIT")
     commits = git(job, "rev-list", "--parents", "-n", "1", "HEAD").stdout.split()
     head, parents = commits[0], commits[1:]
-    return checked == head or (len(parents) == 2 and checked == parents[0])
+    recorded_sync = head == job.get("synced_head") and len(parents) == 2 and parents[0] == checked
+    return head == checked or recorded_sync
 
 
 def publish_branch(job):
@@ -914,10 +916,11 @@ def publish_branch(job):
                 give_up(job_id, "publish", f"Merging {BASE} into the branch failed:\n\n```\n"
                        f"{(merged.stdout + merged.stderr).strip()}\n```", rnd=rnd)
                 return False
+            head = local_head(job)
+            job["synced_head"] = head
             if not job.get("ci_since"):
                 job["ci_since"] = now()
-                save(job)
-            head = local_head(job)
+            save(job)
             try:
                 push_head(job, head)
             except Refused as e:
