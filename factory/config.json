@@ -1,6 +1,6 @@
 {
   "concurrency": 3,
-  "max_rounds": 3,
+  "max_rounds": 5,
   "base_branch": "main",
   "merge_method": "merge",
   "labels": {

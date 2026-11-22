@@ -19,3 +19,4 @@ The main changes:
 - `factory/bin/job` marks a pull request ready only after CI has started a run for the pushed commit and starts a missing ready run of CI, so the merge does not wait for a check that never comes.
 - `factory/bin/job feedback` also sends an approved job back to the builder, with the person's feedback in place of the approver's decision.
 - The dashboard is fixed for keyboard use and for answers that arrive out of order.
+- A job has up to five rounds instead of three.
