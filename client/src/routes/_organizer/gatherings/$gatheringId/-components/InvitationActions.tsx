@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import {
   getGetGatheringQueryKey,
   getListGatheringsQueryKey,
@@ -13,25 +14,18 @@ import { CancelGathering } from './CancelGathering'
 import { InviteMembers } from './InviteMembers'
 
 /** Invites members to a gathering and cancels it. */
-export function InvitationActions({
-  gathering,
-  notice,
-  onNotice,
-}: {
-  gathering: Gathering
-  notice: string
-  onNotice: (message: string) => void
-}) {
+export function InvitationActions({ gathering }: { gathering: Gathering }) {
   const translate = useTranslate()
   const queryClient = useQueryClient()
   const invitations = useListInvitations(gathering.id)
+  const [notice, setNotice] = useState('')
   const open = !gathering.cancelled && !gathering.ended
   const list = dataOf(invitations.data)
 
   async function refresh(message: string) {
     await queryClient.invalidateQueries({ queryKey: getListInvitationsQueryKey(gathering.id) })
     await queryClient.invalidateQueries({ queryKey: getOverviewQueryKey(gathering.id) })
-    onNotice(message)
+    setNotice(message)
   }
 
   return (

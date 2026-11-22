@@ -237,7 +237,8 @@ describe('remind pending members', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(calls).toHaveLength(1)
     expect(loads).toBeGreaterThan(0)
-    expect((await screen.findByRole('status')).textContent).toBe('2 reminders sent.')
+    const notice = within(screen.getByRole('region', { name: 'Responses' })).getByRole('status')
+    await waitFor(() => expect(notice.textContent).toBe('2 reminders sent.'))
   })
 
   it('keeps the dialog open and names the failure when the server refuses', async () => {
@@ -246,7 +247,7 @@ describe('remind pending members', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Remind 2 members' }))
     const dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Send reminders' }))
-    await waitFor(() => expect(within(dialog).getByRole('alert').textContent).toBe('Something went wrong. Try again.'))
+    expect((await within(dialog).findByRole('alert')).textContent).toBe('Something went wrong. Try again.')
     expect(screen.getByRole('dialog')).toBeTruthy()
   })
 

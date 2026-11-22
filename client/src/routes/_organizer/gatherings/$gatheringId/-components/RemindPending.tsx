@@ -55,7 +55,11 @@ export function RemindPending({
           <DialogTitle>{translate('overview-remind-title')}</DialogTitle>
           <DialogDescription>{translate('overview-remind-text', { count })}</DialogDescription>
         </DialogHeader>
-        <p role="alert">{failed ? translate('error-unexpected') : ''}</p>
+        {failed && (
+          <p role="alert" className="text-sm text-destructive">
+            {translate('error-unexpected')}
+          </p>
+        )}
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline">{translate('overview-remind-back')}</Button>
