@@ -30,6 +30,9 @@ invitation-mail-greeting = Hello { $firstName },
 invitation-mail-details = you are invited to { $title } in { $location }, { $span }.
 invitation-mail-answer = Tell us through your personal link whether and when you come. Please do not forward it, because it works without a password.
 
+reminder-mail-subject = Reminder: { $title }, { $span }
+reminder-mail-details = we have no answer from you yet for { $title } in { $location }, { $span }.
+
 cancellation-mail-subject = Cancelled: { $title }, { $span }
 cancellation-mail-body = { $title } in { $location }, { $span }, does not take place.
 

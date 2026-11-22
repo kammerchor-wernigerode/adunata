@@ -146,6 +146,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(resend))
         .routes(routes!(revoke))
         .routes(routes!(cancel))
+        .routes(routes!(remind))
 }
 
 #[utoipa::path(
@@ -299,20 +300,102 @@ async fn resend_invitation(state: &AppState, id: i64) -> Result<Outcome<()>, sql
     let Some(member) = members::find(&mut transaction, member_id).await? else {
         return Ok(Outcome::NotFound);
     };
-    let secret = secret::generate();
-    sqlx::query("UPDATE invitations SET secret_hash = $2 WHERE id = $1")
-        .bind(id)
-        .bind(secret::hash(&secret))
-        .execute(&mut *transaction)
-        .await?;
-    let link = personal_link(&state.public_url, &secret);
-    mail::enqueue(
+    rotate_and_enqueue(
         &mut transaction,
-        &invitation_mail(&member, &gathering, &link, &state.legal_links, id),
+        state,
+        id,
+        &member,
+        &gathering,
+        &INVITATION,
     )
     .await?;
     transaction.commit().await?;
     Ok(Outcome::Done(()))
+}
+
+/// Stores the hash of a new secret in place of the old one and queues a mail with the new link.
+async fn rotate_and_enqueue(
+    connection: &mut PgConnection,
+    state: &AppState,
+    invitation_id: i64,
+    member: &Member,
+    gathering: &Gathering,
+    texts: &MailTexts,
+) -> Result<(), sqlx::Error> {
+    let secret = secret::generate();
+    sqlx::query("UPDATE invitations SET secret_hash = $2 WHERE id = $1")
+        .bind(invitation_id)
+        .bind(secret::hash(&secret))
+        .execute(&mut *connection)
+        .await?;
+    let link = personal_link(&state.public_url, &secret);
+    mail::enqueue(
+        connection,
+        &invitation_mail(
+            member,
+            gathering,
+            &link,
+            &state.legal_links,
+            invitation_id,
+            texts,
+        ),
+    )
+    .await
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/gatherings/{id}/reminders",
+    params(("id" = i64, Path, description = "Id of the gathering")),
+    responses(
+        (status = 201, description = "A new link created and a reminder queued for every pending member with an active link", body = Invited),
+        (status = 401, description = "No valid organizer session"),
+        (status = 404, description = "No such gathering"),
+        (status = 422, description = "The gathering is cancelled or has ended", body = crate::validation::ValidationErrors),
+    )
+)]
+async fn remind(_: Organizer, State(state): State<AppState>, Path(id): Path<i64>) -> Response {
+    match remind_pending(&state, id).await {
+        Ok(Outcome::Done(count)) => (StatusCode::CREATED, Json(Invited { count })).into_response(),
+        Ok(Outcome::NotFound) => StatusCode::NOT_FOUND.into_response(),
+        Ok(Outcome::Closed(code)) => invalid(vec![field_error("gathering", code)]),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+/// Gives every pending invitation with an active link a new secret and queues a reminder, in one transaction.
+async fn remind_pending(
+    state: &AppState,
+    gathering_id: i64,
+) -> Result<Outcome<usize>, sqlx::Error> {
+    let mut transaction = state.pool.begin().await?;
+    let gathering = match open_gathering(&mut transaction, gathering_id, state).await? {
+        Ok(gathering) => gathering,
+        Err(outcome) => return Ok(outcome),
+    };
+    let pending: Vec<(i64, i64)> = sqlx::query_as(
+        "SELECT id, member_id FROM invitations WHERE gathering_id = $1 AND secret_hash IS NOT NULL AND NOT EXISTS (SELECT 1 FROM responses WHERE responses.invitation_id = invitations.id) ORDER BY id FOR UPDATE",
+    )
+    .bind(gathering_id)
+    .fetch_all(&mut *transaction)
+    .await?;
+    let mut count = 0;
+    for (invitation_id, member_id) in pending {
+        if let Some(member) = members::find(&mut transaction, member_id).await? {
+            rotate_and_enqueue(
+                &mut transaction,
+                state,
+                invitation_id,
+                &member,
+                &gathering,
+                &REMINDER,
+            )
+            .await?;
+            count += 1;
+        }
+    }
+    transaction.commit().await?;
+    Ok(Outcome::Done(count))
 }
 
 #[utoipa::path(
@@ -424,6 +507,7 @@ async fn invite_members(
             &link,
             &state.legal_links,
             invitation_id,
+            &INVITATION,
         );
         mail::enqueue(&mut transaction, &mail).await?;
         count += 1;
@@ -437,12 +521,29 @@ fn personal_link(public_url: &PublicUrl, secret: &str) -> String {
     public_url.link(&format!("/invitation#{secret}"))
 }
 
+/// The message ids of the lines that tell an invitation from a reminder.
+struct MailTexts {
+    subject: &'static str,
+    details: &'static str,
+}
+
+const INVITATION: MailTexts = MailTexts {
+    subject: "invitation-mail-subject",
+    details: "invitation-mail-details",
+};
+
+const REMINDER: MailTexts = MailTexts {
+    subject: "reminder-mail-subject",
+    details: "reminder-mail-details",
+};
+
 fn invitation_mail(
     member: &Member,
     gathering: &Gathering,
     link: &str,
     legal_links: &LegalLinks,
     invitation_id: i64,
+    texts: &MailTexts,
 ) -> Mail {
     let localizer = localization::localizer();
     let language = member.language.as_str();
@@ -454,9 +555,9 @@ fn invitation_mail(
         "span",
         localizer.date_span(language, gathering.first_day, gathering.last_day),
     );
-    let subject = localizer.message(language, "invitation-mail-subject", &args);
+    let subject = localizer.message(language, texts.subject, &args);
     let greeting = localizer.message(language, "invitation-mail-greeting", &args);
-    let details = localizer.message(language, "invitation-mail-details", &args);
+    let details = localizer.message(language, texts.details, &args);
     let answer = localizer.message(language, "invitation-mail-answer", &args);
     let mut text = format!("{greeting}\n\n{details}\n\n{answer}\n{link}\n");
     let mut html = format!(
@@ -621,7 +722,7 @@ mod tests {
             privacy: Some("https://choir.example.org/privacy".to_owned()),
             imprint: Some("https://choir.example.org/imprint".to_owned()),
         };
-        let mail = invitation_mail(&member, &gathering, link, &legal, 11);
+        let mail = invitation_mail(&member, &gathering, link, &legal, 11, &INVITATION);
         assert_eq!(
             mail.subject,
             "Einladung: Probenwochenende, 12.–14. März 2027"
@@ -650,6 +751,64 @@ mod tests {
     }
 
     #[test]
+    fn reminder_subjects() {
+        let (mut member, gathering) = sample();
+        let link = "https://adunata.example.org/invitation#abc";
+        let mail = invitation_mail(
+            &member,
+            &gathering,
+            link,
+            &LegalLinks::default(),
+            11,
+            &REMINDER,
+        );
+        assert_eq!(
+            mail.subject,
+            "Erinnerung: Probenwochenende, 12.–14. März 2027"
+        );
+        member.language = "en".to_owned();
+        let mail = invitation_mail(
+            &member,
+            &gathering,
+            link,
+            &LegalLinks::default(),
+            11,
+            &REMINDER,
+        );
+        assert!(
+            mail.subject.starts_with("Reminder: Probenwochenende, "),
+            "{}",
+            mail.subject
+        );
+    }
+
+    #[test]
+    fn reminder_content() {
+        let (member, gathering) = sample();
+        let link = "https://adunata.example.org/invitation#abc";
+        let legal = LegalLinks {
+            privacy: Some("https://choir.example.org/privacy".to_owned()),
+            imprint: Some("https://choir.example.org/imprint".to_owned()),
+        };
+        let mail = invitation_mail(&member, &gathering, link, &legal, 11, &REMINDER);
+        for expected in [
+            "noch keine Antwort",
+            "Probenwochenende",
+            "Kloster Drübeck",
+            "12.–14. März 2027",
+            link,
+            "Datenschutzerklärung: https://choir.example.org/privacy",
+            "Impressum: https://choir.example.org/imprint",
+        ] {
+            assert!(
+                mail.text.contains(expected),
+                "text lacks {expected}: {}",
+                mail.text
+            );
+        }
+    }
+
+    #[test]
     fn mail_without_legal_links() {
         let (member, gathering) = sample();
         let mail = invitation_mail(
@@ -658,6 +817,7 @@ mod tests {
             "https://adunata.example.org/invitation#abc",
             &LegalLinks::default(),
             11,
+            &INVITATION,
         );
         assert!(!mail.text.contains("Datenschutz"), "{}", mail.text);
         assert!(!mail.html.contains("<hr>"));
@@ -673,6 +833,7 @@ mod tests {
             "https://adunata.example.org/invitation#abc",
             &LegalLinks::default(),
             11,
+            &INVITATION,
         );
         assert!(
             mail.html.contains("&lt;b&gt;Probe&lt;/b&gt;"),
@@ -1089,6 +1250,171 @@ mod tests {
                 json!({ "errors": [{ "field": "gathering", "code": "ended" }] })
             );
             assert!(invitations(&pool, past).await.is_empty());
+        }
+
+        async fn remind(pool: &PgPool, cookie: &str, gathering_id: i64) -> (StatusCode, Value) {
+            send(
+                api::testing::state(pool.clone()),
+                cookie,
+                "POST",
+                &format!("/api/gatherings/{gathering_id}/reminders"),
+                &Value::Null,
+            )
+            .await
+        }
+
+        async fn reminded(pool: &PgPool) -> Vec<String> {
+            sqlx::query_scalar("SELECT recipient FROM mail_outbox WHERE subject LIKE 'Erinnerung%' OR subject LIKE 'Reminder%' ORDER BY recipient")
+                .fetch_all(pool)
+                .await
+                .unwrap()
+        }
+
+        async fn answer(pool: &PgPool, gathering_id: i64, first_name: &str, status: &str) {
+            sqlx::query("INSERT INTO responses (invitation_id, status, beds, changed_by) SELECT invitations.id, $3, 'none', 'member' FROM invitations JOIN members ON members.id = invitations.member_id WHERE gathering_id = $1 AND members.first_name = $2")
+                .bind(gathering_id)
+                .bind(first_name)
+                .bind(status)
+                .execute(pool)
+                .await
+                .unwrap();
+        }
+
+        async fn secret_hash(
+            pool: &PgPool,
+            gathering_id: i64,
+            first_name: &str,
+        ) -> Option<Vec<u8>> {
+            sqlx::query_scalar("SELECT invitations.secret_hash FROM invitations JOIN members ON members.id = invitations.member_id WHERE gathering_id = $1 AND members.first_name = $2")
+                .bind(gathering_id)
+                .bind(first_name)
+                .fetch_one(pool)
+                .await
+                .unwrap()
+        }
+
+        #[tokio::test]
+        async fn remind_pending_members() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            member(&pool, "Clara", "de").await;
+            member(&pool, "Johannes", "en").await;
+            member(&pool, "Robert", "de").await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            invite(&pool, &cookie, weekend, json!({})).await;
+            answer(&pool, weekend, "Root", "accepted").await;
+            answer(&pool, weekend, "Robert", "tentative").await;
+            sqlx::query("UPDATE members SET active = false WHERE first_name = 'Johannes'")
+                .execute(&pool)
+                .await
+                .unwrap();
+            let (status, body) = remind(&pool, &cookie, weekend).await;
+            assert_eq!(status, StatusCode::CREATED);
+            assert_eq!(body, json!({ "count": 2 }));
+            assert_eq!(
+                reminded(&pool).await,
+                vec!["Clara@example.org", "Johannes@example.org"]
+            );
+            let (_, body) = remind(&pool, &cookie, weekend).await;
+            assert_eq!(
+                body,
+                json!({ "count": 2 }),
+                "a second reminder goes out too"
+            );
+            assert_eq!(reminded(&pool).await.len(), 4);
+        }
+
+        #[tokio::test]
+        async fn old_link_after_reminder() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (weekend, _) = one_invitation(&pool, &cookie).await;
+            answer(&pool, weekend, "Root", "accepted").await;
+            let old = invitation_secret(&pool).await;
+            remind(&pool, &cookie, weekend).await;
+            let new = invitation_secret(&pool).await;
+            assert!(!opens(&pool, &old).await);
+            assert!(opens(&pool, &new).await);
+        }
+
+        #[tokio::test]
+        async fn reminder_skips_revoked_and_includes_failed() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            member(&pool, "Clara", "de").await;
+            member(&pool, "Johannes", "en").await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            invite(&pool, &cookie, weekend, json!({})).await;
+            answer(&pool, weekend, "Root", "accepted").await;
+            sqlx::query("UPDATE invitations SET secret_hash = NULL WHERE member_id = (SELECT id FROM members WHERE first_name = 'Clara')")
+                .execute(&pool)
+                .await
+                .unwrap();
+            sqlx::query(
+                "UPDATE mail_outbox SET failed_at = now(), recipient = NULL, subject = NULL, text_body = NULL, html_body = NULL WHERE member_id = (SELECT id FROM members WHERE first_name = 'Johannes')",
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+            let (_, body) = remind(&pool, &cookie, weekend).await;
+            assert_eq!(body, json!({ "count": 1 }));
+            assert_eq!(reminded(&pool).await, vec!["Johannes@example.org"]);
+            assert_eq!(secret_hash(&pool, weekend, "Clara").await, None);
+        }
+
+        #[tokio::test]
+        async fn nobody_to_remind() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            invite(&pool, &cookie, weekend, json!({})).await;
+            answer(&pool, weekend, "Root", "accepted").await;
+            let (status, body) = remind(&pool, &cookie, weekend).await;
+            assert_eq!(status, StatusCode::CREATED);
+            assert_eq!(body, json!({ "count": 0 }));
+            assert_eq!(mails(&pool).await, 1);
+        }
+
+        #[tokio::test]
+        async fn no_reminder_for_a_closed_gathering() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            invite(&pool, &cookie, weekend, json!({})).await;
+            let before = secret_hash(&pool, weekend, "Root").await;
+            sqlx::query("UPDATE gatherings SET first_day = $2, last_day = $3 WHERE id = $1")
+                .bind(weekend)
+                .bind(api::testing::day(-3))
+                .bind(api::testing::day(-1))
+                .execute(&pool)
+                .await
+                .unwrap();
+            let (status, body) = remind(&pool, &cookie, weekend).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                body,
+                json!({ "errors": [{ "field": "gathering", "code": "ended" }] })
+            );
+            sqlx::query("UPDATE gatherings SET first_day = $2, last_day = $3, cancelled_at = now() WHERE id = $1")
+                .bind(weekend)
+                .bind(api::testing::day(10))
+                .bind(api::testing::day(12))
+                .execute(&pool)
+                .await
+                .unwrap();
+            let (status, body) = remind(&pool, &cookie, weekend).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                body,
+                json!({ "errors": [{ "field": "gathering", "code": "cancelled" }] })
+            );
+            assert_eq!(secret_hash(&pool, weekend, "Root").await, before);
+            assert_eq!(mails(&pool).await, 1);
         }
     }
 }

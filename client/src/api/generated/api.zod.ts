@@ -168,6 +168,19 @@ export const OverviewResponse = zod.object({
 }).describe('Everything organizers plan a gathering with.')
 
 
+export const RemindParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const remindResponseCountMin = 0;
+
+
+
+export const RemindResponse = zod.object({
+  "count": zod.int().min(remindResponseCountMin)
+}).describe('How many members Adunata invited.')
+
+
 export const HealthResponse = zod.object({
   "status": zod.enum(['ready', 'unavailable']),
   "cause": zod.union([zod.enum(['database']),zod.null()]).optional()
