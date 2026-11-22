@@ -30,8 +30,8 @@
 ## 5. Check the branch
 
 - [ ] 5.1 Review the whole branch with the review command of the agent, as `AGENTS.md` asks for work done by hand. Verify that no remark stays open.
-- [ ] 5.2 Run `factory/checks.sh` in the root of the checkout. Verify that it passes.
-- [ ] 5.3 Run `openspec validate add-openspec-reviewer --strict`. Verify that it passes.
+- [x] 5.2 Run `factory/checks.sh` in the root of the checkout. Verify that it passes.
+- [x] 5.3 Run `openspec validate add-openspec-reviewer --strict`. Verify that it passes.
 
 ## 6. Run one issue through the factory
 
