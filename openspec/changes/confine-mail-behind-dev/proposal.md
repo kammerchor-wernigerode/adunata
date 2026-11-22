@@ -2,7 +2,7 @@
 
 ## Why
 
-An instance that holds real member addresses sends every invitation or sign-in link to those members, and Adunata has no way to keep that mail away from them. Since local mode moved to `serve --local`, the option `serve --dev` is free and accepted without effect, so it can carry this protection.
+Adunata sends every invitation or sign-in link to the address of its member. An operator who wants to receive all these mails in one mailbox, whatever addresses the members have, has no way to do so. Since local mode moved to `serve --local`, the option `serve --dev` is free and accepted without effect, so it can carry this setting.
 
 ## What Changes
 
