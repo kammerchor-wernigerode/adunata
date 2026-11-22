@@ -394,7 +394,7 @@ def parse_findings(text):
         if not line or line == "None.":
             continue
         found = FINDING_LINE.fullmatch(line)
-        if found:
+        if found and found.group(1) not in verdicts:
             verdicts[found.group(1)] = found.group(2)
         else:
             malformed.append(line)
@@ -406,7 +406,7 @@ def findings_problems(review_text, items):
     verdicts, malformed = parse_findings(review_text)
     problems = [f"malformed line: {line}" for line in malformed]
     problems += [f"no line for {item}" for item in items if item not in verdicts]
-    if review_text.split("\n", 1)[0].strip() == "VERDICT: PASS" and "OPEN" in verdicts.values():
+    if re.fullmatch(r"VERDICT:\s*PASS", review_text.split("\n", 1)[0].strip()) and "OPEN" in verdicts.values():
         problems.append("an OPEN finding under VERDICT: PASS")
     return problems
 
@@ -481,7 +481,8 @@ def wait_until_quiet(job):
             return "moved"
         res = run(["gh", "pr", "checks", str(job["pr"]), "--json", "name,bucket"], check=False)
         checks = json.loads(res.stdout) if res.stdout.strip().startswith("[") else []
-        if not any(c["name"] in ci["wait_for"] and c["bucket"] == "pending" for c in checks):
+        failed_call = res.returncode not in {0, 8} and "no checks reported" not in res.stderr
+        if not failed_call and not any(c["name"] in ci["wait_for"] and c["bucket"] == "pending" for c in checks):
             return "quiet"
         if time.monotonic() > deadline:
             return "timeout"
@@ -827,18 +828,24 @@ def pr_text(job):
     return title.group(1).strip(), f"Closes #{job['issue']}\n\n{summary}".strip()
 
 
+def find_open_pr(job):
+    """Store the open PR of the job's branch in the job, when there is one."""
+    prs = gh_json("pr", "list", "--head", job["branch"], "--state", "open", "--json", "number,url")
+    require(len(prs) <= 1, f"expected one open PR from {job['branch']}, found {len(prs)}")
+    if prs:
+        job["pr"], job["pr_url"] = prs[0]["number"], prs[0]["url"]
+        save(job)
+
+
 def ready_pr(job):
     """Find or open the job's PR, store it in the job and mark it ready."""
     if not job["pr"]:
-        find = ["pr", "list", "--head", job["branch"], "--state", "open", "--json", "number,url"]
-        prs = gh_json(*find)
-        if not prs:
-            title, body = pr_text(job)
-            gh("pr", "create", "--base", BASE, "--head", job["branch"], "--title", title, "--body", body)
-            prs = gh_json(*find)
-        require(len(prs) == 1, f"expected one open PR from {job['branch']}, found {len(prs)}")
-        job["pr"], job["pr_url"] = prs[0]["number"], prs[0]["url"]
-        save(job)
+        find_open_pr(job)
+    if not job["pr"]:
+        title, body = pr_text(job)
+        gh("pr", "create", "--base", BASE, "--head", job["branch"], "--title", title, "--body", body)
+        find_open_pr(job)
+        require(job["pr"], f"no open PR from {job['branch']} after opening one")
     if gh_json("pr", "view", str(job["pr"]), "--json", "isDraft")["isDraft"]:
         gh("pr", "ready", str(job["pr"]))
 
@@ -846,6 +853,8 @@ def ready_pr(job):
 def publish_branch(job):
     """Sync with the base branch, push once and ready the PR. False when the job went to needs-human."""
     job_id, rnd = job["id"], job["round"]
+    if not job["pr"]:
+        find_open_pr(job)
     if not job["pr"]:
         try:
             pr_text(job)
@@ -1158,6 +1167,7 @@ def self_check():
     assert findings_problems(review + "- PRRT_a1: MAYBE the loop skips an empty list\n", ["PRRT_a1"])
     assert findings_problems(review + "- PRRT_a1: FIXED the loop skips an empty list\n", ["PRRT_a1", "PRRT_b2"])
     assert findings_problems("VERDICT: PASS\n\n## Remote findings\n- PRRT_a1: OPEN the null case is real\n", ["PRRT_a1"])
+    assert findings_problems(review + "- PRRT_a1: OPEN the null case is real\n- PRRT_a1: FIXED it is not\n", ["PRRT_a1"])
     assert not findings_problems("VERDICT: PASS\n\n## Findings\nNone.\n", [])
     print("self-check passed")
 
