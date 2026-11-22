@@ -83,8 +83,8 @@ pub async fn ensure_first_organizer(
     Ok(FirstOrganizerOutcome::Created)
 }
 
-/// The member that development mode makes first organizer when the settings name none.
-pub fn development_organizer() -> FirstOrganizer {
+/// The member that local mode makes first organizer when the settings name none.
+pub fn local_organizer() -> FirstOrganizer {
     FirstOrganizer {
         mail: "organizer@example.org".to_owned(),
         first_name: "Ada".to_owned(),
@@ -92,8 +92,8 @@ pub fn development_organizer() -> FirstOrganizer {
     }
 }
 
-/// Creates a sign-in link for the oldest active organizer, for a run in development mode. It sends no mail and ignores the limit per address, so frequent restarts keep working.
-pub async fn development_sign_in_link(
+/// Creates a sign-in link for the oldest active organizer, for a run in local mode. It sends no mail and ignores the limit per address, so frequent restarts keep working.
+pub async fn local_sign_in_link(
     pool: &sqlx::PgPool,
     public_url: &PublicUrl,
 ) -> Result<String, sqlx::Error> {
@@ -250,7 +250,7 @@ async fn send_sign_in_link(state: &AppState, mail_address: &str) -> Result<(), s
     else {
         return Ok(());
     };
-    if !state.development_mode
+    if !state.local_mode
         && links_of_the_past_hour(&mut transaction, organizer.id).await?
             >= LINKS_PER_ADDRESS_AND_HOUR
     {
@@ -259,8 +259,8 @@ async fn send_sign_in_link(state: &AppState, mail_address: &str) -> Result<(), s
     let link = store_sign_in_link(&mut transaction, &state.public_url, organizer.id).await?;
     mail::enqueue(&mut transaction, &sign_in_mail(&organizer, &link)).await?;
     transaction.commit().await?;
-    if state.development_mode {
-        tracing::info!(link, "sign-in link for development");
+    if state.local_mode {
+        tracing::info!(link, "sign-in link for local mode");
     }
     Ok(())
 }
@@ -899,9 +899,9 @@ mod tests {
                 assert_eq!(count(&pool, "SELECT count(*) FROM mail_outbox").await, 3);
             }
 
-            async fn request_link_in_development_mode(pool: &PgPool) {
+            async fn request_link_in_local_mode(pool: &PgPool) {
                 let state = AppState {
-                    development_mode: true,
+                    local_mode: true,
                     ..api::testing::state(pool.clone())
                 };
                 let request = Request::post("/api/sign-in-requests")
@@ -912,7 +912,7 @@ mod tests {
             }
 
             #[tokio::test]
-            async fn requested_link_in_the_log_only_in_development_mode() {
+            async fn requested_link_in_the_log_only_in_local_mode() {
                 let logs = crate::test_logs::captured_logs();
                 let database = fresh_database().await;
                 let pool = database.pool();
@@ -922,18 +922,18 @@ mod tests {
                 let secret = link_secret(&pool).await;
                 assert!(!logs.text().contains(&secret), "{}", logs.text());
 
-                request_link_in_development_mode(&pool).await;
+                request_link_in_local_mode(&pool).await;
                 let secret = link_secret(&pool).await;
                 assert!(logs.text().contains(&secret), "{}", logs.text());
             }
 
             #[tokio::test]
-            async fn no_limit_per_address_in_development_mode() {
+            async fn no_limit_per_address_in_local_mode() {
                 let database = fresh_database().await;
                 let pool = database.pool();
                 organizer(&pool).await;
                 for _ in 0..4 {
-                    request_link_in_development_mode(&pool).await;
+                    request_link_in_local_mode(&pool).await;
                 }
                 assert_eq!(links(&pool).await, 4);
                 assert_eq!(count(&pool, "SELECT count(*) FROM mail_outbox").await, 4);
@@ -1084,7 +1084,7 @@ mod tests {
             }
 
             #[tokio::test]
-            async fn development_link_signs_in_the_oldest_active_organizer() {
+            async fn local_link_signs_in_the_oldest_active_organizer() {
                 let database = fresh_database().await;
                 let pool = database.pool();
                 sqlx::query("INSERT INTO members (first_name, last_name, mail, language, active, organizer) VALUES ('Clara', 'Schumann', 'clara@example.org', 'en', false, true)")
@@ -1097,7 +1097,7 @@ mod tests {
                             .await
                             .unwrap();
 
-                let link = development_sign_in_link(&pool, &localhost()).await.unwrap();
+                let link = local_sign_in_link(&pool, &localhost()).await.unwrap();
                 assert!(link.starts_with("http://localhost:8080/sign-in#"), "{link}");
                 let response = redeem(api::testing::state(pool.clone()), secret_of(&link)).await;
                 assert_eq!(response.status(), StatusCode::CREATED);
@@ -1110,12 +1110,12 @@ mod tests {
             }
 
             #[tokio::test]
-            async fn development_link_ignores_the_limit_per_address() {
+            async fn local_link_ignores_the_limit_per_address() {
                 let database = fresh_database().await;
                 let pool = database.pool();
                 organizer(&pool).await;
                 for _ in 0..4 {
-                    development_sign_in_link(&pool, &localhost()).await.unwrap();
+                    local_sign_in_link(&pool, &localhost()).await.unwrap();
                 }
                 assert_eq!(links(&pool).await, 4);
             }

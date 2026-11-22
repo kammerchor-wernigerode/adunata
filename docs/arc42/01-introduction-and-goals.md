@@ -12,7 +12,7 @@ The requirements live as capabilities in [`openspec/specs/`](../../openspec/spec
 |[localization](../../openspec/specs/localization/spec.md)|Languages of the client and of mail, catalogs and date formats|
 |[mail-delivery](../../openspec/specs/mail-delivery/spec.md)|Sending mail through the outbox with encryption and retries|
 |[service-operation](../../openspec/specs/service-operation/spec.md)|Installing, starting, migrating, monitoring and stopping an instance|
-|[development-mode](../../openspec/specs/development-mode/spec.md)|Starting a debug run on `localhost` with a default organizer and sign-in links in the log|
+|[local-mode](../../openspec/specs/local-mode/spec.md)|Starting a debug run on `localhost` with a default organizer and sign-in links in the log|
 |[organizer-access](../../openspec/specs/organizer-access/spec.md)|Signing in and out as an organizer and granting the organizer role|
 |[member-roster](../../openspec/specs/member-roster/spec.md)|The list of members that organizers keep|
 |[gatherings](../../openspec/specs/gatherings/spec.md)|Creating, editing and cancelling gatherings|
