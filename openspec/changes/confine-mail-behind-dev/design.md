@@ -26,9 +26,9 @@ The significant decisions 1, 2, 5 and 9 become one record, ADR 0024 "Mail confin
 
 Draft of ADR 0024:
 
-- Context: a test system often holds a copy of real member data. ADR 0023 left `serve --dev` without effect for a meaning on test systems.
-- Decision: `serve --dev` allows two settings, `mail.confine` and `mail.confine-to`. With `confine = true`, every mail goes to the redirect address, with the original recipient in `X-Original-To`. Without `--dev`, `serve` refuses to start with 78 when either setting is present. With `confine = true` and no valid redirect address, `serve` refuses with 78. `--dev` alone changes nothing and has no guard on the public URL or the listen address. `--dev` and `--local` are independent. We rejected an allowlist, because one mailbox is enough to check a test system.
-- Consequences: a test system sets `--dev` and both settings. A configuration copied to production without `--dev` refuses to start instead of sending mail to members. `healthcheck` and `grant-organizer` accept the settings.
+- Context: an operator who wants to see the mail of an instance without reaching its recipients has no way to stop delivery. ADR 0023 left `serve --dev` without effect. A guard on the public URL would block an instance on another host. A configuration that confines mail must not start on an instance meant to send mail.
+- Decision: `serve --dev` allows two settings, `mail.confine` and `mail.confine-to`. With `confine = true`, every mail goes to the redirect address, with the original recipient in `X-Original-To`. Without `--dev`, `serve` refuses to start with 78 when either setting is present. With `confine = true` and no valid redirect address, `serve` refuses with 78. `--dev` alone changes nothing and has no guard on the public URL or the listen address. `--dev` and `--local` are independent. We rejected an allowlist, because one mailbox is enough to see every mail an instance sends.
+- Consequences: an operator who wants confined mail sets `--dev` and both settings. A configuration with the settings but without `--dev` refuses to start instead of ignoring them. The redirect mailbox receives working links. `healthcheck` and `grant-organizer` accept the settings.
 
 ## arc42
 
