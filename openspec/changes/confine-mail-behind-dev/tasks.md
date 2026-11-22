@@ -20,6 +20,6 @@
 ## 4. Documentation
 
 - [x] 4.1 Describe `mail.confine` and `mail.confine-to` in the table of `docs/operating/configuration.md`, noting that they need `serve --dev`
-- [x] 4.2 Describe `serve --dev` and mail confinement for test systems in `docs/operating/installation.md` next to local mode
+- [x] 4.2 Describe `serve --dev` and mail confinement in `docs/operating/installation.md` next to local mode
 - [x] 4.3 Write `docs/decisions/0024-mail-confinement-behind-serve-dev.md` from the draft in design.md and list it in `docs/arc42/09-architecture-decisions.md`
 - [x] 4.4 Update `docs/arc42/05-building-block-view.md` and `docs/arc42/08-cross-cutting-concepts.md` as design.md names

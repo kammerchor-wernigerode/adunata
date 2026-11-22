@@ -2,7 +2,7 @@
 
 ## Why
 
-A test system often holds a copy of real member data. Every invitation or sign-in link it sends then reaches real members, and Adunata has no way to keep that mail away from them. Since local mode moved to `serve --local`, the option `serve --dev` is free and accepted without effect, so it can carry this protection.
+An instance that holds real member addresses sends every invitation or sign-in link to those members, and Adunata has no way to keep that mail away from them. Since local mode moved to `serve --local`, the option `serve --dev` is free and accepted without effect, so it can carry this protection.
 
 ## What Changes
 

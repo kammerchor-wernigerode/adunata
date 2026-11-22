@@ -27,7 +27,7 @@ The setting `confine` in the table `mail` SHALL turn mail confinement on with `t
 - **WHEN** an operator starts `serve --dev` with the public URL `https://test.example.org` and without the confinement settings
 - **THEN** Adunata starts and delivers mail to its recipients as `serve` does
 
-#### Scenario: Healthcheck of a confined test system
+#### Scenario: Healthcheck of a confined instance
 - **WHEN** the settings hold `ADNT_MAIL_CONFINE=true` and `ADNT_MAIL_CONFINE_TO=test@example.org` and an operator runs `healthcheck` against a ready instance
 - **THEN** `healthcheck` exits with 0
 
