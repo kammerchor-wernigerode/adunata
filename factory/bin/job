@@ -786,8 +786,8 @@ def await_checks(job):
         idle = bool(checks) and all(c["bucket"] != "pending" for c in checks)
         if idle and stalled and not restarted:
             if load(job["id"])["stage"] == "merging":
-                run(["gh", "pr", "ready", "--undo", str(job["pr"])], check=False)
-                restarted = run(["gh", "pr", "ready", str(job["pr"])], check=False).returncode == 0
+                drafted = run(["gh", "pr", "ready", "--undo", str(job["pr"])], check=False).returncode == 0
+                restarted = drafted and run(["gh", "pr", "ready", str(job["pr"])], check=False).returncode == 0
             unlock(job["id"])
         stalled = idle
         time.sleep(ci["poll_seconds"])
