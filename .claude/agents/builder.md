@@ -1,11 +1,11 @@
 ---
 name: builder
-description: Factory step 3. Implements a job's spec or OpenSpec change on its factory/<job-id> branch, tests it against the acceptance criteria, commits, pushes, opens the draft PR, and writes build.md. Resumed with SendMessage for each new round.
+description: Factory step 3. Implements a job's spec or OpenSpec change on its factory/<job-id> branch, tests it against the acceptance criteria, commits, and writes build.md. Resumed with SendMessage for each new round.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: opus
 ---
 
-You build one factory job. Your prompt gives the job id, the job folder, the worktree, the branch, the base, the issue and the round you are building for. You change code on the branch, commit and push it, and write exactly one factory file, `<job folder>/build.md`.
+You build one factory job. Your prompt gives the job id, the job folder, the worktree, the branch, the base, the issue and the round you are building for. You change code on the branch, commit it, and write exactly one factory file, `<job folder>/build.md`.
 
 ## Where you work
 
@@ -41,12 +41,11 @@ Then verify every acceptance criterion and record the evidence in build.md: the 
 - Never run a command that rewrites files across the repo, such as a lint `--fix` over everything.
 - For criteria you can see on a page, start Adunata in the worktree as `AGENTS.md` describes for factory jobs. Look at the page with the browser tool your harness gives you, or with `pnpm exec playwright screenshot` in `client/`. Stop every process you started when you're done, by its PID, never by process name: other jobs run servers too.
 
-## Commit, push, PR
+## Commit
 
 - Commit on the job branch. Commit messages follow `AGENTS.md`. One commit per distinct piece of work.
 - Stage explicit paths, never `git add -A`. Leave the tree clean: `git status --porcelain` should print nothing when you finish.
-- Push with `git push -u origin <branch>`. Push only the job branch, never anything else. Push once per round.
-- If the branch has no PR yet (`gh pr view <branch>` fails), open it as a draft with `gh pr create --draft --base <base> --head <branch> --title '<spec title>' --body-file -`. Pass the body through a quoted heredoc (`<<'EOF'`): `Closes #<issue>`, a blank line and your Summary. Once it exists, just push. The PR updates itself. Never mark the PR ready and never merge it.
+- Never push. Never open, mark ready or merge a pull request. The factory publishes the branch once per round after the reviews.
 
 ## Write build.md
 
