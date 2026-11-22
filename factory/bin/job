@@ -12,7 +12,8 @@ Usage:
   job advance <job> <stage>      move a job to <stage>, or refuse
   job merge <job>                APPROVE → sync with the base branch, gate, mark the PR ready,
                                  wait for CI and CodeRabbit, then merge or send the job back
-  job feedback <job>             needs-human → build, with your feedback (stdin) as feedback-<k>.md
+  job feedback <job>             needs-human, approve or merging → build, with your feedback (stdin)
+                                 as feedback-<k>.md; an approved job escalates with it first
   job reject <job>               needs-info or needs-human → rejected, with your reason (stdin) as rejection.md
   job agents <job> <json>        record the routed agent set (called by factory/bin/route)
   job sync <job>                 refresh reviews, gate and cost from the job's files
@@ -124,6 +125,11 @@ def save(job):
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(job, indent=2) + "\n")
     tmp.replace(path)
+
+
+def stage_of(job_id):
+    """The saved stage, read without the lock that a long `job merge` gave up."""
+    return json.loads((job_dir(job_id) / "job.json").read_text())["stage"]
 
 
 def all_jobs():
@@ -664,9 +670,12 @@ def cmd_merge(job):
         return
 
     def fail(why):
-        escalate(job, why)
-        save(advance(sync(job), "needs-human"))
-        print(f"{job['id']}: needs-human: {why.splitlines()[0]}")
+        current = load(job["id"])
+        if current["stage"] != "merging":
+            die(f"{current['id']} moved to {current['stage']} while merging")
+        escalate(current, why)
+        save(advance(sync(current), "needs-human"))
+        print(f"{current['id']}: needs-human: {why.splitlines()[0]}")
 
     job_id = job["id"]
     unlock(job_id)  # the gate and the wait for CI take long; other commands go on meanwhile
@@ -682,6 +691,8 @@ def cmd_merge(job):
                         f"See round-{job['round']}/merge-checks.md.\n\n{gate.stdout.strip()}")
         # Saved before the PR goes ready, so a resumed run still counts the first bot review.
         job = load(job_id)
+        if job["stage"] != "merging":
+            die(f"{job_id} moved to {job['stage']} during the gate")
         if not job.get("ci_since"):  # a second `job merge` may have set it meanwhile
             job["ci_since"] = now()
             save(job)
@@ -689,6 +700,8 @@ def cmd_merge(job):
     head = git(job, "rev-parse", "HEAD").stdout.strip()
     try:
         push(job, head)
+        if stage_of(job_id) != "merging":
+            die(f"{job_id} moved to {stage_of(job_id)} while pushing")
         if gh_json("pr", "view", str(job["pr"]), "--json", "isDraft")["isDraft"]:
             gh("pr", "ready", str(job["pr"]))
     except Refused as e:
@@ -753,11 +766,14 @@ def await_checks(job):
     When two polls in a row find nothing pending but a `ci.wait_for` check
     missing, no run will report it, as after a run that saw the PR as a draft.
     Converting the PR to draft and back to ready then starts one, once per wait.
+    The wait ends early when the job leaves `merging`, as after `job feedback`.
     """
     ci = CONFIG["ci"]
     deadline = time.monotonic() + ci["timeout_minutes"] * 60
     stalled, restarted = False, False
     while True:
+        if stage_of(job["id"]) != "merging":
+            return None
         res = run(["gh", "pr", "checks", str(job["pr"]), "--json", "name,bucket,link"], check=False)
         checks = json.loads(res.stdout) if res.stdout.strip().startswith("[") else []
         done = {c["name"] for c in checks if c["bucket"] != "pending"}
@@ -766,7 +782,7 @@ def await_checks(job):
         if time.monotonic() > deadline:
             return None
         idle = bool(checks) and all(c["bucket"] != "pending" for c in checks)
-        if idle and stalled and not restarted:
+        if idle and stalled and not restarted and stage_of(job["id"]) == "merging":
             run(["gh", "pr", "ready", "--undo", str(job["pr"])], check=False)
             run(["gh", "pr", "ready", str(job["pr"])], check=False)
             restarted = True
@@ -828,17 +844,24 @@ def write_ci_md(job, verdict, checks, failed, threads, remarks):
 
 
 def cmd_feedback(job, text):
-    if job["stage"] != "needs-human":
-        die(f"{job['id']} is in {job['stage']}, not needs-human")
+    """Send a job back to the builder. An approved job escalates first, with
+    the person's feedback replacing the approver's decision."""
+    approved = job["stage"] in {"approve", "merging"}
+    if job["stage"] != "needs-human" and not approved:
+        die(f"{job['id']} is in {job['stage']}, not needs-human, approve or merging")
     if not text.strip():
         die("no feedback on stdin")
     try:
         require_slot(job["id"])
     except Refused as e:
         die(f"{e}; the job keeps waiting")
+    if approved:
+        escalate(job, f"@{operator()} sent the job back after approval:\n\n{text.strip()}")
+        save(advance(sync(job), "needs-human"))
     d = job_dir(job["id"])
     k = len(list(d.glob("feedback-*.md"))) + 1
-    (d / f"feedback-{k}.md").write_text(f"# Feedback {k}\n\nFrom @{operator()} after the job escalated.\n\n{text.strip()}\n")
+    after = "approval" if approved else "the job escalated"
+    (d / f"feedback-{k}.md").write_text(f"# Feedback {k}\n\nFrom @{operator()} after {after}.\n\n{text.strip()}\n")
     save(advance(sync(job), "build"))
     print(f"{job['id']}: feedback-{k}.md, round {job['round']}")
 

@@ -134,7 +134,7 @@ Anything else after `/factory` is the user talking to the factory. Work out what
 
 - **A question** (status, cost, why a job escalated, what a reviewer said): answer from `factory/bin/job summary`, `job.json` and the job's files. Here you may read a file in full when the answer is in it.
 - **What needs them**: run `factory/bin/job queue`. For each `wait` line, say what the job is waiting for: the question in `decision.md` for `needs-human`, the question in `intake.md` for `needs-info`.
-- **Feedback on a `needs-human` job**: pass their words verbatim on stdin:
+- **Feedback on a `needs-human`, `approve` or `merging` job**: pass their words verbatim on stdin. A `factory/bin/job merge` still running for the job stops by itself:
 
   ```bash
   factory/bin/job feedback <n> <<'EOF'
@@ -142,7 +142,7 @@ Anything else after `/factory` is the user talking to the factory. Work out what
   EOF
   ```
 
-  It saves `feedback-<k>.md` and starts the next round with a fresh round budget. Go to **build** with `The user gave feedback: read feedback-<k>.md and address it, push, and update build.md for round <N>.` and continue like any job.
+  It saves `feedback-<k>.md` and starts the next round with a fresh round budget. An approved job first goes to `needs-human`, with their words replacing the approver's decision in `decision.md`. Go to **build** with `The user gave feedback: read feedback-<k>.md and address it, push, and update build.md for round <N>.` and continue like any job.
 - **Rejecting or benching a `needs-info` or `needs-human` job**: pass their reason verbatim on stdin:
 
   ```bash
