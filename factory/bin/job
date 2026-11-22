@@ -497,12 +497,15 @@ def push_before_escalation(job):
     reload_unless_moved(job["id"], job["stage"], job["round"])
     if outcome == "timeout":
         return False
+    head = local_head(job)
     try:
-        head = local_head(job)
         push_head(job, head)
-        wait_for_run(job, head)
     except Refused:
         return False
+    try:
+        wait_for_run(job, head)
+    except Refused:
+        pass
     return True
 
 
