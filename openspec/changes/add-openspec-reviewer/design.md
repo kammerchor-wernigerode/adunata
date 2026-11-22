@@ -106,7 +106,7 @@ The reviewer runs three checks that the skill lacks and that `reviewer-code` doe
 
 - For each ticked task of `tasks.md`, the diff of the branch shows the work that the task describes. The skill only counts checkboxes, so a task that is ticked and not done would pass it.
 - `openspec validate <name>` passes.
-- The proposal, the design and the delta specs are unchanged since the spec writer's commit, apart from ticked tasks and edits that a `feedback-*.md` asks for. The reviewer checks those edits against the feedback.
+- The proposal, the design, the delta specs and `tasks.md` are unchanged since the spec writer's commit, apart from ticked checkboxes and edits that a `feedback-*.md` asks for. A task that is deleted or reworded counts as a change, because the skill and the check above see only the tasks that remain. The reviewer checks those edits against the feedback.
 
 A `feedback-*.md` still wins over the change where they disagree, as for every other agent of the factory.
 
