@@ -281,21 +281,29 @@ async fn resend(_: Organizer, State(state): State<AppState>, Path(id): Path<i64>
     }
 }
 
-/// Stores the hash of a new secret in place of the old one, so the old link stops working in the same transaction, and queues a mail with the new link.
+/// Stores the hash of a new secret in place of the old one, so the old link stops working in the same transaction, and queues a mail with the new link. It locks the gathering before the invitation, in the order of a reminder, so the two never deadlock.
 async fn resend_invitation(state: &AppState, id: i64) -> Result<Outcome<()>, sqlx::Error> {
     let mut transaction = state.pool.begin().await?;
-    let found: Option<(i64, i64)> =
-        sqlx::query_as("SELECT gathering_id, member_id FROM invitations WHERE id = $1 FOR UPDATE")
+    let gathering_id: Option<i64> =
+        sqlx::query_scalar("SELECT gathering_id FROM invitations WHERE id = $1")
             .bind(id)
             .fetch_optional(&mut *transaction)
             .await?;
-    let Some((gathering_id, member_id)) = found else {
+    let Some(gathering_id) = gathering_id else {
         return Ok(Outcome::NotFound);
     };
     let gathering = match open_gathering(&mut transaction, gathering_id, state).await? {
         Ok(gathering) => gathering,
         Err(Outcome::Closed(code)) => return Ok(Outcome::Closed(code)),
         Err(_) => return Ok(Outcome::NotFound),
+    };
+    let member_id: Option<i64> =
+        sqlx::query_scalar("SELECT member_id FROM invitations WHERE id = $1 FOR UPDATE")
+            .bind(id)
+            .fetch_optional(&mut *transaction)
+            .await?;
+    let Some(member_id) = member_id else {
+        return Ok(Outcome::NotFound);
     };
     let Some(member) = members::find(&mut transaction, member_id).await? else {
         return Ok(Outcome::NotFound);
