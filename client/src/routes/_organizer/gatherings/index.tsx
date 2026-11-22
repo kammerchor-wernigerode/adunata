@@ -4,7 +4,9 @@ import { PageTitle } from '@/components/PageTitle'
 import { Button } from '@/components/ui/button'
 import { useTranslate } from '@/l10n/translate'
 import { dataOf } from '@/lib/dataOf'
+import { GatheringList } from './-components/GatheringList'
 import { GatheringSection } from './-components/GatheringSection'
+import { PastYears } from './-components/PastYears'
 
 export const Route = createFileRoute('/_organizer/gatherings/')({
   loader: ({ context: { queryClient } }) => queryClient.query(getListGatheringsQueryOptions()),
@@ -28,8 +30,12 @@ function GatheringListPage() {
       />
       {list && (
         <>
-          <GatheringSection title={translate('gatherings-upcoming')} gatherings={list.upcoming} />
-          <GatheringSection title={translate('gatherings-past')} gatherings={list.past} />
+          <GatheringSection title={translate('gatherings-upcoming')} gatherings={list.upcoming}>
+            <GatheringList gatherings={list.upcoming} />
+          </GatheringSection>
+          <GatheringSection title={translate('gatherings-past')} gatherings={list.past}>
+            <PastYears gatherings={list.past} />
+          </GatheringSection>
         </>
       )}
     </>

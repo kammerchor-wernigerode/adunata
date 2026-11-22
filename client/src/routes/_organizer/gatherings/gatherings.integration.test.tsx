@@ -18,6 +18,10 @@ import { setupApiServer } from '@/testing/server'
 
 const server = setupApiServer()
 
+beforeEach(() => {
+  localStorage.clear()
+})
+
 const march: Gathering = {
   id: 1,
   title: 'Rehearsal weekend in March',
@@ -30,6 +34,12 @@ const march: Gathering = {
 }
 const april: Gathering = { ...march, id: 2, title: 'Concert in April', firstDay: '2027-04-30', lastDay: '2027-05-02' }
 const autumn: Gathering = { ...march, id: 3, title: 'Autumn camp', firstDay: '2026-10-01', lastDay: '2026-10-04', ended: true }
+const spring2026: Gathering = { ...march, id: 11, title: 'Spring concert', firstDay: '2026-04-18', lastDay: '2026-04-19', ended: true }
+const newYear: Gathering = { ...march, id: 12, title: 'New Year retreat', firstDay: '2025-12-30', lastDay: '2026-01-02', ended: true }
+const summer2025: Gathering = { ...march, id: 13, title: 'Summer tour', firstDay: '2025-07-04', lastDay: '2025-07-06', cancelled: true, ended: true }
+const autumn2024: Gathering = { ...march, id: 14, title: 'Autumn camp 2024', firstDay: '2024-10-03', lastDay: '2024-10-06', ended: true }
+const pastYears = [spring2026, newYear, summer2025, autumn2024]
+const pastWithoutCurrentYear = [newYear, summer2025, autumn2024]
 const emptyOverview = { rows: [], totals: { accepted: 0, tentative: 0, declined: 0, pending: 0, bedsNeeded: 0, bedsOffered: 0 } }
 
 /** Asserts that the page action follows the main heading outside of it, before any other control. */
@@ -79,6 +89,105 @@ describe('gathering list', () => {
     expectPageAction(heading, create)
     expect(create.getAttribute('href')).toBe('/gatherings/new')
     expect(document.title).toMatch(/^Gatherings · /)
+  })
+})
+
+/** Renders the gathering list with the given past gatherings and returns its section "Past". */
+async function renderPast(past: Gathering[]) {
+  signedIn()
+  server.use(getListGatheringsMockHandler({ upcoming: [], past }))
+  const rendered = renderApp('/gatherings')
+  const section = (await screen.findByRole('heading', { level: 2, name: 'Past' })).closest('section')!
+  return { ...rendered, section }
+}
+
+function yearTrigger(section: HTMLElement, year: string) {
+  return within(section).getByRole('button', { name: new RegExp(`^${year} `) })
+}
+
+function openYears(section: HTMLElement) {
+  return within(section)
+    .getAllByRole('button')
+    .filter((button) => button.getAttribute('aria-expanded') === 'true')
+    .map((button) => button.textContent.slice(0, 4))
+}
+
+function shownTitles(section: HTMLElement) {
+  return within(section).queryAllByRole('link').map((link) => link.textContent)
+}
+
+describe('past gatherings by year', () => {
+  it('shows the years latest first with their number of gatherings', async () => {
+    const { container, section } = await renderPast(pastYears)
+    expect(within(section).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      '2026 1 gathering',
+      '2025 2 gatherings',
+      '2024 1 gathering',
+    ])
+    expect(await violations(container)).toEqual([])
+  })
+
+  it('opens only the latest year on a first visit', async () => {
+    const { section } = await renderPast(pastWithoutCurrentYear)
+    expect(openYears(section)).toEqual(['2025'])
+    expect(yearTrigger(section, '2024').getAttribute('aria-expanded')).toBe('false')
+    expect(shownTitles(section)).toEqual(['New Year retreat', 'Summer tour'])
+  })
+
+  it('opens several years at once', async () => {
+    const { section } = await renderPast(pastWithoutCurrentYear)
+    await userEvent.click(yearTrigger(section, '2024'))
+    expect(openYears(section)).toEqual(['2025', '2024'])
+    expect(shownTitles(section)).toEqual(['New Year retreat', 'Summer tour', 'Autumn camp 2024'])
+  })
+
+  it('hides the gatherings of a closed year but keeps its count', async () => {
+    const { section } = await renderPast(pastWithoutCurrentYear)
+    await userEvent.click(yearTrigger(section, '2025'))
+    expect(yearTrigger(section, '2025').getAttribute('aria-expanded')).toBe('false')
+    expect(yearTrigger(section, '2025').textContent).toBe('2025 2 gatherings')
+    expect(shownTitles(section)).toEqual([])
+  })
+
+  it('remembers the years the organizer opened or closed', async () => {
+    const first = await renderPast(pastWithoutCurrentYear)
+    await userEvent.click(yearTrigger(first.section, '2025'))
+    await userEvent.click(yearTrigger(first.section, '2024'))
+    first.unmount()
+    const { section } = await renderPast(pastWithoutCurrentYear)
+    expect(openYears(section)).toEqual(['2024'])
+    expect(shownTitles(section)).toEqual(['Autumn camp 2024'])
+  })
+
+  it('opens a new latest year next to the remembered ones', async () => {
+    localStorage.setItem('adunata.past-years', JSON.stringify({ 2025: false, 2024: true }))
+    const { section } = await renderPast(pastYears)
+    expect(openYears(section)).toEqual(['2026', '2024'])
+  })
+
+  it('treats an unreadable entry as no choice', async () => {
+    localStorage.setItem('adunata.past-years', 'not json')
+    const { section } = await renderPast(pastYears)
+    expect(openYears(section)).toEqual(['2026'])
+  })
+
+  it('lists a gathering over New Year in the year of its first day', async () => {
+    const { section } = await renderPast(pastWithoutCurrentYear)
+    const year2025 = yearTrigger(section, '2025').closest('[data-slot="collapsible"]') as HTMLElement
+    expect(within(year2025).getByRole('link', { name: 'New Year retreat' })).toBeTruthy()
+  })
+
+  it('shows the badge and the date line of a cancelled gathering', async () => {
+    const { section } = await renderPast(pastWithoutCurrentYear)
+    const row = within(section).getByRole('link', { name: 'Summer tour' }).closest('li')!
+    expect(within(row).getByText('Cancelled')).toBeTruthy()
+    expect(within(row).getByText(/Drübeck Abbey/).textContent).toContain('2025')
+  })
+
+  it('shows no year without past gatherings', async () => {
+    const { section } = await renderPast([])
+    expect(within(section).queryAllByRole('heading', { level: 3 })).toEqual([])
+    expect(within(section).getByText('None yet.')).toBeTruthy()
   })
 })
 
