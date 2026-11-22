@@ -13,6 +13,11 @@
     "medium": { "code": "sonnet" },
     "high":   { "code": "sonnet" }
   },
+  "change_reviewers": {
+    "low":    { "openspec": "haiku" },
+    "medium": { "openspec": "sonnet" },
+    "high":   { "openspec": "sonnet" }
+  },
   "surface_reviewers": {
     "ui": { "ux": "sonnet", "ui": "haiku" },
     "security": { "security": "opus" }
