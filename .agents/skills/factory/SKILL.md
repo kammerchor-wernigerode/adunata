@@ -105,7 +105,7 @@ Each step below runs when the previous agent or script finishes. Report one shor
 
 **approve.** When the approver returns, read `decision.md`'s first line:
 
-- `APPROVE`: run `factory/bin/job merge <id>` in the background. It syncs the branch with the base, runs the gate again, pushes, marks the PR ready and waits until CI and CodeRabbit are done, for up to `ci.timeout_minutes`. Then it prints one line:
+- `APPROVE`: run `factory/bin/job merge <id>` in the background. It syncs the branch with the base, runs the gate again, pushes, marks the PR ready once CI has started a run for the pushed commit and waits until CI and CodeRabbit are done, for up to `ci.timeout_minutes`. If no run reports a check of `ci.wait_for`, it converts the PR to draft and back to ready once to start one. Then it prints one line:
   - `merged PR #<pr>`: the job is done.
   - `CI FAIL …, round <N>`: the job is back in build. Resume the builder: `CI or CodeRabbit objected: read round-<N-1>/ci.md, fix every failing check, handle every review thread, push, and update build.md for round <N>.`
   - `needs-human: …`: a conflict, a failing gate, a timeout or the last round. The job waits on the user.

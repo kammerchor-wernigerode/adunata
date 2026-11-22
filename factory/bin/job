@@ -56,6 +56,7 @@ TERMINAL = {"merged", "rejected"}
 # whether the factory merged it or a person did mid-round.
 WAITING = {"needs-info", "needs-human"}
 CONCURRENCY = CONFIG["concurrency"]
+RUN_START_SECONDS = 120
 
 
 class Refused(Exception):
@@ -687,7 +688,7 @@ def cmd_merge(job):
         unlock(job_id)
     head = git(job, "rev-parse", "HEAD").stdout.strip()
     try:
-        git(job, "push", "origin", job["branch"])
+        push(job, head)
         if gh_json("pr", "view", str(job["pr"]), "--json", "isDraft")["isDraft"]:
             gh("pr", "ready", str(job["pr"]))
     except Refused as e:
@@ -726,10 +727,36 @@ def cmd_merge(job):
     print(f"{job['id']}: merged PR #{job['pr']}")
 
 
+def push(job, head):
+    """Push the branch and wait until CI has started a run for the new head.
+
+    Marking the PR ready only after that run started makes the ready run the
+    newer one, which the `concurrency` group of the CI workflow keeps. A ready
+    run that starts in the same second as the push may lose to the draft run.
+    """
+    remote = git(job, "ls-remote", "origin", f"refs/heads/{job['branch']}").stdout.split()
+    git(job, "push", "origin", job["branch"])
+    if remote and remote[0] == head:
+        return
+    deadline = time.monotonic() + RUN_START_SECONDS
+    while time.monotonic() < deadline:
+        runs = gh_json("run", "list", "--branch", job["branch"], "--commit", head,
+                       "--event", "pull_request", "--json", "databaseId")
+        if runs:
+            return
+        time.sleep(5)
+
+
 def await_checks(job):
-    """Poll the PR's checks until every `ci.wait_for` check has finished."""
+    """Poll the PR's checks until every `ci.wait_for` check has finished.
+
+    When two polls in a row find nothing pending but a `ci.wait_for` check
+    missing, no run will report it, as after a run that saw the PR as a draft.
+    Converting the PR to draft and back to ready then starts one, once per wait.
+    """
     ci = CONFIG["ci"]
     deadline = time.monotonic() + ci["timeout_minutes"] * 60
+    stalled, restarted = False, False
     while True:
         res = run(["gh", "pr", "checks", str(job["pr"]), "--json", "name,bucket,link"], check=False)
         checks = json.loads(res.stdout) if res.stdout.strip().startswith("[") else []
@@ -738,6 +765,12 @@ def await_checks(job):
             return checks
         if time.monotonic() > deadline:
             return None
+        idle = bool(checks) and all(c["bucket"] != "pending" for c in checks)
+        if idle and stalled and not restarted:
+            run(["gh", "pr", "ready", "--undo", str(job["pr"])], check=False)
+            run(["gh", "pr", "ready", str(job["pr"])], check=False)
+            restarted = True
+        stalled = idle
         time.sleep(ci["poll_seconds"])
 
 
