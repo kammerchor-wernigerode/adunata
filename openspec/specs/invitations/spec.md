@@ -25,11 +25,15 @@ An organizer SHALL be able to invite all active members who are not yet invited 
 - **THEN** Adunata invites only the new member
 
 ### Requirement: Invitation mail
-The invitation mail SHALL name the gathering, its location and its span and SHALL contain the member's personal link. It SHALL be written in the member's language. It SHALL link the privacy notice and the imprint when the operator configured them.
+The invitation mail SHALL name the gathering, its location and its span and SHALL contain the member's personal link. Its subject SHALL name the title and the span of the gathering, separated by a comma. It SHALL be written in the member's language. It SHALL link the privacy notice and the imprint when the operator configured them.
 
 #### Scenario: Mail content
 - **WHEN** Adunata sends an invitation to a member whose language is German
 - **THEN** the mail is in German and contains the title, location, span and personal link of the gathering
+
+#### Scenario: Subject names title and span
+- **WHEN** Adunata sends an invitation for the gathering "Probenwochenende" from 12 to 14 March 2027 to a member whose language is German
+- **THEN** the subject of the mail is `Einladung: Probenwochenende, 12.–14. März 2027`
 
 ### Requirement: Personal link
 Each invitation SHALL have its own link that identifies it through a random secret of at least 128 bits. Adunata SHALL store only a hash of the secret. The link SHALL grant access to that one invitation and nothing else.
