@@ -30,6 +30,7 @@ const weekend: Gathering = {
   firstDay: '2027-03-12',
   lastDay: '2027-03-14',
   cancelled: false,
+  begun: false,
   ended: false,
 }
 const base: OverviewRow = {
@@ -180,7 +181,7 @@ describe('overview', () => {
   })
 
   it('shows the notice without the resend action on an ended gathering', async () => {
-    const { container } = organizerPage({ ...weekend, ended: true })
+    const { container } = organizerPage({ ...weekend, begun: true, ended: true })
     const sophie = await actionsOf('Sophie Graf')
     expect(sophie.firstElementChild?.textContent).toBe('Actions')
     expect(within(sophie).getByText(/mail failed/)).toBeTruthy()
@@ -265,7 +266,8 @@ describe('remind pending members', () => {
 
   it.each([
     ['cancelled', { ...weekend, cancelled: true }],
-    ['ended', { ...weekend, ended: true }],
+    ['ended', { ...weekend, begun: true, ended: true }],
+    ['begun', { ...weekend, begun: true }],
   ])('offers no reminder for a %s gathering', async (_, gathering) => {
     organizerPage(gathering, remindOverview)
     await screen.findByRole('table')
@@ -299,7 +301,7 @@ describe('download the overview', () => {
 
   it.each([
     ['cancelled', { ...weekend, cancelled: true }],
-    ['ended', { ...weekend, ended: true }],
+    ['ended', { ...weekend, begun: true, ended: true }],
   ])('keeps the link for a %s gathering', async (_, gathering) => {
     organizerPage(gathering)
     expect(await screen.findByRole('link', { name: 'Download CSV' })).toBeTruthy()
