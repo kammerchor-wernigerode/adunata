@@ -93,13 +93,13 @@ describe('member list', () => {
     expect(names()).toEqual(['Lovelace, Ada', 'Schumann, Clara'])
   })
 
-  it('copies a member as a mail recipient and confirms it', async () => {
+  it('copies the mail address of a member and confirms it', async () => {
     signedIn()
     const user = userEvent.setup()
     const { container } = renderApp('/members')
     await screen.findByRole('link', { name: 'Lovelace, Ada' })
     await user.click(copyButton('Lovelace, Ada'))
-    expect(await navigator.clipboard.readText()).toBe('Ada Lovelace <ada@example.org>')
+    expect(await navigator.clipboard.readText()).toBe('ada@example.org')
     const button = copyButton('Lovelace, Ada')
     expect(button.getAttribute('aria-label')).toBe('Mail address copied')
     expect(button.querySelector('.lucide-check')).not.toBeNull()
@@ -127,14 +127,14 @@ describe('member list', () => {
   })
 
   it.each([
-    [{ firstName: 'Ada', lastName: 'Lovelace, Countess' }, '"Ada Lovelace, Countess" <ada@example.org>'],
-    [{ firstName: 'Ada "Bird"', lastName: 'Lovelace' }, '"Ada \\"Bird\\" Lovelace" <ada@example.org>'],
-  ])('quotes the name %o when it would split the recipient', async (name, recipient) => {
+    [{ firstName: 'Ada', lastName: 'Lovelace, Countess' }],
+    [{ firstName: 'Ada "Bird"', lastName: 'Lovelace' }],
+  ])('copies only the mail address for the name %o', async (name) => {
     signedIn([{ ...ada, ...name }])
     const user = userEvent.setup()
     renderApp('/members')
     await user.click(await screen.findByRole('button', { name: 'Copy mail address' }))
-    expect(await navigator.clipboard.readText()).toBe(recipient)
+    expect(await navigator.clipboard.readText()).toBe('ada@example.org')
   })
 
   it('offers to copy the mail address of an inactive member', async () => {
