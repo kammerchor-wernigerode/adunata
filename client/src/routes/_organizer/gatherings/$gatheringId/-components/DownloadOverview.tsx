@@ -8,7 +8,7 @@ export function DownloadOverview({ gatheringId }: { gatheringId: number }) {
   const { locale } = useLocale()
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <Button asChild variant="outline" size="sm">
+      <Button asChild variant="outline">
         <a href={`/api/gatherings/${gatheringId}/overview.csv?language=${locale}`} aria-describedby="download-overview-notice">
           <Download aria-hidden="true" />
           {translate('overview-download')}
