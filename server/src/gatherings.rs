@@ -249,12 +249,16 @@ async fn change(
     Ok(Json(Gathering::from_row(row, today)).into_response())
 }
 
-/// Marks a gathering as cancelled unless it is cancelled already or has ended. Returns the gathering as it was cancelled, or `None` when nothing changed.
+/// Marks a gathering as cancelled unless it is cancelled already or has ended. Locks the row first, so the time of the change follows any edit that held the lock. Returns the gathering as it was cancelled, or `None` when nothing changed.
 pub async fn cancel(
     connection: &mut PgConnection,
     id: i64,
     today: Date,
 ) -> Result<Option<Gathering>, sqlx::Error> {
+    sqlx::query("SELECT 1 FROM gatherings WHERE id = $1 FOR UPDATE")
+        .bind(id)
+        .execute(&mut *connection)
+        .await?;
     let query = format!(
         "UPDATE gatherings SET cancelled_at = now(), version = version + 1, changed_at = statement_timestamp() WHERE id = $1 AND cancelled_at IS NULL AND last_day >= $2 RETURNING {COLUMNS}"
     );
