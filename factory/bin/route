@@ -12,7 +12,9 @@ change. `CHANGE: none` adds nothing. A risk that `change_reviewers` lacks is an
 error in both stages. Prints the agent set.
 """
 
+import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -20,6 +22,7 @@ from pathlib import Path
 
 FACTORY = Path(__file__).resolve().parents[1]
 CONFIG = json.loads((FACTORY / "config.json").read_text())
+JOBS = Path(os.environ.get("FACTORY_JOBS") or FACTORY / "jobs")
 CHANGE_LINE = re.compile(r"^CHANGE:[ \t]*(\S+)[ \t]*$", re.MULTILINE)
 VERIFY_SKILL = ".agents/skills/openspec-verify-change/SKILL.md"
 
@@ -30,13 +33,14 @@ def die(msg):
 
 
 def named_change(job_id):
-    spec = FACTORY / "jobs" / job_id / "spec.md"
+    spec = JOBS / job_id / "spec.md"
     if not spec.exists():
         die(f"{job_id} has no spec.md")
-    match = CHANGE_LINE.search(spec.read_text())
+    content = spec.read_bytes()
+    match = CHANGE_LINE.search(content.decode().replace("\r\n", "\n"))
     if match is None:
         die(f"{spec} has no line 'CHANGE: <name>' or 'CHANGE: none'")
-    return None if match.group(1) == "none" else match.group(1)
+    return (None if match.group(1) == "none" else match.group(1)), hashlib.sha256(content).hexdigest()
 
 
 def main(argv):
@@ -47,7 +51,7 @@ def main(argv):
     res = subprocess.run([job_bin, "sync", job_id], capture_output=True, text=True)
     if res.returncode != 0:
         die(res.stderr.strip())
-    job = json.loads((FACTORY / "jobs" / job_id / "job.json").read_text())
+    job = json.loads((JOBS / job_id / "job.json").read_text())
     intake = job["intake"] or die(f"{job_id} has no intake.md")
     risk = CONFIG["routing"].get(intake["risk"]) or die(
         f"risk {intake['risk']!r} isn't in config.json routing ({', '.join(CONFIG['routing'])})")
@@ -59,12 +63,15 @@ def main(argv):
         if extra is None:
             die(f"surface {surface!r} isn't in config.json surface_reviewers ({', '.join(CONFIG['surface_reviewers'])})")
         reviewers.update(extra)
-    if job["stage"] == "spec" and named_change(job_id):
+    agents = {"reviewers": reviewers}
+    change, spec_sha256 = named_change(job_id) if job["stage"] == "spec" else (None, None)
+    if change:
         skill = Path(job["worktree"]) / VERIFY_SKILL
         if not skill.exists():
             die(f"{skill} doesn't exist; run `openspec update` with the profile custom, see openspec/README.md")
         reviewers.update(change_risk)
-    agents = {"reviewers": reviewers}
+    if spec_sha256:
+        agents["spec_sha256"] = spec_sha256
     res = subprocess.run([job_bin, "agents", job_id, json.dumps(agents)], capture_output=True, text=True)
     if res.returncode != 0:
         die(res.stderr.strip())

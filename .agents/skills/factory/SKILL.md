@@ -89,7 +89,7 @@ Each step below runs when the previous agent or script finishes. Report one shor
 - `NEEDS-INFO`: `factory/bin/job advance <id> needs-info`. The job parks until the author replies.
 - `REJECT`: `factory/bin/job advance <id> rejected`.
 
-**spec.** Start `spec-writer` with `<header>`. When it returns, run `factory/bin/route <id>` again, because `spec.md` now says whether the job has an OpenSpec change. Then `factory/bin/job advance <id> build` and go to **build**. `advance` refuses until `route` has run in this step.
+**spec.** Start `spec-writer` with `<header>`. When it returns, run `factory/bin/route <id>` again, because `spec.md` now says whether the job has an OpenSpec change. Then `factory/bin/job advance <id> build` and go to **build**. `advance` refuses until `route` has run in this step and after the last change of `spec.md`.
 
 **build.** Start or resume `builder-<id>` with `<header> Build round <N>.` plus what this round is for: the gate's `round-<N-1>/checks.md`, the reviews in `round-<N-1>/`, `round-<N-1>/review-remote.md`, or `feedback-<k>.md`. When it returns, read `build.md`'s first line:
 
@@ -103,7 +103,7 @@ Each step below runs when the previous agent or script finishes. Report one shor
 
 **review.** Start every reviewer in `job.json` `agents.reviewers` **at once**, so they run in parallel: role `reviewer-<r>`, model from the same map, prompt `<header> Review round <N>.` **WAIT FOR ALL.** Each time one finishes, run `factory/bin/job sync <id>` so the dashboard fills in. When every reviewer has finished:
 
-First check every review. `factory/bin/job sync <id>` reports a review as `invalid` when its first line is no verdict or its judgments of remote findings are incomplete or malformed. Delete that `review-<r>.md` and start the reviewer again, once. If the new file is invalid too, stop this job and tell the user. Choose a branch only when every review is valid.
+First check every review. `factory/bin/job sync <id>` reports a review as `invalid` when its first line is no verdict, its judgments of remote findings are incomplete or malformed, or it has no `## Evidence` section with content. Delete that `review-<r>.md` and start the reviewer again, once. If the new file is invalid too, stop this job and tell the user. Choose a branch only when every review is valid.
 
 - all PASS: go to **publish**.
 - any CHANGES: `factory/bin/job advance <id> build` (or `needs-human` when it refuses because this was the last round), then resume the builder: `Round <N-1> reviews are in round-<N-1>/. Address every VERDICT: CHANGES, commit, and update build.md for round <N>.`
@@ -144,7 +144,7 @@ Anything else after `/factory` is the user talking to the factory. Work out what
 
 - **A question** (status, cost, why a job escalated, what a reviewer said): answer from `factory/bin/job summary`, `job.json` and the job's files. Here you may read a file in full when the answer is in it.
 - **What needs them**: run `factory/bin/job queue`. For each `wait` line, say what the job is waiting for: the question in `decision.md` for `needs-human`, the question in `intake.md` for `needs-info`. For a `needs-human` job without a PR, name the branch `factory/<id>` and the worktree from `job.json`, and offer feedback or rejection, never a merge.
-- **Feedback on a `needs-human`, `publish`, `remote`, `approve` or `merging` job**: pass their words verbatim on stdin. A `factory/bin/job publish` still running for the job stops by itself:
+- **Feedback on a `spec`, `needs-human`, `publish`, `remote`, `approve` or `merging` job**: pass their words verbatim on stdin. A `factory/bin/job publish` still running for the job stops by itself:
 
   ```bash
   factory/bin/job feedback <n> <<'EOF'
@@ -152,7 +152,7 @@ Anything else after `/factory` is the user talking to the factory. Work out what
   EOF
   ```
 
-  It saves `feedback-<k>.md` and starts the next round with a fresh round budget. A job in `publish`, `remote`, `approve` or `merging` first goes to `needs-human`, with their words replacing the decision in `decision.md`. Go to **build** with `The user gave feedback: read feedback-<k>.md and address it, commit, and update build.md for round <N>.` and continue like any job.
+  For a job in `spec` it only saves `feedback-<k>.md` and leaves the job there: start `spec-writer` again with `<header>` and continue at **spec**. `spec.md` changes, so `advance` refuses until `route` has run again. For any other job it saves `feedback-<k>.md` and starts the next round with a fresh round budget. A job in `publish`, `remote`, `approve` or `merging` first goes to `needs-human`, with their words replacing the decision in `decision.md`. Go to **build** with `The user gave feedback: read feedback-<k>.md and address it, commit, and update build.md for round <N>.` and continue like any job.
 - **Rejecting or benching a `needs-info` or `needs-human` job**: pass their reason verbatim on stdin:
 
   ```bash

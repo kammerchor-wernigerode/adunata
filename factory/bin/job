@@ -14,7 +14,8 @@ Usage:
                                  the PR, then wait for CI and CodeRabbit and write review-remote.md
   job merge <job>                APPROVE → merge the PR that publish verified, or needs-human on a conflict
   job feedback <job>             needs-human, publish, remote, approve or merging → build, with your
-                                 feedback (stdin) as feedback-<k>.md; a job in another stage escalates first
+                                 feedback (stdin) as feedback-<k>.md; a job in another stage escalates first.
+                                 A job in spec stays there: the spec writer reads the feedback
   job reject <job>               needs-info or needs-human → rejected, with your reason (stdin) as rejection.md
   job agents <job> <json>        record the routed agent set in the stage intake or spec (called by factory/bin/route)
   job sync <job>                 refresh reviews, gate and cost from the job's files
@@ -22,9 +23,13 @@ Usage:
   job self-check                 assert the parser of the remote findings; run by hand, wired into nothing
 
 <job> is a job id (004-dark-mode) or an issue number (12).
+
+The environment variable FACTORY_JOBS names another jobs folder, such as one under /tmp
+for a test. It moves only the state. gh and git still act on the real repository.
 """
 
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -36,7 +41,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 FACTORY = REPO / "factory"
-JOBS = FACTORY / "jobs"
+JOBS = Path(os.environ.get("FACTORY_JOBS") or FACTORY / "jobs").resolve()
 CONFIG = json.loads((FACTORY / "config.json").read_text())
 LABELS = CONFIG["labels"]
 BASE = CONFIG["base_branch"]
@@ -178,10 +183,26 @@ def header(path):
     return fields
 
 
-def section(path, heading):
-    """Body of a `## heading` section, or None."""
-    m = re.search(rf"^## {re.escape(heading)}\n(.*?)(?=^## |\Z)", path.read_text(), re.M | re.S)
+def spec_hash(path):
+    """SHA-256 of spec.md, or None without the file. Routing in the stage spec records it."""
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
+
+
+def section_of(text, heading):
+    """Body of a `## heading` section of `text`, or None."""
+    m = re.search(rf"^## {re.escape(heading)}\n(.*?)(?=^## |\Z)", text, re.M | re.S)
     return m.group(1).strip() if m else None
+
+
+def section(path, heading):
+    """Body of a `## heading` section of a file, or None."""
+    return section_of(path.read_text(), heading)
+
+
+def has_evidence(review_text):
+    """True when a review has a `## Evidence` section with something in it. No I/O."""
+    body = section_of(review_text, "Evidence")
+    return body not in {None, "", "None."} and "<file read or command run>" not in body
 
 
 def round_dir(job, n=None):
@@ -354,6 +375,8 @@ def sync(job):
                 line = first_line(rd / f"review-{r}.md")
                 m = re.fullmatch(r"VERDICT:\s*(PASS|CHANGES)", line or "")
                 job["reviews"][r] = m.group(1) if m else ("pending" if line is None else "invalid")
+                if m and job["stage"] in {"review", "publish"} and not has_evidence((rd / f"review-{r}.md").read_text()):
+                    job["reviews"][r] = "invalid"
                 earlier_remote = newest_remote(job)
                 if m and r == "code" and earlier_remote and findings_problems(
                         (rd / "review-code.md").read_text(), remote_items(earlier_remote)):
@@ -432,7 +455,7 @@ def check_reviews_done(job):
     missing = [r for r in reviewers(job) if not (rd / f"review-{r}.md").exists()]
     require(not missing, f"round {job['round']} is missing reviews from: {', '.join(missing)}")
     bad = [r for r, v in job["reviews"].items() if v not in {"PASS", "CHANGES"}]
-    require(not bad, f"review-{bad[0]}.md is invalid: no verdict on its first line or incomplete remote findings" if bad else "")
+    require(not bad, f"review-{bad[0]}.md is invalid: no verdict on its first line, incomplete remote findings or no Evidence" if bad else "")
 
 
 def next_round(job):
@@ -570,6 +593,8 @@ def advance(job, stage, push_unpushed=True, why=None):
         require((d / "spec.md").exists(), "spec.md doesn't exist")
         require((job["agents"] or {}).get("routed") == "spec",
                 "route the job again after the spec step: factory/bin/route " + job["id"])
+        require(job["agents"].get("spec_sha256") == spec_hash(d / "spec.md"),
+                "spec.md changed after routing; route the job again: factory/bin/route " + job["id"])
         next_round(job)
 
     elif old == "build" and stage == "gate":
@@ -731,6 +756,8 @@ def ignore_jobs():
     A tracked .gitignore would hide the state from every repository that shares
     the work tree. info/exclude hides it only from this clone's own repository.
     """
+    if not JOBS.is_relative_to(REPO):
+        return
     common = run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"]).stdout.strip()
     exclude = Path(common) / "info" / "exclude"
     line = "/" + str(JOBS.relative_to(REPO)) + "/"
@@ -1125,9 +1152,17 @@ def bot_review_remarks(job):
             and any(m in (r["body"] or "") for m in markers)]
 
 
+def uncounted_failures(checks, wait_for):
+    """Failed or cancelled checks that `wait_for` does not name, so they do not decide the verdict."""
+    return [c for c in checks if c["name"] not in wait_for and c["bucket"] in {"fail", "cancel"}]
+
+
 def write_remote_md(job, verdict, head, checks, failed, threads, remarks):
+    uncounted = uncounted_failures(checks, CONFIG["ci"]["wait_for"])
     summary = [
         f"{len(checks)} checks finished, {len(failed)} failed" + (f": {', '.join(c['name'] for c in failed)}" if failed else ""),
+        *([f"{len(uncounted)} failed or cancelled checks outside ci.wait_for, not counted: "
+           f"{', '.join(c['name'] for c in uncounted)}"] if uncounted else []),
         f"{len(threads)} open review threads from {', '.join(CONFIG['ci']['review_bots'])}",
         f"{len(remarks)} bot reviews with remarks outside threads",
         f"PR #{job['pr']} at {head[:7]}",
@@ -1153,8 +1188,8 @@ def cmd_feedback(job, text):
     """Send a job back to the builder. An approved job escalates first, with
     the person's feedback replacing the approver's decision."""
     approved = job["stage"] in {"publish", "remote", "approve", "merging"}
-    if job["stage"] != "needs-human" and not approved:
-        die(f"{job['id']} is in {job['stage']}, not needs-human, publish, remote, approve or merging")
+    if job["stage"] not in {"needs-human", "spec"} and not approved:
+        die(f"{job['id']} is in {job['stage']}, not spec, needs-human, publish, remote, approve or merging")
     origin = job["stage"]
     if not text.strip():
         die("no feedback on stdin")
@@ -1167,8 +1202,11 @@ def cmd_feedback(job, text):
         save(advance(sync(job), "needs-human", push_unpushed=False))
     d = job_dir(job["id"])
     k = len(list(d.glob("feedback-*.md"))) + 1
-    after = f"the job was in {origin}" if approved else "the job escalated"
+    after = "the job escalated" if origin == "needs-human" else f"the job was in {origin}"
     (d / f"feedback-{k}.md").write_text(f"# Feedback {k}\n\nFrom @{operator()} after {after}.\n\n{text.strip()}\n")
+    if origin == "spec":
+        print(f"{job['id']}: feedback-{k}.md, still in spec")
+        return
     save(advance(sync(job), "build"))
     print(f"{job['id']}: feedback-{k}.md, round {job['round']}")
 
@@ -1222,6 +1260,16 @@ def self_check():
     assert findings_problems("VERDICT: PASS\n\n## Remote findings\n- PRRT_a1: OPEN the null case is real\n", ["PRRT_a1"])
     assert findings_problems(review + "- PRRT_a1: OPEN the null case is real\n- PRRT_a1: FIXED it is not\n", ["PRRT_a1"])
     assert not findings_problems("VERDICT: PASS\n\n## Findings\nNone.\n", [])
+    assert spec_hash(Path("/nonexistent/spec.md")) is None
+    assert has_evidence("VERDICT: PASS\n\n## Evidence\n- git diff: 3 files\n\n## Notes\nNone.\n")
+    assert not has_evidence("VERDICT: PASS\n\n## Findings\nNone.\n")
+    assert not has_evidence("VERDICT: PASS\n\n## Evidence\n\n## Notes\nNone.\n")
+    assert not has_evidence("VERDICT: PASS\n\n## Evidence\nNone.\n")
+    assert not has_evidence("VERDICT: PASS\n\n## Evidence\n- <file read or command run>: <what it showed>\n")
+    checks = [{"name": "Verdict", "bucket": "fail"}, {"name": "Verdict (draft)", "bucket": "fail"},
+              {"name": "End-to-end tests", "bucket": "cancel"}, {"name": "Changes", "bucket": "pass"}]
+    assert [c["name"] for c in uncounted_failures(checks, ["Verdict", "CodeRabbit"])] == ["Verdict (draft)", "End-to-end tests"]
+    assert not uncounted_failures(checks[:1] + checks[3:], ["Verdict", "CodeRabbit"])
     print("self-check passed")
 
 
