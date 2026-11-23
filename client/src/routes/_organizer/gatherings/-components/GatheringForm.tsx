@@ -201,9 +201,9 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
             {translate('member-cancel')}
           </Button>
         </div>
-        <Alert role="status" className={saved ? undefined : 'sr-only'}>
-          {saved && savedLine(saved)}
-        </Alert>
+        <div role="status" className={saved ? undefined : 'sr-only'}>
+          {saved && <Alert role={undefined}>{savedLine(saved)}</Alert>}
+        </div>
         <p role="alert">{refusal}</p>
       </FieldGroup>
     </form>
