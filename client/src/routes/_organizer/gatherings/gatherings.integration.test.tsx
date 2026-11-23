@@ -263,7 +263,8 @@ describe('gathering form', () => {
     const { container } = renderApp('/gatherings/new')
     await fillNew()
     await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
-    const line = await screen.findByRole('status')
+    await screen.findByRole('link', { name: 'Probenwochenende' })
+    const line = screen.getByRole('status')
     expect(line.textContent.replace(/\s/g, ' ')).toBe('Probenwochenende, Fri, March 12 – Sun, March 14, 2027 saved.')
     expect(within(line).getByRole('link', { name: 'Probenwochenende' }).getAttribute('href')).toBe('/gatherings/20')
     const title = screen.getByLabelText('Title')
@@ -282,7 +283,7 @@ describe('gathering form', () => {
     renderApp('/gatherings/new')
     await fillNew()
     await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
-    await screen.findByRole('status')
+    await screen.findByRole('link', { name: 'Probenwochenende' })
     await pickDay('First day', '19')
     await pickDay('Last day', '21')
     await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
@@ -296,7 +297,7 @@ describe('gathering form', () => {
     renderApp('/gatherings/new')
     await fillNew()
     await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
-    await screen.findByRole('status')
+    await screen.findByRole('link', { name: 'Probenwochenende' })
     server.use(
       http.post('*/api/gatherings', () =>
         HttpResponse.json({ errors: [{ field: 'firstDay', code: 'firstDayInPast' }] }, { status: 422 }),
@@ -356,7 +357,7 @@ describe('gathering form', () => {
     renderApp('/gatherings/new')
     await fillNew()
     await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
-    await screen.findByRole('status')
+    await screen.findByRole('link', { name: 'Probenwochenende' })
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     const upcoming = (await screen.findByRole('heading', { level: 2, name: 'Upcoming' })).closest('section')!
     expect(within(upcoming).getByRole('link', { name: 'Probenwochenende' })).toBeTruthy()
