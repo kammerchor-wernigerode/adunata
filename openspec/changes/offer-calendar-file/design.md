@@ -13,13 +13,13 @@ The response page in `client/src/routes/invitation/index.tsx` loads `GET /api/in
 
 ## Decisions
 
-All decisions of issue #91 hold as written: whole days, no `METHOD`/`ORGANIZER`/`ATTENDEE`/`URL`/`VALARM`/`VTIMEZONE`, the property list, `STATUS`, `TRANSP:OPAQUE`, the `UID` scheme, the columns `version` and `changed_at`, one rule that every stored change raises `version`, a server route behind the personal link, a writer without new dependency, the wording of the button and the file name. The decisions below settle what the issue left open.
+All decisions of issue #91 hold as written: whole days, no `METHOD`/`ORGANIZER`/`ATTENDEE`/`URL`/`VALARM`/`VTIMEZONE`, the property list, `STATUS`, `TRANSP:OPAQUE`, the `UID` scheme, the columns `version` and `changed_at`, one rule that every stored change raises `version`, a server route behind the personal link, a writer of the format without new dependency, the wording of the button and the file name. The decisions below settle what the issue left open.
 
 ### D1: Namespace of the UID
 The namespace is `81aa7074-4fe3-41aa-8af7-5d34430bdd9d`, a random UUID held as a constant in the module `calendar`. The `UID` in the example of the issue is an illustration. The test value is the one in the delta spec. Significant: yes, because every calendar of a member keys its entry on the `UID`, so changing the namespace or the name form duplicates every entry. It is drafted as a record below.
 
-### D2: SHA-1 without a dependency
-A UUID of version 5 needs SHA-1. The issue forbids a new dependency, and `sha1` in `Cargo.lock` only comes through an unused backend of sqlx. The module `calendar` implements SHA-1 per FIPS 180-4 in a private function of about 40 lines, tested against the vectors of FIPS 180-4 ("abc" and the empty string) and against the UUID of the delta spec. SHA-1 serves only as a name hash here, so its weakness against collisions does not matter. Alternative: add `sha1` from RustCrypto next to `sha2`, rejected because it breaks a decision of the issue. Significant: no, a running instance cannot tell how the hash is computed.
+### D2: UUID of version 5 from a library
+A UUID of version 5 needs SHA-1. Adunata does not implement hashing itself, so the crate `uuid` with its feature `v5` derives the `UID`. The test against the UUID of the delta spec pins the result. The issue's rule of no new dependency stays for the writer of the format, which the server still writes itself. Alternative: SHA-1 written in-house, rejected because the project leaves cryptographic primitives to maintained libraries. Significant: no, a running instance cannot tell how the hash is computed.
 
 ### D3: Server decides whether the file is offered
 `InvitationPage` gains `calendar: bool`. It is true when the response status is accepted or tentative and the last day has not passed (`!gathering.ended`), regardless of `cancelled`. The route uses the same predicate and answers 404 otherwise. The client shows the button only when `calendar` is true. This keeps the time zone of the instance on the server and avoids a second state field next to `LinkState`. Alternative: a new `LinkState` for "cancelled and ended", rejected because it changes how the page treats cancellation. Significant: no, it is an internal contract between server and client.
@@ -52,7 +52,6 @@ The client fetches the route with the secret, turns the body into a blob URL and
 
 ## Risks / Trade-offs
 
-- [Hand-written SHA-1 is wrong] → test vectors of FIPS 180-4 and the fixed UUID of the delta spec.
 - [Migration on a live table] → two columns with defaults set from `created_at` in the same migration, no rewrite of other data.
 - [Calendars that ignore `SEQUENCE`] → the page tells the member that a new download replaces the entry.
 

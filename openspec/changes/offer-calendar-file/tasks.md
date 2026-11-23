@@ -5,7 +5,7 @@
 
 ## 2. Calendar file
 
-- [x] 2.1 Add the module `calendar` with SHA-1, the UUID of version 5 and the namespace constant, tested against FIPS 180-4 vectors and the UID of the delta spec
+- [x] 2.1 Add the module `calendar` with the UUID of version 5 from the crate `uuid` and the namespace constant, tested against the UID of the delta spec
 - [x] 2.2 Write the file: properties in order, escaping, CRLF and folding at 75 octets on UTF-8 boundaries, with unit tests for each and for the example of the delta spec
 - [x] 2.3 Add `GET /api/invitation/calendar` to `server/src/responses.rs` with the media type, `Content-Disposition` and 404 cases, plus integration tests for accepted, tentative on a cancelled gathering, declined, pending, ended and no secret
 - [x] 2.4 Add `calendar` to `InvitationPage`, the route to `PUBLIC` in `server/src/api.rs` and regenerate `client/openapi.json`

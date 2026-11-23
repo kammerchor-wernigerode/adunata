@@ -22,7 +22,7 @@ None.
 
 ## Impact
 
-- Server: new module `calendar` with the writer of the format and the UUID of version 5, the new route in `responses`, the migration `0003`, `gatherings::change` and `gatherings::cancel`.
+- Server: new module `calendar` with the writer of the format and the UUID of version 5 from `uuid`, the new route in `responses`, the migration `0003`, `gatherings::change` and `gatherings::cancel`.
 - Client: the response page in `client/src/routes/invitation/`, the catalogs of both locales and `client/openapi.json`.
-- No new dependency. The server computes SHA-1 for the UUID itself.
+- One new dependency, the crate `uuid` with the feature `v5`, derives the UID. The server writes the format itself.
 - Docs: arc42 sections 05 and 08, one new decision record.
