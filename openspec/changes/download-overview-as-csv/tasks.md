@@ -15,4 +15,4 @@
 
 ## 3. Documentation
 
-- [ ] 3.1 Update `docs/arc42/03-context-and-scope.md`, `05-building-block-view.md` and the section "Retention of personal data" of `08-cross-cutting-concepts.md` as design.md lists, and verify every relative link resolves.
+- [x] 3.1 Update `docs/arc42/03-context-and-scope.md`, `05-building-block-view.md` and the section "Retention of personal data" of `08-cross-cutting-concepts.md` as design.md lists, and verify every relative link resolves.
