@@ -35,5 +35,5 @@
 
 ## 6. Run one issue through the factory
 
-- [ ] 6.1 After the merge, run `/factory run <n>` on an issue labeled `factory` that yields an OpenSpec change. Verify that `job.json` has `openspec` in its reviewer set after the spec step and that every round with reviews holds a `review-openspec.md` whose first line is a valid verdict.
-- [ ] 6.2 On a job with an OpenSpec change whose `review-remote.md` says `CHANGES`, verify that the next round holds a new `review-openspec.md`. If the run of 6.1 raised no remote finding, use the next job with a change that does.
+- [x] 6.1 After the merge, run `/factory run <n>` on an issue labeled `factory` that yields an OpenSpec change. Verify that `job.json` has `openspec` in its reviewer set after the spec step and that every round with reviews holds a `review-openspec.md` whose first line is a valid verdict.
+- [x] 6.2 On a job with an OpenSpec change whose `review-remote.md` says `CHANGES`, verify that the next round holds a new `review-openspec.md`. If the run of 6.1 raised no remote finding, use the next job with a change that does.
