@@ -80,7 +80,7 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
     if (result.status === 200 || result.status === 201) {
       await queryClient.invalidateQueries({ queryKey: getListGatheringsQueryKey() })
       await queryClient.invalidateQueries({ queryKey: getGetGatheringQueryKey(result.data.id) })
-      if (addAnother) return startNext(values, result.data)
+      if (addAnother) return startNext(result.data)
       return navigate({ to: '/gatherings/$gatheringId', params: { gatheringId: String(result.data.id) } })
     }
     if (result.status === 401) return navigate({ to: '/sign-in' })
@@ -96,8 +96,8 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
     if (first) form.setFocus(first)
   }
 
-  function startNext(values: GatheringInput, stored: Gathering) {
-    form.reset({ ...values, firstDay: '', lastDay: '' })
+  function startNext(stored: Gathering) {
+    form.reset({ ...form.getValues(), firstDay: '', lastDay: '' })
     setSaved(stored)
   }
 
