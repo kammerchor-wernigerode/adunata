@@ -239,7 +239,7 @@ async fn change(
         return Ok(invalid(errors));
     }
     let query = format!(
-        "UPDATE gatherings SET title = $1, location = $2, description = $3, first_day = $4, last_day = $5, version = version + 1, changed_at = now() WHERE id = $6 RETURNING {COLUMNS}"
+        "UPDATE gatherings SET title = $1, location = $2, description = $3, first_day = $4, last_day = $5, version = version + 1, changed_at = statement_timestamp() WHERE id = $6 RETURNING {COLUMNS}"
     );
     let row = bind(sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(query)), input)
         .bind(id)
@@ -256,7 +256,7 @@ pub async fn cancel(
     today: Date,
 ) -> Result<Option<Gathering>, sqlx::Error> {
     let query = format!(
-        "UPDATE gatherings SET cancelled_at = now(), version = version + 1, changed_at = now() WHERE id = $1 AND cancelled_at IS NULL AND last_day >= $2 RETURNING {COLUMNS}"
+        "UPDATE gatherings SET cancelled_at = now(), version = version + 1, changed_at = statement_timestamp() WHERE id = $1 AND cancelled_at IS NULL AND last_day >= $2 RETURNING {COLUMNS}"
     );
     Ok(sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(query))
         .bind(id)
