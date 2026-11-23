@@ -47,6 +47,8 @@ pub struct Gathering {
     #[schema(value_type = String, format = Date)]
     pub last_day: Date,
     pub cancelled: bool,
+    /// Whether the first day has begun in the time zone of the instance.
+    pub begun: bool,
     /// Whether the last day has passed in the time zone of the instance.
     pub ended: bool,
 }
@@ -61,13 +63,9 @@ impl Gathering {
             first_day: row.first_day,
             last_day: row.last_day,
             cancelled: row.cancelled,
+            begun: row.first_day <= today,
             ended: row.last_day < today,
         }
-    }
-
-    /// Whether the first day has begun in the time zone of the instance.
-    pub fn has_begun(&self, today: Date) -> bool {
-        self.first_day <= today
     }
 }
 
@@ -349,21 +347,19 @@ mod tests {
 
     #[test]
     fn begins_on_its_first_day() {
-        let gathering = Gathering::from_row(
-            Row {
-                id: 1,
-                title: "t".to_owned(),
-                location: "l".to_owned(),
-                description: None,
-                first_day: fixed_day(),
-                last_day: fixed_day(),
-                cancelled: false,
-            },
-            fixed_day(),
-        );
-        assert!(gathering.has_begun(fixed_day()));
-        assert!(!gathering.has_begun(fixed_day() - Duration::days(1)));
-        assert!(!gathering.ended);
+        let row = || Row {
+            id: 1,
+            title: "t".to_owned(),
+            location: "l".to_owned(),
+            description: None,
+            first_day: fixed_day(),
+            last_day: fixed_day(),
+            cancelled: false,
+        };
+        let on_first_day = Gathering::from_row(row(), fixed_day());
+        assert!(on_first_day.begun);
+        assert!(!on_first_day.ended);
+        assert!(!Gathering::from_row(row(), fixed_day() - Duration::days(1)).begun);
     }
 
     fn input(first_day: Date, last_day: Date) -> GatheringInput {

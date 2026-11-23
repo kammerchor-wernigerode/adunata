@@ -359,7 +359,7 @@ async fn rotate_and_enqueue(
         (status = 201, description = "A new link created and a reminder queued for every pending member with an active link", body = Invited),
         (status = 401, description = "No valid organizer session"),
         (status = 404, description = "No such gathering"),
-        (status = 422, description = "The gathering is cancelled or has ended", body = crate::validation::ValidationErrors),
+        (status = 422, description = "The gathering is cancelled, has ended or has begun", body = crate::validation::ValidationErrors),
     )
 )]
 async fn remind(_: Organizer, State(state): State<AppState>, Path(id): Path<i64>) -> Response {
@@ -381,6 +381,9 @@ async fn remind_pending(
         Ok(gathering) => gathering,
         Err(outcome) => return Ok(outcome),
     };
+    if gathering.begun {
+        return Ok(Outcome::Closed(ErrorCode::Begun));
+    }
     let pending: Vec<(i64, i64)> = sqlx::query_as(
         "SELECT id, member_id FROM invitations WHERE gathering_id = $1 AND secret_hash IS NOT NULL AND NOT EXISTS (SELECT 1 FROM responses WHERE responses.invitation_id = invitations.id) ORDER BY id FOR UPDATE",
     )
@@ -717,6 +720,7 @@ mod tests {
             first_day: time::macros::date!(2027 - 03 - 12),
             last_day: time::macros::date!(2027 - 03 - 14),
             cancelled: false,
+            begun: false,
             ended: false,
         };
         (member, gathering)
@@ -1423,6 +1427,64 @@ mod tests {
             );
             assert_eq!(secret_hash(&pool, weekend, "Root").await, before);
             assert_eq!(mails(&pool).await, 1);
+        }
+
+        #[tokio::test]
+        async fn no_reminder_once_the_gathering_has_begun() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let weekend = gathering(&pool, "Probenwochenende", 0, 2).await;
+            invite(&pool, &cookie, weekend, json!({})).await;
+            let before = secret_hash(&pool, weekend, "Root").await;
+            let (status, body) = remind(&pool, &cookie, weekend).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                body,
+                json!({ "errors": [{ "field": "gathering", "code": "begun" }] })
+            );
+            assert_eq!(secret_hash(&pool, weekend, "Root").await, before);
+            assert_eq!(mails(&pool).await, 1);
+        }
+
+        #[tokio::test]
+        async fn reminder_on_the_day_before_the_gathering() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let weekend = gathering(&pool, "Probenwochenende", 1, 2).await;
+            invite(&pool, &cookie, weekend, json!({})).await;
+            let (status, body) = remind(&pool, &cookie, weekend).await;
+            assert_eq!(status, StatusCode::CREATED);
+            assert_eq!(body, json!({ "count": 1 }));
+        }
+
+        #[tokio::test]
+        async fn invite_and_resend_once_the_gathering_has_begun() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let weekend = gathering(&pool, "Probenwochenende", 0, 2).await;
+            let (status, _) = invite(&pool, &cookie, weekend, json!({})).await;
+            assert_eq!(status, StatusCode::CREATED);
+            let (_, list) = send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "GET",
+                &format!("/api/gatherings/{weekend}/invitations"),
+                &Value::Null,
+            )
+            .await;
+            let (status, _) = send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "POST",
+                &format!("/api/invitations/{}/resend", list[0]["id"]),
+                &Value::Null,
+            )
+            .await;
+            assert_eq!(status, StatusCode::NO_CONTENT);
+            assert_eq!(mails(&pool).await, 2);
         }
     }
 }

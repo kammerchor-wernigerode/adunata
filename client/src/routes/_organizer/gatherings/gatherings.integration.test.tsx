@@ -30,14 +30,15 @@ const march: Gathering = {
   firstDay: '2027-03-12',
   lastDay: '2027-03-14',
   cancelled: false,
+  begun: false,
   ended: false,
 }
 const april: Gathering = { ...march, id: 2, title: 'Concert in April', firstDay: '2027-04-30', lastDay: '2027-05-02' }
-const autumn: Gathering = { ...march, id: 3, title: 'Autumn camp', firstDay: '2026-10-01', lastDay: '2026-10-04', ended: true }
-const spring2026: Gathering = { ...march, id: 11, title: 'Spring concert', firstDay: '2026-04-18', lastDay: '2026-04-19', ended: true }
-const newYear: Gathering = { ...march, id: 12, title: 'New Year retreat', firstDay: '2025-12-30', lastDay: '2026-01-02', ended: true }
-const summer2025: Gathering = { ...march, id: 13, title: 'Summer tour', firstDay: '2025-07-04', lastDay: '2025-07-06', cancelled: true, ended: true }
-const autumn2024: Gathering = { ...march, id: 14, title: 'Autumn camp 2024', firstDay: '2024-10-03', lastDay: '2024-10-06', ended: true }
+const autumn: Gathering = { ...march, id: 3, title: 'Autumn camp', firstDay: '2026-10-01', lastDay: '2026-10-04', begun: true, ended: true }
+const spring2026: Gathering = { ...march, id: 11, title: 'Spring concert', firstDay: '2026-04-18', lastDay: '2026-04-19', begun: true, ended: true }
+const newYear: Gathering = { ...march, id: 12, title: 'New Year retreat', firstDay: '2025-12-30', lastDay: '2026-01-02', begun: true, ended: true }
+const summer2025: Gathering = { ...march, id: 13, title: 'Summer tour', firstDay: '2025-07-04', lastDay: '2025-07-06', cancelled: true, begun: true, ended: true }
+const autumn2024: Gathering = { ...march, id: 14, title: 'Autumn camp 2024', firstDay: '2024-10-03', lastDay: '2024-10-06', begun: true, ended: true }
 const pastYears = [spring2026, newYear, summer2025, autumn2024]
 const pastWithoutCurrentYear = [newYear, summer2025, autumn2024]
 const emptyOverview = { rows: [], totals: { accepted: 0, tentative: 0, declined: 0, pending: 0, bedsNeeded: 0, bedsOffered: 0 } }
