@@ -174,6 +174,16 @@ overview-period = { $arrival } bis { $departure }
 overview-period-start = Beginn
 overview-period-end = Ende
 overview-outside-span = außerhalb der Tage
+overview-csv-last-name = Nachname
+overview-csv-first-name = Vorname
+overview-csv-status = Status
+overview-csv-arrival = Ankunft
+overview-csv-departure = Abreise
+overview-csv-beds-needed = Betten gesucht
+overview-csv-beds-offered = Betten angeboten
+overview-csv-comment = Kommentar
+overview-download = CSV herunterladen
+overview-download-notice = Die Datei enthält personenbezogene Daten. Adunata löscht sie nicht, also lösche sie, sobald du sie nicht mehr brauchst.
 
 response-question = Kommst du, { $firstName }?
 response-question-for = Kommt { $name }?
