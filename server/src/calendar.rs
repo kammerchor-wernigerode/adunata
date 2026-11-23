@@ -162,7 +162,7 @@ fn escaped(text: &str) -> String {
         .replace(';', "\\;")
         .replace(',', "\\,")
         .replace("\r\n", "\\n")
-        .replace('\n', "\\n")
+        .replace(['\r', '\n'], "\\n")
 }
 
 /// The line with CRLF, folded after at most 75 octets without splitting a character.
@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn escapes_text() {
-        assert_eq!(escaped("a\\b;c,d\r\ne\nf"), "a\\\\b\\;c\\,d\\ne\\nf");
+        assert_eq!(escaped("a\\b;c,d\r\ne\nf\rg"), "a\\\\b\\;c\\,d\\ne\\nf\\ng");
     }
 
     #[test]
