@@ -210,7 +210,7 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
             inputMode="numeric"
             min={1}
             step={1}
-            className="w-20"
+            className="h-9 w-20"
             aria-label={translate('gathering-deadline-amount')}
             value={deadlineAmount}
             onChange={(event) => setDeadlineAmount(event.target.value)}
@@ -241,6 +241,7 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
               firstDay={today}
               lastDay={lastDay}
               disabled={!chosenFirstDay}
+              className="h-9 w-full justify-between border-input font-normal"
               gridLabel={translate('gathering-deadline-last-day')}
               navigationLabel={translate('gathering-deadline-last-day-months')}
               displayFormat={{ weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }}
