@@ -188,10 +188,21 @@ def spec_hash(path):
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
 
 
-def section(path, heading):
-    """Body of a `## heading` section, or None."""
-    m = re.search(rf"^## {re.escape(heading)}\n(.*?)(?=^## |\Z)", path.read_text(), re.M | re.S)
+def section_of(text, heading):
+    """Body of a `## heading` section of `text`, or None."""
+    m = re.search(rf"^## {re.escape(heading)}\n(.*?)(?=^## |\Z)", text, re.M | re.S)
     return m.group(1).strip() if m else None
+
+
+def section(path, heading):
+    """Body of a `## heading` section of a file, or None."""
+    return section_of(path.read_text(), heading)
+
+
+def has_evidence(review_text):
+    """True when a review has a `## Evidence` section with something in it. No I/O."""
+    body = section_of(review_text, "Evidence")
+    return body not in {None, "", "None."} and "<file read or command run>" not in body
 
 
 def round_dir(job, n=None):
@@ -364,6 +375,8 @@ def sync(job):
                 line = first_line(rd / f"review-{r}.md")
                 m = re.fullmatch(r"VERDICT:\s*(PASS|CHANGES)", line or "")
                 job["reviews"][r] = m.group(1) if m else ("pending" if line is None else "invalid")
+                if m and job["stage"] in {"review", "publish"} and not has_evidence((rd / f"review-{r}.md").read_text()):
+                    job["reviews"][r] = "invalid"
                 earlier_remote = newest_remote(job)
                 if m and r == "code" and earlier_remote and findings_problems(
                         (rd / "review-code.md").read_text(), remote_items(earlier_remote)):
@@ -442,7 +455,7 @@ def check_reviews_done(job):
     missing = [r for r in reviewers(job) if not (rd / f"review-{r}.md").exists()]
     require(not missing, f"round {job['round']} is missing reviews from: {', '.join(missing)}")
     bad = [r for r, v in job["reviews"].items() if v not in {"PASS", "CHANGES"}]
-    require(not bad, f"review-{bad[0]}.md is invalid: no verdict on its first line or incomplete remote findings" if bad else "")
+    require(not bad, f"review-{bad[0]}.md is invalid: no verdict on its first line, incomplete remote findings or no Evidence" if bad else "")
 
 
 def next_round(job):
@@ -1248,6 +1261,11 @@ def self_check():
     assert findings_problems(review + "- PRRT_a1: OPEN the null case is real\n- PRRT_a1: FIXED it is not\n", ["PRRT_a1"])
     assert not findings_problems("VERDICT: PASS\n\n## Findings\nNone.\n", [])
     assert spec_hash(Path("/nonexistent/spec.md")) is None
+    assert has_evidence("VERDICT: PASS\n\n## Evidence\n- git diff: 3 files\n\n## Notes\nNone.\n")
+    assert not has_evidence("VERDICT: PASS\n\n## Findings\nNone.\n")
+    assert not has_evidence("VERDICT: PASS\n\n## Evidence\n\n## Notes\nNone.\n")
+    assert not has_evidence("VERDICT: PASS\n\n## Evidence\nNone.\n")
+    assert not has_evidence("VERDICT: PASS\n\n## Evidence\n- <file read or command run>: <what it showed>\n")
     checks = [{"name": "Verdict", "bucket": "fail"}, {"name": "Verdict (draft)", "bucket": "fail"},
               {"name": "End-to-end tests", "bucket": "cancel"}, {"name": "Changes", "bucket": "pass"}]
     assert [c["name"] for c in uncounted_failures(checks, ["Verdict", "CodeRabbit"])] == ["Verdict (draft)", "End-to-end tests"]

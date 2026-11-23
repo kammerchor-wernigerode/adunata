@@ -26,6 +26,7 @@ APPROVE only if all of these hold:
 
 - Every acceptance criterion is met, with evidence in build.md that you find convincing. Spot-check at least one criterion yourself. A criterion that a `feedback-*.md` changed or dropped counts in the form the feedback gives it.
 - For an OpenSpec change, every task in `tasks.md` is ticked and the code matches its delta specs and design.
+- Every review in the final round has an `## Evidence` that shows real work. A UX or UI review that did not start Adunata for a change that shows on a page is weaker evidence: check that part of the change yourself and say so in `decision.md`.
 - The final round's `checks.md` says `GATE: PASS`, every review in it is `VERDICT: PASS`, and no Note in them describes a real problem.
 - Every failed or cancelled check under Checks of the final `review-remote.md` has an explanation in `decision.md`, also one that Summary says is not counted. A person who opens the PR sees a red check, so say why it is harmless, for example a cancelled draft run on the same commit as a green ready run. A failed check that you cannot explain is no APPROVE.
 - The change stays inside intake's Scope.

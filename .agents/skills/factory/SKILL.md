@@ -103,7 +103,7 @@ Each step below runs when the previous agent or script finishes. Report one shor
 
 **review.** Start every reviewer in `job.json` `agents.reviewers` **at once**, so they run in parallel: role `reviewer-<r>`, model from the same map, prompt `<header> Review round <N>.` **WAIT FOR ALL.** Each time one finishes, run `factory/bin/job sync <id>` so the dashboard fills in. When every reviewer has finished:
 
-First check every review. `factory/bin/job sync <id>` reports a review as `invalid` when its first line is no verdict or its judgments of remote findings are incomplete or malformed. Delete that `review-<r>.md` and start the reviewer again, once. If the new file is invalid too, stop this job and tell the user. Choose a branch only when every review is valid.
+First check every review. `factory/bin/job sync <id>` reports a review as `invalid` when its first line is no verdict, its judgments of remote findings are incomplete or malformed, or it has no `## Evidence` section with content. Delete that `review-<r>.md` and start the reviewer again, once. If the new file is invalid too, stop this job and tell the user. Choose a branch only when every review is valid.
 
 - all PASS: go to **publish**.
 - any CHANGES: `factory/bin/job advance <id> build` (or `needs-human` when it refuses because this was the last round), then resume the builder: `Round <N-1> reviews are in round-<N-1>/. Address every VERDICT: CHANGES, commit, and update build.md for round <N>.`
