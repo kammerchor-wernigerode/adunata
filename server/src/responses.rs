@@ -653,12 +653,15 @@ async fn calendar_file(State(state): State<AppState>, link: PersonalLink) -> Res
     let Ok(response) = stored(&mut connection, link.invitation_id).await else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
-    if !offers_calendar(&link.gathering, response.as_ref()) {
-        return StatusCode::NOT_FOUND.into_response();
-    }
-    let Ok(revision) = gatherings::revision(&mut connection, link.gathering.id).await else {
+    let Ok(Some((gathering, revision))) =
+        gatherings::find_with_revision(&mut connection, link.gathering.id, state.time_zone.today())
+            .await
+    else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
+    if !offers_calendar(&gathering, response.as_ref()) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
     (
         [
             (header::CONTENT_TYPE, "text/calendar; charset=utf-8"),
@@ -667,7 +670,7 @@ async fn calendar_file(State(state): State<AppState>, link: PersonalLink) -> Res
                 "attachment; filename=\"gathering.ics\"",
             ),
         ],
-        calendar::file(&link.gathering, &revision),
+        calendar::file(&gathering, &revision),
     )
         .into_response()
 }

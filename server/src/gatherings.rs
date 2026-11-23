@@ -3,7 +3,7 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
-use sqlx::PgConnection;
+use sqlx::{FromRow, PgConnection};
 use time::{Date, OffsetDateTime};
 use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
@@ -294,12 +294,25 @@ pub async fn find(
         .map(|row| Gathering::from_row(row, today)))
 }
 
-/// The revision of the gathering with this id.
-pub async fn revision(connection: &mut PgConnection, id: i64) -> Result<Revision, sqlx::Error> {
-    sqlx::query_as("SELECT created_at, changed_at, version FROM gatherings WHERE id = $1")
+/// The gathering with this id and its revision, read in one statement so both describe the same state.
+pub async fn find_with_revision(
+    connection: &mut PgConnection,
+    id: i64,
+    today: Date,
+) -> Result<Option<(Gathering, Revision)>, sqlx::Error> {
+    let query =
+        format!("SELECT {COLUMNS}, created_at, changed_at, version FROM gatherings WHERE id = $1");
+    let Some(row) = sqlx::query(sqlx::AssertSqlSafe(query))
         .bind(id)
-        .fetch_one(connection)
-        .await
+        .fetch_optional(connection)
+        .await?
+    else {
+        return Ok(None);
+    };
+    Ok(Some((
+        Gathering::from_row(Row::from_row(&row)?, today),
+        Revision::from_row(&row)?,
+    )))
 }
 
 fn bind<'q>(
