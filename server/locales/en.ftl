@@ -208,6 +208,7 @@ response-saved = Response saved. You can change it until { $day }.
 response-saved-for = Response of { $name } saved.
 response-calendar = Add to calendar
 response-calendar-hint = Your calendar does not follow later changes on its own. A new download replaces the entry.
+response-calendar-failed = The calendar file could not be loaded. Reload the page and try again.
 response-visibility = Other invited members see your name and whether you come.
 response-yours = Your response
 response-error-begun = The gathering has begun, so your response can no longer change here. Ask your organizers.

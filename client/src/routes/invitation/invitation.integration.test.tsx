@@ -99,6 +99,14 @@ describe('response page', () => {
     click.mockRestore()
   })
 
+  it('says when the calendar file could not be loaded', async () => {
+    server.use(http.get('*/api/invitation/calendar', () => new HttpResponse(null, { status: 404 })))
+    openLink(() => HttpResponse.json({ ...page, calendar: true }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Add to calendar' }))
+    const message = await screen.findByText('The calendar file could not be loaded. Reload the page and try again.')
+    expect(message.getAttribute('role')).toBe('alert')
+  })
+
   it('lets the member read who sees name, status and comment', async () => {
     openLink(() => HttpResponse.json(page))
     expect(await screen.findByText('Other invited members see your name and whether you come.')).toBeTruthy()
