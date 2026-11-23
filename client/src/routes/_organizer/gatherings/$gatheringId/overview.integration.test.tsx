@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { screen, waitFor, within } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
@@ -12,8 +14,11 @@ import {
   getOverviewMockHandler,
 } from '@/api/generated/api.msw'
 import type { Gathering, Overview, OverviewRow } from '@/api/generated/model'
+import { createBundle, formatMessage } from '@/l10n/bundle'
+import { LocalizationContext } from '@/l10n/translate'
 import { renderApp, violations } from '@/testing/app'
 import { setupApiServer } from '@/testing/server'
+import { DownloadOverview } from './-components/DownloadOverview'
 
 const server = setupApiServer()
 
@@ -265,5 +270,39 @@ describe('remind pending members', () => {
     organizerPage(gathering, remindOverview)
     await screen.findByRole('table')
     expect(screen.queryByRole('button', { name: /Remind/ })).toBeNull()
+  })
+})
+
+describe('download the overview', () => {
+  const notice = 'The file holds personal data. Adunata does not delete it, so delete it once you no longer need it.'
+
+  it('offers the link with the notice next to it', async () => {
+    const { container } = organizerPage()
+    const link = await screen.findByRole('link', { name: 'Download CSV' })
+    expect(link.getAttribute('href')).toBe('/api/gatherings/5/overview.csv?language=en')
+    expect(link.getAttribute('aria-describedby')).toBe(screen.getByText(notice).id)
+    expect(await violations(container)).toEqual([])
+  })
+
+  it('names the German language in the address', () => {
+    const german = createBundle('de', readFileSync(path.join(import.meta.dirname, '../../../../../../server/locales/de.ftl'), 'utf8'))
+    render(
+      <LocalizationContext.Provider value={{ locale: 'de', translate: (id, args) => formatMessage([german], id, args), setLocale: () => {} }}>
+        <DownloadOverview gatheringId={5} />
+      </LocalizationContext.Provider>,
+    )
+    expect(screen.getByRole('link', { name: 'CSV herunterladen' }).getAttribute('href')).toBe('/api/gatherings/5/overview.csv?language=de')
+    expect(
+      screen.getByText('Die Datei enthält personenbezogene Daten. Adunata löscht sie nicht, also lösche sie, sobald du sie nicht mehr brauchst.'),
+    ).toBeTruthy()
+  })
+
+  it.each([
+    ['cancelled', { ...weekend, cancelled: true }],
+    ['ended', { ...weekend, ended: true }],
+  ])('keeps the link for a %s gathering', async (_, gathering) => {
+    organizerPage(gathering)
+    expect(await screen.findByRole('link', { name: 'Download CSV' })).toBeTruthy()
+    expect(screen.getByText(notice)).toBeTruthy()
   })
 })
