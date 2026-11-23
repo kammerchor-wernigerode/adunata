@@ -1130,9 +1130,17 @@ def bot_review_remarks(job):
             and any(m in (r["body"] or "") for m in markers)]
 
 
+def uncounted_failures(checks, wait_for):
+    """Failed or cancelled checks that `wait_for` does not name, so they do not decide the verdict."""
+    return [c for c in checks if c["name"] not in wait_for and c["bucket"] in {"fail", "cancel"}]
+
+
 def write_remote_md(job, verdict, head, checks, failed, threads, remarks):
+    uncounted = uncounted_failures(checks, CONFIG["ci"]["wait_for"])
     summary = [
         f"{len(checks)} checks finished, {len(failed)} failed" + (f": {', '.join(c['name'] for c in failed)}" if failed else ""),
+        *([f"{len(uncounted)} failed or cancelled checks outside ci.wait_for, not counted: "
+           f"{', '.join(c['name'] for c in uncounted)}"] if uncounted else []),
         f"{len(threads)} open review threads from {', '.join(CONFIG['ci']['review_bots'])}",
         f"{len(remarks)} bot reviews with remarks outside threads",
         f"PR #{job['pr']} at {head[:7]}",
@@ -1227,6 +1235,10 @@ def self_check():
     assert findings_problems("VERDICT: PASS\n\n## Remote findings\n- PRRT_a1: OPEN the null case is real\n", ["PRRT_a1"])
     assert findings_problems(review + "- PRRT_a1: OPEN the null case is real\n- PRRT_a1: FIXED it is not\n", ["PRRT_a1"])
     assert not findings_problems("VERDICT: PASS\n\n## Findings\nNone.\n", [])
+    checks = [{"name": "Verdict", "bucket": "fail"}, {"name": "Verdict (draft)", "bucket": "fail"},
+              {"name": "End-to-end tests", "bucket": "cancel"}, {"name": "Changes", "bucket": "pass"}]
+    assert [c["name"] for c in uncounted_failures(checks, ["Verdict", "CodeRabbit"])] == ["Verdict (draft)", "End-to-end tests"]
+    assert not uncounted_failures(checks[:1] + checks[3:], ["Verdict", "CodeRabbit"])
     print("self-check passed")
 
 
