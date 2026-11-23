@@ -28,6 +28,7 @@ for a test. It moves only the state. gh and git still act on the real repository
 """
 
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -179,6 +180,11 @@ def header(path):
         key, _, value = line.partition(":")
         fields[key.strip().upper()] = value.strip()
     return fields
+
+
+def spec_hash(path):
+    """SHA-256 of spec.md, or None without the file. Routing in the stage spec records it."""
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
 
 
 def section(path, heading):
@@ -573,6 +579,8 @@ def advance(job, stage, push_unpushed=True, why=None):
         require((d / "spec.md").exists(), "spec.md doesn't exist")
         require((job["agents"] or {}).get("routed") == "spec",
                 "route the job again after the spec step: factory/bin/route " + job["id"])
+        require(job["agents"].get("spec_sha256") == spec_hash(d / "spec.md"),
+                "spec.md changed after routing; route the job again: factory/bin/route " + job["id"])
         next_round(job)
 
     elif old == "build" and stage == "gate":
@@ -1235,6 +1243,7 @@ def self_check():
     assert findings_problems("VERDICT: PASS\n\n## Remote findings\n- PRRT_a1: OPEN the null case is real\n", ["PRRT_a1"])
     assert findings_problems(review + "- PRRT_a1: OPEN the null case is real\n- PRRT_a1: FIXED it is not\n", ["PRRT_a1"])
     assert not findings_problems("VERDICT: PASS\n\n## Findings\nNone.\n", [])
+    assert spec_hash(Path("/nonexistent/spec.md")) is None
     checks = [{"name": "Verdict", "bucket": "fail"}, {"name": "Verdict (draft)", "bucket": "fail"},
               {"name": "End-to-end tests", "bucket": "cancel"}, {"name": "Changes", "bucket": "pass"}]
     assert [c["name"] for c in uncounted_failures(checks, ["Verdict", "CodeRabbit"])] == ["Verdict (draft)", "End-to-end tests"]

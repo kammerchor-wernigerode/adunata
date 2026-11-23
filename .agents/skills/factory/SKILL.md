@@ -89,7 +89,7 @@ Each step below runs when the previous agent or script finishes. Report one shor
 - `NEEDS-INFO`: `factory/bin/job advance <id> needs-info`. The job parks until the author replies.
 - `REJECT`: `factory/bin/job advance <id> rejected`.
 
-**spec.** Start `spec-writer` with `<header>`. When it returns, run `factory/bin/route <id>` again, because `spec.md` now says whether the job has an OpenSpec change. Then `factory/bin/job advance <id> build` and go to **build**. `advance` refuses until `route` has run in this step.
+**spec.** Start `spec-writer` with `<header>`. When it returns, run `factory/bin/route <id>` again, because `spec.md` now says whether the job has an OpenSpec change. Then `factory/bin/job advance <id> build` and go to **build**. `advance` refuses until `route` has run in this step and after the last change of `spec.md`.
 
 **build.** Start or resume `builder-<id>` with `<header> Build round <N>.` plus what this round is for: the gate's `round-<N-1>/checks.md`, the reviews in `round-<N-1>/`, `round-<N-1>/review-remote.md`, or `feedback-<k>.md`. When it returns, read `build.md`'s first line:
 
