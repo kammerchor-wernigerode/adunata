@@ -51,7 +51,7 @@ The required setting `ADNT_LOCALIZATION_TIME_ZONE` names the time zone of the in
 
 Invitation links and sign-in links follow one rule, see [ADR 0011](../decisions/0011-personal-links-in-the-url-fragment.md). Each carries a random secret of 256 bits in the fragment, such as `/invitation#3f9a…`. The module `secret` creates it and its SHA-256 hash, and only the hash reaches the database. The client reads the fragment and sends the secret only in the header `Authorization: Bearer <secret>`.
 
-The module `invitations` resolves the secret of an invitation through the extractor `PersonalLink`, which the routes of `responses` take as an argument. An unknown or revoked secret fails with status 404 and reveals no gathering or member. Resending stores the hash of a new secret in place of the old one.
+The module `invitations` resolves the secret of an invitation through the extractor `PersonalLink`, which the routes of `responses` take as an argument. An unknown or revoked secret fails with status 404 and reveals no gathering or member. Resending and reminding both store the hash of a new secret in place of the old one.
 
 ## Security headers
 

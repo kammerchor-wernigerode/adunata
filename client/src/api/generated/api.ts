@@ -1122,6 +1122,110 @@ export function useOverview<TData = Awaited<ReturnType<typeof overview>>, TError
 
 
 
+export type remindResponse201 = {
+  data: Invited
+  status: 201
+}
+
+export type remindResponse401 = {
+  data: void
+  status: 401
+}
+
+export type remindResponse404 = {
+  data: void
+  status: 404
+}
+
+export type remindResponse422 = {
+  data: ValidationErrors
+  status: 422
+}
+
+export type remindResponseSuccess = (remindResponse201) & {
+  headers: Headers;
+};
+export type remindResponseError = (remindResponse401 | remindResponse404 | remindResponse422) & {
+  headers: Headers;
+};
+
+export type remindResponse = (remindResponseSuccess | remindResponseError)
+
+export const getRemindUrl = (id: number,) => {
+
+
+
+
+  return `/api/gatherings/${id}/reminders`
+}
+
+export const remind = async (id: number, options?: RequestInit): Promise<remindResponse> => {
+
+  const res = await fetch(getRemindUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: remindResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as remindResponse
+}
+
+
+
+
+
+export const getRemindMutationKey = () => ['remind'] as const;
+
+export const getRemindMutationOptions = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof remind>>, TError,RemindMutationVariables, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof remind>>, TError,RemindMutationVariables, TContext> => {
+
+const mutationKey = getRemindMutationKey();
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof remind>>, RemindMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  remind(id,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemindMutationResult = NonNullable<Awaited<ReturnType<typeof remind>>>
+
+    export type RemindMutationError = void | ValidationErrors
+    export type RemindMutationVariables = {id: number}
+
+    export const useRemind = <TError = void | ValidationErrors,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof remind>>, TError,RemindMutationVariables, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof remind>>,
+        TError,
+        RemindMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRemindMutationOptions(options), queryClient);
+    }
+
 export type healthResponse200 = {
   data: Health
   status: 200

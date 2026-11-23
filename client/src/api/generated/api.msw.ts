@@ -64,6 +64,8 @@ export const getInviteResponseMock = (overrideResponse: Partial<Extract<Invited,
 
 export const getOverviewResponseMock = (overrideResponse: Partial<Extract<Overview, object>> = {}): Overview => ({rows: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({invitationId: faker.number.int(), firstName: faker.string.alpha({length: {min: 10, max: 20}}), lastName: faker.string.alpha({length: {min: 10, max: 20}}), status: faker.helpers.arrayElement(Object.values(InvitationStatus)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int(), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), changedBy: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(ChangedBy)),null,]), changedAt: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), outsideSpan: faker.datatype.boolean(), linkActive: faker.datatype.boolean(), mail: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(MailState)),null,])})), totals: {accepted: faker.number.int(), tentative: faker.number.int(), declined: faker.number.int(), pending: faker.number.int(), bedsNeeded: faker.number.int(), bedsOffered: faker.number.int()}, ...overrideResponse})
 
+export const getRemindResponseMock = (overrideResponse: Partial<Extract<Invited, object>> = {}): Invited => ({count: faker.number.int({min: 0}), ...overrideResponse})
+
 export const getHealthResponseMock = (overrideResponse: Partial<Extract<Health, object>> = {}): Health => ({status: faker.helpers.arrayElement(Object.values(Status)), cause: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Cause)),null,]), ...overrideResponse})
 
 export const getInvitationPageResponseResponseValuesMock = (overrideResponse: Partial<ResponseValues> = {}): ResponseValues => ({...{status: faker.helpers.arrayElement(Object.values(ResponseStatus)), arrival: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), departure: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), null]), beds: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(Beds)),null,]), bedCount: faker.helpers.arrayElement([faker.number.int({min: 1, max: 20}), null]), comment: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 2000}}), null])}, ...overrideResponse});
@@ -192,6 +194,18 @@ export const getOverviewMockHandler = (overrideResponse?: Overview | ((info: Par
     ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
     : getOverviewResponseMock(),
       { status: 200
+      })
+  }, options)
+}
+
+export const getRemindMockHandler = (overrideResponse?: Invited | ((info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => Promise<Invited> | Invited), options?: RequestHandlerOptions) => {
+  return http.post<{ id: string }>('*/api/gatherings/:id/reminders', async (info: Parameters<HttpResponseResolver<{ id: string }>>[0]) => {
+
+
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getRemindResponseMock(),
+      { status: 201
       })
   }, options)
 }
@@ -375,6 +389,7 @@ export const getAdunataMock = () => [
   getListInvitationsMockHandler(),
   getInviteMockHandler(),
   getOverviewMockHandler(),
+  getRemindMockHandler(),
   getHealthMockHandler(),
   getInvitationPageMockHandler(),
   getAnswerMockHandler(),
