@@ -55,7 +55,7 @@ The module `invitations` resolves the secret of an invitation through the extrac
 
 ## Calendar file
 
-The response page offers a calendar file to a member who accepted or accepted tentatively, until the last day of the gathering has passed. The server decides this and reports it as `calendar` on the page. The route `GET /api/invitation/calendar` behind the personal link serves `gathering.ics`, which the module `calendar` writes as a plain RFC 5545 entry of whole days. It holds no `METHOD`, `ATTENDEE` or `URL`, so nothing of the member and no personal link reaches a calendar. Every stored change and the cancellation of a gathering raise `gatherings.version`, the `SEQUENCE` of the entry. The `UID` stays the same across downloads, see [ADR 0025](../decisions/0025-stable-calendar-uids-for-gatherings.md), so a new download replaces the entry.
+The server decides whether the response page offers the calendar file and reports it as `calendar` on the page. The route `GET /api/invitation/calendar` behind the personal link serves the file, which the module `calendar` writes without I/O. The [responses specification](../../openspec/specs/responses/spec.md) defines who gets the file and what it holds. [ADR 0025](../decisions/0025-stable-calendar-uids-for-gatherings.md) defines how an entry keeps its identity and when it counts as newer.
 
 ## Security headers
 
