@@ -431,6 +431,30 @@ mod integration {
     }
 
     #[tokio::test]
+    async fn gathering_created_before_its_changes_were_counted() {
+        let database = empty_database().await;
+        let options = database.options();
+        let older = PgPoolOptions::new()
+            .connect_with(options.clone())
+            .await
+            .unwrap();
+        MIGRATOR.run_to(2, &older).await.unwrap();
+        sqlx::query("INSERT INTO gatherings (title, location, first_day, last_day, created_at) VALUES ('Probenwochenende', 'Kloster Drübeck', '2027-03-12', '2027-03-14', '2027-01-10T09:00:00.123456Z')")
+            .execute(&older)
+            .await
+            .unwrap();
+        older.close().await;
+
+        let pool = connect(options).await.unwrap();
+        let (version, unchanged): (i32, bool) =
+            sqlx::query_as("SELECT version, changed_at = created_at FROM gatherings")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!((version, unchanged), (0, true));
+    }
+
+    #[tokio::test]
     async fn start_after_a_downgrade() {
         let database = fresh_database().await;
         let pool = database.pool();

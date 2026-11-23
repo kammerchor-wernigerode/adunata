@@ -230,7 +230,7 @@ async fn change(
         return Ok(invalid(errors));
     }
     let query = format!(
-        "UPDATE gatherings SET title = $1, location = $2, description = $3, first_day = $4, last_day = $5 WHERE id = $6 RETURNING {COLUMNS}"
+        "UPDATE gatherings SET title = $1, location = $2, description = $3, first_day = $4, last_day = $5, version = version + 1, changed_at = now() WHERE id = $6 RETURNING {COLUMNS}"
     );
     let row = bind(sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(query)), input)
         .bind(id)
@@ -247,7 +247,7 @@ pub async fn cancel(
     today: Date,
 ) -> Result<Option<Gathering>, sqlx::Error> {
     let query = format!(
-        "UPDATE gatherings SET cancelled_at = now() WHERE id = $1 AND cancelled_at IS NULL AND last_day >= $2 RETURNING {COLUMNS}"
+        "UPDATE gatherings SET cancelled_at = now(), version = version + 1, changed_at = now() WHERE id = $1 AND cancelled_at IS NULL AND last_day >= $2 RETURNING {COLUMNS}"
     );
     Ok(sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(query))
         .bind(id)
@@ -615,6 +615,41 @@ mod tests {
             let (_, stored) = send(&pool, &cookie, "GET", &path, &Value::Null).await;
             assert_eq!(stored["firstDay"], day(-2));
             assert_eq!(stored["lastDay"], day(3));
+        }
+
+        async fn version(pool: &sqlx::PgPool) -> (i32, bool) {
+            sqlx::query_as("SELECT version, changed_at > created_at FROM gatherings")
+                .fetch_one(pool)
+                .await
+                .unwrap()
+        }
+
+        #[tokio::test]
+        async fn each_change_raises_the_version() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (_, created) =
+                send(&pool, &cookie, "POST", "/api/gatherings", &weekend(10, 12)).await;
+            assert_eq!(version(&pool).await, (0, false));
+            let path = format!("/api/gatherings/{}", created["id"]);
+            send(&pool, &cookie, "PUT", &path, &weekend(10, 13)).await;
+            assert_eq!(version(&pool).await, (1, true));
+            send(&pool, &cookie, "PUT", &path, &weekend(10, 13)).await;
+            assert_eq!(version(&pool).await.0, 2);
+        }
+
+        #[tokio::test]
+        async fn cancellation_raises_the_version() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (_, created) =
+                send(&pool, &cookie, "POST", "/api/gatherings", &weekend(10, 12)).await;
+            let path = format!("/api/gatherings/{}/cancellation", created["id"]);
+            let (status, _) = send(&pool, &cookie, "POST", &path, &Value::Null).await;
+            assert_eq!(status, StatusCode::NO_CONTENT);
+            assert_eq!(version(&pool).await, (1, true));
         }
     }
 }
