@@ -164,3 +164,30 @@ The overview table SHALL end with a column "Actions". For an invitation whose ma
 #### Scenario: Row without actions
 - **WHEN** a member's mail did not fail and the link is active
 - **THEN** the actions cell of that row is empty and carries no label, so the card layout shows no actions line for it
+
+### Requirement: Remind action on the overview
+While a gathering is neither cancelled nor ended and at least one invitation is pending with an active link, the overview SHALL offer a button next to the status filter that names the number of these members, "Remind N members" in English and "N Mitglieder erinnern" in German. A click SHALL open a dialog that names the number of members, says that each of them receives a new link and that the old link stops working, and offers to confirm or to go back. Adunata SHALL send nothing before the organizer confirms. After the server accepts, the dialog SHALL close, the overview SHALL reload and the page SHALL show the number of reminders queued. If the server refuses or fails, the dialog SHALL stay open and name the failure. The button and the dialog SHALL be shadcn components.
+
+#### Scenario: Button names the count
+- **WHEN** an organizer opens the overview of an open gathering with three pending invitations, one of them with a revoked link
+- **THEN** the overview shows the button "Remind 2 members"
+
+#### Scenario: Go back
+- **WHEN** an organizer clicks the button and then goes back in the dialog
+- **THEN** the dialog closes and Adunata queues no mail
+
+#### Scenario: Confirm
+- **WHEN** an organizer clicks the button and confirms in the dialog
+- **THEN** the dialog closes, the overview reloads and the page shows that 2 reminders were sent
+
+#### Scenario: Server refuses
+- **WHEN** an organizer confirms and the server refuses or fails
+- **THEN** the dialog stays open and names the failure
+
+#### Scenario: Nobody to remind
+- **WHEN** no invitation of the gathering is pending with an active link
+- **THEN** the overview shows no remind button
+
+#### Scenario: Closed gathering
+- **WHEN** the gathering is cancelled or has ended
+- **THEN** the overview shows no remind button
