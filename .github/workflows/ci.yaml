@@ -242,7 +242,7 @@ jobs:
   verdict:
     name: ${{ github.event.pull_request.draft && 'Verdict (draft)' || 'Verdict' }}
     needs: [changes, build, e2e]
-    if: always()
+    if: ${{ !cancelled() || github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     steps:
       - name: Results of every job
