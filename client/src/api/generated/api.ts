@@ -37,6 +37,7 @@ import type {
   MemberChange,
   NewMember,
   Overview,
+  OverviewCsvParams,
   ResponseValues,
   SignInRequest,
   ValidationErrors
@@ -1110,6 +1111,146 @@ export function useOverview<TData = Awaited<ReturnType<typeof overview>>, TError
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getOverviewQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type overviewCsvResponse200 = {
+  data: string
+  status: 200
+}
+
+export type overviewCsvResponse401 = {
+  data: void
+  status: 401
+}
+
+export type overviewCsvResponse404 = {
+  data: void
+  status: 404
+}
+
+export type overviewCsvResponseSuccess = (overviewCsvResponse200) & {
+  headers: Headers;
+};
+export type overviewCsvResponseError = (overviewCsvResponse401 | overviewCsvResponse404) & {
+  headers: Headers;
+};
+
+export type overviewCsvResponse = (overviewCsvResponseSuccess | overviewCsvResponseError)
+
+export const getOverviewCsvUrl = (id: number,
+    params?: OverviewCsvParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/gatherings/${id}/overview.csv?${stringifiedParams}` : `/api/gatherings/${id}/overview.csv`
+}
+
+export const overviewCsv = async (id: number,
+    params?: OverviewCsvParams, options?: RequestInit): Promise<overviewCsvResponse> => {
+
+  const res = await fetch(getOverviewCsvUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+  const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: overviewCsvResponse['data'] = body ? (contentType.includes('json') ? JSON.parse(body) : body) : {}
+  return { data, status: res.status, headers: res.headers } as overviewCsvResponse
+}
+
+
+
+
+
+export const getOverviewCsvQueryKey = (id: number,
+    params?: OverviewCsvParams,) => {
+    return [
+    `/api/gatherings/${id}/overview.csv`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getOverviewCsvQueryOptions = <TData = Awaited<ReturnType<typeof overviewCsv>>, TError = void>(id: number,
+    params?: OverviewCsvParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof overviewCsv>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getOverviewCsvQueryKey(id,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof overviewCsv>>> = ({ signal }) => overviewCsv(id,params, { signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof overviewCsv>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type OverviewCsvQueryResult = NonNullable<Awaited<ReturnType<typeof overviewCsv>>>
+export type OverviewCsvQueryError = void
+
+
+export function useOverviewCsv<TData = Awaited<ReturnType<typeof overviewCsv>>, TError = void>(
+ id: number,
+    params: undefined |  OverviewCsvParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof overviewCsv>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof overviewCsv>>,
+          TError,
+          Awaited<ReturnType<typeof overviewCsv>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOverviewCsv<TData = Awaited<ReturnType<typeof overviewCsv>>, TError = void>(
+ id: number,
+    params?: OverviewCsvParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof overviewCsv>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof overviewCsv>>,
+          TError,
+          Awaited<ReturnType<typeof overviewCsv>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOverviewCsv<TData = Awaited<ReturnType<typeof overviewCsv>>, TError = void>(
+ id: number,
+    params?: OverviewCsvParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof overviewCsv>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useOverviewCsv<TData = Awaited<ReturnType<typeof overviewCsv>>, TError = void>(
+ id: number,
+    params?: OverviewCsvParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof overviewCsv>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getOverviewCsvQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
