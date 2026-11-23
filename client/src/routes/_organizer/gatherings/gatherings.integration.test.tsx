@@ -208,6 +208,29 @@ function enabledDays(grid: HTMLElement) {
     .map((day) => day.getAttribute('aria-label') ?? '')
 }
 
+/** Answers each create with the stored gathering under the next id and lists every stored one as upcoming. */
+function storing() {
+  const stored: Gathering[] = []
+  server.use(
+    http.post('*/api/gatherings', async ({ request }) => {
+      const input = (await request.json()) as Omit<Gathering, 'id' | 'cancelled' | 'ended'>
+      const gathering = { ...input, id: 20 + stored.length, cancelled: false, ended: false }
+      stored.push(gathering)
+      return HttpResponse.json(gathering, { status: 201 })
+    }),
+    http.get('*/api/gatherings', () => HttpResponse.json({ upcoming: stored, past: [] })),
+  )
+  return stored
+}
+
+async function fillNew() {
+  await userEvent.type(await screen.findByLabelText('Title'), 'Probenwochenende')
+  await userEvent.type(screen.getByLabelText('Location'), 'Wernigerode')
+  await userEvent.type(screen.getByLabelText('Description'), 'We rehearse.')
+  await pickDay('First day', '12')
+  await pickDay('Last day', '14')
+}
+
 describe('gathering form', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] })
@@ -216,6 +239,129 @@ describe('gathering form', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('offers save and add another only for a new gathering', async () => {
+    signedIn()
+    renderApp('/gatherings/new')
+    await screen.findByLabelText('Title')
+    const save = screen.getByRole('button', { name: 'Save' })
+    const next = screen.getByRole('button', { name: 'Save & add another' })
+    expect(save.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('offers no save and add another when changing a gathering', async () => {
+    signedIn()
+    server.use(getGetGatheringMockHandler(march))
+    renderApp('/gatherings/1/edit')
+    expect(await screen.findByRole('button', { name: 'Save' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Save & add another' })).toBeNull()
+  })
+
+  it('stores a gathering and keeps the form open for the next one', async () => {
+    signedIn()
+    storing()
+    const { container } = renderApp('/gatherings/new')
+    await fillNew()
+    await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
+    await screen.findByRole('link', { name: 'Probenwochenende' })
+    const line = screen.getByRole('status')
+    expect(line.textContent.replace(/\s/g, ' ')).toBe('Probenwochenende, Fri, March 12 – Sun, March 14, 2027 saved.')
+    expect(within(line).getByRole('link', { name: 'Probenwochenende' }).getAttribute('href')).toBe('/gatherings/20')
+    const title = screen.getByLabelText('Title')
+    expect((title as HTMLInputElement).value).toBe('Probenwochenende')
+    expect(screen.getByLabelText<HTMLInputElement>('Location').value).toBe('Wernigerode')
+    expect(screen.getByLabelText<HTMLInputElement>('Description').value).toBe('We rehearse.')
+    expect(screen.getByLabelText('First day').textContent).not.toMatch(/2027/)
+    expect(screen.getByLabelText('Last day').textContent).not.toMatch(/2027/)
+    await waitFor(() => expect(document.activeElement).toBe(title))
+    expect(await violations(container)).toEqual([])
+  })
+
+  it('names only the latest stored gathering', async () => {
+    signedIn()
+    storing()
+    renderApp('/gatherings/new')
+    await fillNew()
+    await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
+    await screen.findByRole('link', { name: 'Probenwochenende' })
+    await pickDay('First day', '19')
+    await pickDay('Last day', '21')
+    await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
+    await waitFor(() => expect(screen.getByRole('status').textContent.replace(/\s/g, ' ')).toBe('Probenwochenende, Fri, March 19 – Sun, March 21, 2027 saved.'))
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+  })
+
+  it('removes the line when the next save is refused', async () => {
+    signedIn()
+    storing()
+    renderApp('/gatherings/new')
+    await fillNew()
+    await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
+    await screen.findByRole('link', { name: 'Probenwochenende' })
+    server.use(
+      http.post('*/api/gatherings', () =>
+        HttpResponse.json({ errors: [{ field: 'firstDay', code: 'firstDayInPast' }] }, { status: 422 }),
+      ),
+    )
+    await pickDay('First day', '18')
+    await pickDay('Last day', '20')
+    await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
+    const firstDay = screen.getByLabelText('First day')
+    await waitFor(() => expect(firstDay.getAttribute('aria-invalid')).toBe('true'))
+    expect(screen.getByRole('status').textContent).toBe('')
+    expect(document.activeElement).toBe(firstDay)
+    expect(screen.getByLabelText<HTMLInputElement>('Title').value).toBe('Probenwochenende')
+    expect(firstDay.textContent).toBe('Thu, March 18, 2027')
+    expect(screen.getByLabelText('Last day').textContent).toBe('Sat, March 20, 2027')
+  })
+
+  it('stores the gathering and opens its page on Enter', async () => {
+    signedIn()
+    storing()
+    server.use(
+      getGetGatheringMockHandler({ ...march, id: 20, title: 'Probenwochenende' }),
+      getListInvitationsMockHandler([]),
+      getListMembersMockHandler([]),
+      getOverviewMockHandler(emptyOverview),
+    )
+    renderApp('/gatherings/new')
+    await fillNew()
+    await userEvent.type(screen.getByLabelText('Title'), '{Enter}')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Probenwochenende' })).toBeTruthy()
+  })
+
+  it('disables both buttons while a save runs', async () => {
+    signedIn()
+    const pending: (() => void)[] = []
+    server.use(
+      http.post('*/api/gatherings', async () => {
+        await new Promise<void>((resolve) => pending.push(resolve))
+        return HttpResponse.json({ ...march, id: 20 }, { status: 201 })
+      }),
+    )
+    renderApp('/gatherings/new')
+    await fillNew()
+    const save = screen.getByRole('button', { name: 'Save' })
+    const next = screen.getByRole('button', { name: 'Save & add another' })
+    await userEvent.click(next)
+    await waitFor(() => expect(next.hasAttribute('disabled')).toBe(true))
+    expect(save.hasAttribute('disabled')).toBe(true)
+    for (const answer of pending) answer()
+    await waitFor(() => expect(next.hasAttribute('disabled')).toBe(false))
+    expect(save.hasAttribute('disabled')).toBe(false)
+  })
+
+  it('lists the gathering stored with save and add another', async () => {
+    signedIn()
+    storing()
+    renderApp('/gatherings/new')
+    await fillNew()
+    await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
+    await screen.findByRole('link', { name: 'Probenwochenende' })
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    const upcoming = (await screen.findByRole('heading', { level: 2, name: 'Upcoming' })).closest('section')!
+    expect(within(upcoming).getByRole('link', { name: 'Probenwochenende' })).toBeTruthy()
   })
 
   it('marks a last day before the first day', async () => {

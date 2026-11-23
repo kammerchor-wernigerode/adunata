@@ -109,7 +109,7 @@ test('organizer invites and a member answers through the personal link', async (
   await page.getByLabel('Location').fill('Drübeck Abbey')
   await pickDay(page, 'First day', isoDay(30))
   await pickDay(page, 'Last day', isoDay(32))
-  await page.getByRole('button', { name: 'Save' }).click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Rehearsal weekend' })).toBeVisible()
   await page.getByRole('button', { name: 'Invite the one active member not invited yet' }).click()
   await expect(page.getByText('One invitation sent.')).toBeVisible()
