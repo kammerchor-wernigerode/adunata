@@ -9,7 +9,7 @@ The form for a new gathering SHALL offer a second button "Save & add another", i
 
 #### Scenario: Save and add another
 - **WHEN** an organizer fills the form for a new gathering with title "Probenwochenende", location "Wernigerode", a description and the days 12 to 14 March 2027 and chooses "Save & add another"
-- **THEN** Adunata stores the gathering, the form stays open with title, location and description unchanged, first and last day are empty, the focus is on the title and an element with `role="status"` reads the title and "March 12–14, 2027" with a link to the page of the stored gathering
+- **THEN** Adunata stores the gathering, the form stays open with title, location and description unchanged, first and last day are empty, the focus is on the title and an element with `role="status"` reads the title and "Fri, March 12 – Sun, March 14, 2027" with a link to the page of the stored gathering
 
 #### Scenario: Next save replaces the line
 - **WHEN** an organizer stores a gathering with "Save & add another" and then another one with different days the same way

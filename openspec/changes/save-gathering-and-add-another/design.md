@@ -31,7 +31,7 @@ Further decisions:
 
 - **Second button with its own submit handler.** The second button is `type="button"` and calls `form.handleSubmit` with a handler that stays on the form. So Enter keeps triggering "Save", the first submit button, and validation runs the same way for both. Alternative: `type="submit"` with a `name`, rejected because the form would then have two submit buttons and reading the submitter in react-hook-form needs extra code.
 - **The line uses `role="status"`.** The shadcn `alert` renders `role="alert"` by default. The line overrides it with `role="status"`, because the arc42 pattern announces a successful save through `role="status"` and an alert would interrupt the screen reader. The existing refusal paragraph stays as it is.
-- **Span through `formatSpan`.** The line reads like the row of the list, for example "Probenwochenende, March 12–14, 2027 saved.", with the title as link to the page. The label takes the title and the span as Fluent variables.
+- **Span through `formatSpan`.** The line reads like the row of the list, for example "Probenwochenende, Fri, March 12 – Sun, March 14, 2027 saved.", with the title as link to the page. The label takes the title and the span as Fluent variables.
 - **Reset with `form.reset`.** After the save, the form resets to the stored title, location and description and empty days. This also clears any marks of a field from an earlier refusal.
 - **A refusal clears the line.** A refusal or an unexpected error with either button removes the line, so only the latest result shows.
 - **Queries are invalidated as today**, so the list shows the stored gathering once the organizer returns to it.
