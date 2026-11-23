@@ -4,7 +4,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 use sqlx::PgConnection;
-use time::Date;
+use time::{Date, Duration};
 use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
@@ -18,8 +18,7 @@ time::serde::format_description!(iso_date, Date, "[year]-[month]-[day]");
 const MAX_TITLE_LENGTH: usize = 200;
 const MAX_LOCATION_LENGTH: usize = 200;
 const MAX_DESCRIPTION_LENGTH: usize = 5000;
-const COLUMNS: &str =
-    "id, title, location, description, first_day, last_day, cancelled_at IS NOT NULL AS cancelled";
+const COLUMNS: &str = "id, title, location, description, first_day, last_day, response_deadline_days, cancelled_at IS NOT NULL AS cancelled";
 
 #[derive(sqlx::FromRow)]
 struct Row {
@@ -29,10 +28,15 @@ struct Row {
     description: Option<String>,
     first_day: Date,
     last_day: Date,
+    response_deadline_days: Option<i32>,
     cancelled: bool,
 }
 
 /// A span of days on which the ensemble meets, as organizers see it.
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each flag is a separate field of the API contract"
+)]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Gathering {
@@ -46,6 +50,14 @@ pub struct Gathering {
     #[serde(with = "iso_date")]
     #[schema(value_type = String, format = Date)]
     pub last_day: Date,
+    /// Days before the first day at which responses close, or null without a deadline.
+    pub response_deadline_days: Option<i32>,
+    /// The first day minus the deadline minus one day, or null without a deadline.
+    #[serde(with = "iso_date::option")]
+    #[schema(value_type = Option<String>, format = Date)]
+    pub last_day_to_answer: Option<Date>,
+    /// Whether the last day to answer has passed in the time zone of the instance.
+    pub deadline_passed: bool,
     pub cancelled: bool,
     /// Whether the first day has begun in the time zone of the instance.
     pub begun: bool,
@@ -55,6 +67,9 @@ pub struct Gathering {
 
 impl Gathering {
     fn from_row(row: Row, today: Date) -> Self {
+        let last_day_to_answer = row
+            .response_deadline_days
+            .and_then(|days| last_day_to_answer(row.first_day, days));
         Self {
             id: row.id,
             title: row.title,
@@ -62,11 +77,20 @@ impl Gathering {
             description: row.description,
             first_day: row.first_day,
             last_day: row.last_day,
+            response_deadline_days: row.response_deadline_days,
+            last_day_to_answer,
+            deadline_passed: row.response_deadline_days.is_some()
+                && last_day_to_answer.is_none_or(|day| day < today),
             cancelled: row.cancelled,
             begun: row.first_day <= today,
             ended: row.last_day < today,
         }
     }
+}
+
+/// The first day minus the given days minus one, or `None` when that date cannot be represented.
+fn last_day_to_answer(first_day: Date, days: i32) -> Option<Date> {
+    first_day.checked_sub(Duration::days(i64::from(days) + 1))
 }
 
 /// What an organizer enters for a gathering.
@@ -83,6 +107,10 @@ pub struct GatheringInput {
     #[serde(with = "iso_date")]
     #[schema(value_type = String, format = Date)]
     pub last_day: Date,
+    /// Days before the first day at which responses close. Null or absent means no deadline.
+    #[serde(default)]
+    #[schema(minimum = 1)]
+    pub response_deadline_days: Option<i32>,
 }
 
 /// Gatherings split at the present. Upcoming ones come first, ordered by first day. Past ones follow with the latest first.
@@ -146,7 +174,7 @@ async fn create_gathering(
         return invalid(errors);
     }
     let query = format!(
-        "INSERT INTO gatherings (title, location, description, first_day, last_day) VALUES ($1, $2, $3, $4, $5) RETURNING {COLUMNS}"
+        "INSERT INTO gatherings (title, location, description, first_day, last_day, response_deadline_days) VALUES ($1, $2, $3, $4, $5, $6) RETURNING {COLUMNS}"
     );
     match bind(sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(query)), &input)
         .fetch_one(&state.pool)
@@ -223,12 +251,12 @@ async fn change(
     if stored.ended {
         return Ok(invalid(vec![field_error("gathering", ErrorCode::Ended)]));
     }
-    let errors = validate(input, today, Some(stored.first_day));
+    let errors = validate(input, today, Some(&stored));
     if !errors.is_empty() {
         return Ok(invalid(errors));
     }
     let query = format!(
-        "UPDATE gatherings SET title = $1, location = $2, description = $3, first_day = $4, last_day = $5 WHERE id = $6 RETURNING {COLUMNS}"
+        "UPDATE gatherings SET title = $1, location = $2, description = $3, first_day = $4, last_day = $5, response_deadline_days = $6 WHERE id = $7 RETURNING {COLUMNS}"
     );
     let row = bind(sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(query)), input)
         .bind(id)
@@ -299,14 +327,12 @@ fn bind<'q>(
         )
         .bind(input.first_day)
         .bind(input.last_day)
+        .bind(input.response_deadline_days)
 }
 
-/// The errors of each field. A first day before today is refused unless it is the stored first day of the gathering that changes.
-fn validate(
-    input: &GatheringInput,
-    today: Date,
-    stored_first_day: Option<Date>,
-) -> Vec<FieldError> {
+/// The errors of each field. A first day or a last day to answer before today is refused unless it equals the stored one of the gathering that changes.
+fn validate(input: &GatheringInput, today: Date, stored: Option<&Gathering>) -> Vec<FieldError> {
+    let stored_first_day = stored.map(|gathering| gathering.first_day);
     let mut errors = Vec::new();
     for (field, value, limit) in [
         ("title", &input.title, MAX_TITLE_LENGTH),
@@ -332,7 +358,28 @@ fn validate(
     if input.last_day < input.first_day {
         errors.push(field_error("lastDay", ErrorCode::BeforeFirstDay));
     }
+    if let Some(code) = deadline_error(input, today, stored) {
+        errors.push(field_error("responseDeadlineDays", code));
+    }
     errors
+}
+
+fn deadline_error(
+    input: &GatheringInput,
+    today: Date,
+    stored: Option<&Gathering>,
+) -> Option<ErrorCode> {
+    let days = input.response_deadline_days?;
+    if days < 1 {
+        return Some(ErrorCode::Invalid);
+    }
+    let last_day = last_day_to_answer(input.first_day, days);
+    let unchanged = last_day.is_some()
+        && stored.is_some_and(|gathering| gathering.last_day_to_answer == last_day);
+    if last_day.is_none_or(|day| day < today) && !unchanged {
+        return Some(ErrorCode::DeadlineInPast);
+    }
+    None
 }
 
 #[cfg(test)]
@@ -345,17 +392,22 @@ mod tests {
         date!(2027 - 03 - 14)
     }
 
-    #[test]
-    fn begins_on_its_first_day() {
-        let row = || Row {
+    fn row_with_deadline(first_day: Date, days: Option<i32>) -> Row {
+        Row {
             id: 1,
             title: "t".to_owned(),
             location: "l".to_owned(),
             description: None,
-            first_day: fixed_day(),
-            last_day: fixed_day(),
+            first_day,
+            last_day: first_day,
+            response_deadline_days: days,
             cancelled: false,
-        };
+        }
+    }
+
+    #[test]
+    fn begins_on_its_first_day() {
+        let row = || row_with_deadline(fixed_day(), None);
         let on_first_day = Gathering::from_row(row(), fixed_day());
         assert!(on_first_day.begun);
         assert!(!on_first_day.ended);
@@ -369,7 +421,12 @@ mod tests {
             description: None,
             first_day,
             last_day,
+            response_deadline_days: None,
         }
+    }
+
+    fn stored_gathering(first_day: Date, days: Option<i32>, today: Date) -> Gathering {
+        Gathering::from_row(row_with_deadline(first_day, days), today)
     }
 
     fn first_day_in_past() -> Vec<FieldError> {
@@ -397,7 +454,11 @@ mod tests {
     fn accepts_unchanged_first_day_in_past() {
         let stored = fixed_day() - Duration::days(2);
         assert_eq!(
-            validate(&input(stored, fixed_day()), fixed_day(), Some(stored)),
+            validate(
+                &input(stored, fixed_day()),
+                fixed_day(),
+                Some(&stored_gathering(stored, None, fixed_day()))
+            ),
             vec![]
         );
     }
@@ -407,8 +468,132 @@ mod tests {
         let stored = fixed_day() - Duration::days(2);
         let changed = fixed_day() - Duration::days(1);
         assert_eq!(
-            validate(&input(changed, fixed_day()), fixed_day(), Some(stored)),
+            validate(
+                &input(changed, fixed_day()),
+                fixed_day(),
+                Some(&stored_gathering(stored, None, fixed_day()))
+            ),
             first_day_in_past()
+        );
+    }
+
+    fn with_deadline(first_day: Date, days: i32) -> GatheringInput {
+        GatheringInput {
+            response_deadline_days: Some(days),
+            ..input(first_day, first_day)
+        }
+    }
+
+    fn deadline_error(code: ErrorCode) -> Vec<FieldError> {
+        vec![field_error("responseDeadlineDays", code)]
+    }
+
+    #[test]
+    fn last_day_to_answer() {
+        let gathering = stored_gathering(fixed_day(), Some(7), date!(2027 - 03 - 01));
+        assert_eq!(gathering.last_day_to_answer, Some(date!(2027 - 03 - 06)));
+        assert!(!gathering.deadline_passed);
+    }
+
+    #[test]
+    fn smallest_deadline() {
+        let gathering = stored_gathering(fixed_day(), Some(1), date!(2027 - 03 - 01));
+        assert_eq!(gathering.last_day_to_answer, Some(date!(2027 - 03 - 12)));
+    }
+
+    #[test]
+    fn no_deadline() {
+        let gathering = stored_gathering(fixed_day(), None, fixed_day());
+        assert_eq!(gathering.last_day_to_answer, None);
+        assert!(!gathering.deadline_passed);
+    }
+
+    #[test]
+    fn deadline_passes_after_the_last_day_to_answer() {
+        assert!(!stored_gathering(fixed_day(), Some(7), date!(2027 - 03 - 06)).deadline_passed);
+        let passed = stored_gathering(fixed_day(), Some(7), date!(2027 - 03 - 07));
+        assert!(passed.deadline_passed);
+        assert!(!passed.begun);
+    }
+
+    #[test]
+    fn zero_days() {
+        assert_eq!(
+            validate(&with_deadline(fixed_day(), 0), date!(2027 - 03 - 01), None),
+            deadline_error(ErrorCode::Invalid)
+        );
+    }
+
+    #[test]
+    fn last_day_to_answer_is_today() {
+        assert_eq!(
+            validate(&with_deadline(fixed_day(), 7), date!(2027 - 03 - 06), None),
+            vec![]
+        );
+    }
+
+    #[test]
+    fn last_day_to_answer_in_the_past() {
+        assert_eq!(
+            validate(&with_deadline(fixed_day(), 7), date!(2027 - 03 - 07), None),
+            deadline_error(ErrorCode::DeadlineInPast)
+        );
+    }
+
+    #[test]
+    fn huge_number_of_days() {
+        assert_eq!(
+            validate(
+                &with_deadline(fixed_day(), 2_000_000_000),
+                date!(2027 - 03 - 01),
+                None
+            ),
+            deadline_error(ErrorCode::DeadlineInPast)
+        );
+    }
+
+    #[test]
+    fn other_change_after_the_deadline() {
+        let today = date!(2027 - 03 - 07);
+        let gathering = stored_gathering(fixed_day(), Some(7), today);
+        assert_eq!(
+            validate(&with_deadline(fixed_day(), 7), today, Some(&gathering)),
+            vec![]
+        );
+    }
+
+    #[test]
+    fn moved_first_day_after_the_deadline() {
+        let today = date!(2027 - 03 - 07);
+        let gathering = stored_gathering(fixed_day(), Some(7), today);
+        let moved = date!(2027 - 03 - 21);
+        assert_eq!(
+            validate(&with_deadline(moved, 7), today, Some(&gathering)),
+            vec![]
+        );
+        let changed = stored_gathering(moved, Some(7), today);
+        assert_eq!(changed.last_day_to_answer, Some(date!(2027 - 03 - 13)));
+        assert!(!changed.deadline_passed);
+    }
+
+    #[test]
+    fn moving_the_deadline_into_the_past() {
+        let today = date!(2027 - 03 - 07);
+        let first_day = date!(2027 - 03 - 21);
+        let gathering = stored_gathering(first_day, Some(7), today);
+        assert_eq!(
+            validate(&with_deadline(first_day, 14), today, Some(&gathering)),
+            deadline_error(ErrorCode::DeadlineInPast)
+        );
+    }
+
+    #[test]
+    fn removing_a_passed_deadline() {
+        let today = date!(2027 - 03 - 07);
+        let gathering = stored_gathering(fixed_day(), Some(7), today);
+        assert_eq!(
+            validate(&input(fixed_day(), fixed_day()), today, Some(&gathering)),
+            vec![]
         );
     }
 
@@ -474,6 +659,80 @@ mod tests {
             let (_, list) = send(&pool, &cookie, "GET", "/api/gatherings", &Value::Null).await;
             assert_eq!(list["upcoming"][0]["id"], created["id"]);
             assert_eq!(list["past"], json!([]));
+        }
+
+        #[tokio::test]
+        async fn create_with_and_without_a_deadline() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let mut body = weekend(8, 9);
+            body["responseDeadlineDays"] = json!(7);
+            let (status, created) = send(&pool, &cookie, "POST", "/api/gatherings", &body).await;
+            assert_eq!(status, StatusCode::CREATED);
+            assert_eq!(created["responseDeadlineDays"], 7);
+            assert_eq!(created["lastDayToAnswer"], day(0));
+            assert_eq!(created["deadlinePassed"], false);
+            let (_, plain) = send(&pool, &cookie, "POST", "/api/gatherings", &weekend(8, 9)).await;
+            assert_eq!(plain["responseDeadlineDays"], Value::Null);
+            assert_eq!(plain["lastDayToAnswer"], Value::Null);
+            assert_eq!(plain["deadlinePassed"], false);
+            body = weekend(7, 9);
+            body["responseDeadlineDays"] = json!(7);
+            let (status, refused) = send(&pool, &cookie, "POST", "/api/gatherings", &body).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                refused,
+                json!({ "errors": [{ "field": "responseDeadlineDays", "code": "deadlineInPast" }] })
+            );
+        }
+
+        #[tokio::test]
+        async fn change_after_the_deadline() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let id = crate::invitations::testing::gathering(&pool, "Probenwochenende", 7, 9).await;
+            sqlx::query("UPDATE gatherings SET response_deadline_days = 7 WHERE id = $1")
+                .bind(id)
+                .execute(&pool)
+                .await
+                .unwrap();
+            let path = format!("/api/gatherings/{id}");
+            let (_, stored) = send(&pool, &cookie, "GET", &path, &Value::Null).await;
+            assert_eq!(stored["deadlinePassed"], true);
+            let mut change = weekend(7, 9);
+            change["title"] = json!("Chorwochenende");
+            change["responseDeadlineDays"] = json!(7);
+            let (status, changed) = send(&pool, &cookie, "PUT", &path, &change).await;
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(changed["title"], "Chorwochenende");
+            change["responseDeadlineDays"] = json!(8);
+            let (status, body) = send(&pool, &cookie, "PUT", &path, &change).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                body,
+                json!({ "errors": [{ "field": "responseDeadlineDays", "code": "deadlineInPast" }] })
+            );
+            let (_, kept) = send(&pool, &cookie, "GET", &path, &Value::Null).await;
+            assert_eq!(kept["responseDeadlineDays"], 7);
+            change["responseDeadlineDays"] = Value::Null;
+            let (status, removed) = send(&pool, &cookie, "PUT", &path, &change).await;
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(removed["deadlinePassed"], false);
+        }
+
+        #[tokio::test]
+        async fn existing_gatherings_have_no_deadline() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            crate::invitations::testing::gathering(&pool, "Probenwochenende", 7, 9).await;
+            let days: Option<i32> =
+                sqlx::query_scalar("SELECT response_deadline_days FROM gatherings")
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+            assert_eq!(days, None);
         }
 
         #[tokio::test]

@@ -236,6 +236,8 @@ pub enum LinkState {
     Open,
     /// The first day has begun. The member sees the answer without a form.
     Begun,
+    /// The deadline for responses has passed before the first day. The member can only decline.
+    DeadlinePassed,
     /// The last day has passed. The member sees the gathering and the own answer only.
     Ended,
     /// Organizers cancelled the gathering. The member sees that and no form.
@@ -255,6 +257,10 @@ pub struct InvitedGathering {
     #[serde(with = "iso_date")]
     #[schema(value_type = String, format = Date)]
     pub last_day: Date,
+    /// The last day on which the member can answer, or null without a deadline.
+    #[serde(with = "iso_date::option")]
+    #[schema(value_type = Option<String>, format = Date)]
+    pub last_day_to_answer: Option<Date>,
 }
 
 /// The response page of one invitation as its member sees it.
@@ -682,6 +688,8 @@ fn link_state(gathering: &Gathering) -> LinkState {
         LinkState::Ended
     } else if gathering.begun {
         LinkState::Begun
+    } else if gathering.deadline_passed {
+        LinkState::DeadlinePassed
     } else {
         LinkState::Open
     }
@@ -695,7 +703,7 @@ fn link_state(gathering: &Gathering) -> LinkState {
     responses(
         (status = 200, description = "Response stored, as the page shows it now", body = ResponseValues),
         (status = 404, description = "The link is unknown or revoked"),
-        (status = 422, description = "Response invalid, or the gathering has begun, ended or was cancelled", body = crate::validation::ValidationErrors),
+        (status = 422, description = "Response invalid, or the gathering has begun, ended or was cancelled, or its deadline has passed and the status is not declined", body = crate::validation::ValidationErrors),
     )
 )]
 async fn answer(
@@ -705,6 +713,8 @@ async fn answer(
 ) -> Response {
     let code = match link_state(&link.gathering) {
         LinkState::Open => None,
+        LinkState::DeadlinePassed if values.status == ResponseStatus::Declined => None,
+        LinkState::DeadlinePassed => Some(ErrorCode::DeadlinePassed),
         LinkState::Begun => Some(ErrorCode::Begun),
         LinkState::Ended => Some(ErrorCode::Ended),
         LinkState::Cancelled => Some(ErrorCode::Cancelled),
@@ -761,7 +771,10 @@ async fn invitation_page(State(state): State<AppState>, link: PersonalLink) -> R
     };
     let gathering = link.gathering;
     let link_state = link_state(&gathering);
-    let attendees = if matches!(link_state, LinkState::Open | LinkState::Begun) {
+    let attendees = if matches!(
+        link_state,
+        LinkState::Open | LinkState::DeadlinePassed | LinkState::Begun
+    ) {
         match attendees(&mut connection, gathering.id).await {
             Ok(attendees) => Some(attendees),
             Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
@@ -778,6 +791,7 @@ async fn invitation_page(State(state): State<AppState>, link: PersonalLink) -> R
             description: gathering.description,
             first_day: gathering.first_day,
             last_day: gathering.last_day,
+            last_day_to_answer: gathering.last_day_to_answer,
         },
         response,
         attendees,
@@ -1882,6 +1896,165 @@ mod integration {
         let secret = invited(&pool, 0, 2).await;
         let (_, page) = open(&pool, Some(&secret)).await;
         assert_eq!(page["state"], "begun");
+    }
+
+    /// Sets the deadline of every gathering. A gathering that begins in ten days has its last day to answer today with 9 days and yesterday with 10.
+    async fn set_deadline(pool: &PgPool, days: i32) {
+        sqlx::query("UPDATE gatherings SET response_deadline_days = $1")
+            .bind(days)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
+    fn deadline_passed() -> Value {
+        json!({ "errors": [{ "field": "gathering", "code": "deadlinePassed" }] })
+    }
+
+    #[tokio::test]
+    async fn change_on_the_last_day_to_answer() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        set_deadline(&pool, 9).await;
+        let (_, page) = open(&pool, Some(&secret)).await;
+        assert_eq!(page["state"], "open");
+        assert_eq!(
+            page["gathering"]["lastDayToAnswer"],
+            api::testing::day(0).to_string()
+        );
+        let (status, _) = answer(
+            &pool,
+            &secret,
+            &json!({ "status": "accepted", "beds": "none" }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(row(&pool).await["status"], "accepted");
+    }
+
+    #[tokio::test]
+    async fn open_the_link_after_the_deadline() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        answer(
+            &pool,
+            &secret,
+            &json!({ "status": "accepted", "beds": "none" }),
+        )
+        .await;
+        set_deadline(&pool, 10).await;
+        let (_, page) = open(&pool, Some(&secret)).await;
+        assert_eq!(page["state"], "deadlinePassed");
+        assert_eq!(page["response"]["status"], "accepted");
+        assert_ne!(page["attendees"], Value::Null);
+    }
+
+    #[tokio::test]
+    async fn late_decline() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        answer(
+            &pool,
+            &secret,
+            &json!({ "status": "accepted", "beds": "none" }),
+        )
+        .await;
+        set_deadline(&pool, 10).await;
+        let (status, _) = answer(
+            &pool,
+            &secret,
+            &json!({ "status": "declined", "comment": "Krank" }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let stored = row(&pool).await;
+        assert_eq!(
+            (
+                stored["status"].clone(),
+                stored["comment"].clone(),
+                stored["changedBy"].clone()
+            ),
+            (json!("declined"), json!("Krank"), json!("member"))
+        );
+    }
+
+    #[tokio::test]
+    async fn decline_without_an_earlier_answer() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        set_deadline(&pool, 10).await;
+        let (status, _) = answer(&pool, &secret, &json!({ "status": "declined" })).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(row(&pool).await["status"], "declined");
+    }
+
+    #[tokio::test]
+    async fn accept_after_the_deadline() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        answer(&pool, &secret, &json!({ "status": "declined" })).await;
+        set_deadline(&pool, 10).await;
+        for status in ["accepted", "tentative"] {
+            let errors =
+                rejected(&pool, &secret, json!({ "status": status, "beds": "none" })).await;
+            assert_eq!(errors, deadline_passed());
+        }
+        assert_eq!(row(&pool).await["status"], "declined");
+    }
+
+    #[tokio::test]
+    async fn begun_wins_over_the_deadline() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 0, 2).await;
+        set_deadline(&pool, 3).await;
+        let (_, page) = open(&pool, Some(&secret)).await;
+        assert_eq!(page["state"], "begun");
+        let errors = rejected(&pool, &secret, json!({ "status": "declined" })).await;
+        assert_eq!(
+            errors,
+            json!({ "errors": [{ "field": "gathering", "code": "begun" }] })
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelled_wins_over_the_deadline() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        set_deadline(&pool, 10).await;
+        sqlx::query("UPDATE gatherings SET cancelled_at = now()")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let (_, page) = open(&pool, Some(&secret)).await;
+        assert_eq!(page["state"], "cancelled");
+    }
+
+    #[tokio::test]
+    async fn organizer_after_the_deadline() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        invited(&pool, 10, 12).await;
+        set_deadline(&pool, 10).await;
+        let (status, _) =
+            answer_as_organizer(&pool, &json!({ "status": "accepted", "beds": "none" })).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(row(&pool).await["status"], "accepted");
+    }
+
+    #[tokio::test]
+    async fn page_without_a_deadline() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        let (_, page) = open(&pool, Some(&secret)).await;
+        assert_eq!(page["gathering"]["lastDayToAnswer"], Value::Null);
     }
 
     #[tokio::test]

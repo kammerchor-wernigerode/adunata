@@ -29,6 +29,8 @@ invitation-mail-subject = Einladung: { $title }, { $span }
 invitation-mail-greeting = Hallo { $firstName },
 invitation-mail-details = du bist zu { $title } in { $location } eingeladen, { $span }.
 invitation-mail-answer = Sag uns über deinen persönlichen Link, ob und wann du kommst. Bitte leite ihn nicht weiter, denn er funktioniert ohne Passwort.
+invitation-mail-deadline = Bitte antworte bis zum { $day }.
+invitation-mail-deadline-passed = Die Frist für Antworten ist am { $day } abgelaufen. Absagen kannst du über deinen persönlichen Link weiterhin.
 
 reminder-mail-subject = Erinnerung: { $title }, { $span }
 reminder-mail-details = von dir ist noch keine Antwort zu { $title } in { $location }, { $span }, eingegangen.

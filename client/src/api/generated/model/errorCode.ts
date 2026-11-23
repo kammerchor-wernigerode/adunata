@@ -24,4 +24,6 @@ export const ErrorCode = {
   cancelled: 'cancelled',
   begun: 'begun',
   beforeArrival: 'beforeArrival',
+  deadlinePassed: 'deadlinePassed',
+  deadlineInPast: 'deadlineInPast',
 } as const;

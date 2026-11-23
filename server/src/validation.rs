@@ -20,6 +20,8 @@ pub enum ErrorCode {
     Cancelled,
     Begun,
     BeforeArrival,
+    DeadlinePassed,
+    DeadlineInPast,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
