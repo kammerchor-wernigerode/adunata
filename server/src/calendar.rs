@@ -199,6 +199,7 @@ mod tests {
             first_day: date!(2027 - 03 - 12),
             last_day: date!(2027 - 03 - 14),
             cancelled: false,
+            begun: false,
             ended: false,
         }
     }
