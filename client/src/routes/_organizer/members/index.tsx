@@ -12,7 +12,6 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { useTranslate } from '@/l10n/translate'
 import { dataOf } from '@/lib/dataOf'
-import { mailRecipient } from '@/lib/mailRecipient'
 
 export const Route = createFileRoute('/_organizer/members/')({
   loader: ({ context: { queryClient } }) => queryClient.query(getListMembersQueryOptions()),
@@ -103,7 +102,7 @@ function MemberListPage() {
                       variant="ghost"
                       size="icon"
                       aria-label={translate(copiedKey === member.id ? 'members-mail-copied' : 'members-copy-mail')}
-                      onClick={() => copy(member.id, mailRecipient(member))}
+                      onClick={() => copy(member.id, member.mail)}
                     >
                       {copiedKey === member.id ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
                     </Button>
