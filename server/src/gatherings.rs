@@ -4,7 +4,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 use sqlx::PgConnection;
-use time::Date;
+use time::{Date, OffsetDateTime};
 use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
@@ -69,6 +69,15 @@ impl Gathering {
     pub fn has_begun(&self, today: Date) -> bool {
         self.first_day <= today
     }
+}
+
+/// How often a gathering changed since its creation and when it changed last.
+#[derive(Clone, Debug, PartialEq, Eq, sqlx::FromRow)]
+pub struct Revision {
+    pub created_at: OffsetDateTime,
+    pub changed_at: OffsetDateTime,
+    /// The number of stored changes and cancellations.
+    pub version: i32,
 }
 
 /// What an organizer enters for a gathering.
@@ -283,6 +292,14 @@ pub async fn find(
         .fetch_optional(connection)
         .await?
         .map(|row| Gathering::from_row(row, today)))
+}
+
+/// The revision of the gathering with this id.
+pub async fn revision(connection: &mut PgConnection, id: i64) -> Result<Revision, sqlx::Error> {
+    sqlx::query_as("SELECT created_at, changed_at, version FROM gatherings WHERE id = $1")
+        .bind(id)
+        .fetch_one(connection)
+        .await
 }
 
 fn bind<'q>(

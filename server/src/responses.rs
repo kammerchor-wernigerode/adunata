@@ -1,6 +1,6 @@
 use axum::Json;
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 use sqlx::PgConnection;
@@ -11,6 +11,7 @@ use utoipa_axum::routes;
 
 use crate::access::{self, Organizer};
 use crate::api::AppState;
+use crate::calendar;
 use crate::configuration::{InstanceTimeZone, Retention, RetentionPeriod};
 use crate::gatherings;
 use crate::gatherings::Gathering;
@@ -266,6 +267,8 @@ pub struct InvitationPage {
     pub response: Option<ResponseValues>,
     /// Who comes. Absent once the gathering has ended or when it is cancelled.
     pub attendees: Option<Attendees>,
+    /// Whether the page offers the calendar file of the gathering.
+    pub calendar: bool,
 }
 
 /// A member who accepted or accepted tentatively, as other invited members see them.
@@ -311,6 +314,7 @@ async fn attendees(
 pub fn router() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(invitation_page))
+        .routes(routes!(calendar_file))
         .routes(routes!(answer))
         .routes(routes!(answer_for_member))
         .routes(routes!(overview))
@@ -604,6 +608,7 @@ async fn invitation_page(State(state): State<AppState>, link: PersonalLink) -> R
     } else {
         None
     };
+    let calendar = offers_calendar(&gathering, response.as_ref());
     Json(InvitationPage {
         first_name: link.member.first_name,
         state: link_state,
@@ -614,10 +619,57 @@ async fn invitation_page(State(state): State<AppState>, link: PersonalLink) -> R
             first_day: gathering.first_day,
             last_day: gathering.last_day,
         },
+        calendar,
         response,
         attendees,
     })
     .into_response()
+}
+
+/// Whether a member who comes or may come can still add the gathering to a calendar, also when it is cancelled.
+fn offers_calendar(gathering: &Gathering, response: Option<&ResponseValues>) -> bool {
+    !gathering.ended
+        && response.is_some_and(|response| {
+            matches!(
+                response.status,
+                ResponseStatus::Accepted | ResponseStatus::Tentative
+            )
+        })
+}
+
+/// Expects the secret of the personal link as `Authorization: Bearer <secret>`.
+#[utoipa::path(
+    get,
+    path = "/api/invitation/calendar",
+    responses(
+        (status = 200, description = "The calendar file of the gathering", body = String, content_type = "text/calendar"),
+        (status = 404, description = "The link is unknown or revoked, or the page offers no calendar file"),
+    )
+)]
+async fn calendar_file(State(state): State<AppState>, link: PersonalLink) -> Response {
+    let Ok(mut connection) = state.pool.acquire().await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let Ok(response) = stored(&mut connection, link.invitation_id).await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    if !offers_calendar(&link.gathering, response.as_ref()) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let Ok(revision) = gatherings::revision(&mut connection, link.gathering.id).await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    (
+        [
+            (header::CONTENT_TYPE, "text/calendar; charset=utf-8"),
+            (
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=\"gathering.ics\"",
+            ),
+        ],
+        calendar::file(&link.gathering, &revision),
+    )
+        .into_response()
 }
 
 #[cfg(test)]
@@ -631,7 +683,7 @@ mod integration {
     use time::Date;
 
     use super::expire;
-    use crate::access::testing::signed_in_organizer;
+    use crate::access::testing::{session_cookie, signed_in_organizer};
     use crate::api;
     use crate::configuration::{Retention, RetentionPeriod};
     use crate::database::testing::fresh_database;
@@ -1467,6 +1519,195 @@ mod integration {
         let secret = invited(&pool, 0, 2).await;
         let (_, page) = open(&pool, Some(&secret)).await;
         assert_eq!(page["state"], "begun");
+    }
+
+    async fn download(pool: &PgPool, secret: Option<&str>) -> (StatusCode, String, String) {
+        let mut request = Request::get("/api/invitation/calendar");
+        if let Some(secret) = secret {
+            request = request.header(header::AUTHORIZATION, format!("Bearer {secret}"));
+        }
+        let response = api::router(api::testing::state(pool.clone()))
+            .oneshot(request.body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let status = response.status();
+        let header_text = |name| {
+            response
+                .headers()
+                .get(name)
+                .map(|value: &header::HeaderValue| value.to_str().unwrap().to_owned())
+                .unwrap_or_default()
+        };
+        let content_type = header_text(header::CONTENT_TYPE);
+        let disposition = header_text(header::CONTENT_DISPOSITION);
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(
+            status != StatusCode::OK || disposition == "attachment; filename=\"gathering.ics\""
+        );
+        (status, content_type, body)
+    }
+
+    async fn respond(pool: &PgPool, secret: &str, status: &str) {
+        let body = if status == "declined" {
+            json!({ "status": status })
+        } else {
+            json!({ "status": status, "beds": "none" })
+        };
+        assert_eq!(answer(pool, secret, &body).await.0, StatusCode::OK);
+    }
+
+    /// A session of the organizer that `invited` stored and the id of its gathering.
+    async fn organizer_and_gathering(pool: &PgPool) -> (String, i64) {
+        let (organizer, gathering): (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT id FROM members WHERE organizer), (SELECT id FROM gatherings)",
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap();
+        (session_cookie(pool, organizer).await, gathering)
+    }
+
+    #[tokio::test]
+    async fn accepted_member_adds_the_gathering() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        respond(&pool, &secret, "accepted").await;
+        assert_eq!(open(&pool, Some(&secret)).await.1["calendar"], true);
+        let (status, content_type, file) = download(&pool, Some(&secret)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(content_type, "text/calendar; charset=utf-8");
+        assert!(file.contains("SUMMARY:Probenwochenende\r\n"), "{file}");
+        assert!(file.contains("STATUS:CONFIRMED\r\n"), "{file}");
+        assert!(file.contains("SEQUENCE:0\r\n"), "{file}");
+        assert!(
+            !file.contains("Clara"),
+            "the file holds nothing of the member"
+        );
+    }
+
+    #[tokio::test]
+    async fn tentative_member_of_a_cancelled_gathering() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        respond(&pool, &secret, "tentative").await;
+        let (cookie, id) = organizer_and_gathering(&pool).await;
+        let (status, _) = send(
+            api::testing::state(pool.clone()),
+            &cookie,
+            "POST",
+            &format!("/api/gatherings/{id}/cancellation"),
+            &Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert_eq!(open(&pool, Some(&secret)).await.1["calendar"], true);
+        let (status, _, file) = download(&pool, Some(&secret)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(file.contains("STATUS:CANCELLED\r\n"), "{file}");
+        assert!(file.contains("SEQUENCE:1\r\n"), "{file}");
+    }
+
+    #[tokio::test]
+    async fn entry_after_two_changes() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        respond(&pool, &secret, "accepted").await;
+        let uid_before = download(&pool, Some(&secret))
+            .await
+            .2
+            .lines()
+            .find(|line| line.starts_with("UID:"))
+            .unwrap()
+            .to_owned();
+        let (cookie, id) = organizer_and_gathering(&pool).await;
+        let change = json!({ "title": "Probenwochenende", "location": "Kloster Drübeck", "firstDay": api::testing::day(10).to_string(), "lastDay": api::testing::day(13).to_string() });
+        for _ in 0..2 {
+            let (status, _) = send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "PUT",
+                &format!("/api/gatherings/{id}"),
+                &change,
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+        }
+        let (changed, created): (String, String) = sqlx::query_as(
+            "SELECT to_char(changed_at AT TIME ZONE 'UTC', 'YYYYMMDD\"T\"HH24MISS\"Z\"'), to_char(created_at AT TIME ZONE 'UTC', 'YYYYMMDD\"T\"HH24MISS\"Z\"') FROM gatherings",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let file = download(&pool, Some(&secret)).await.2;
+        assert!(file.contains("SEQUENCE:2\r\n"), "{file}");
+        assert!(file.contains(&format!("DTSTAMP:{changed}\r\n")), "{file}");
+        assert!(
+            file.contains(&format!("LAST-MODIFIED:{changed}\r\n")),
+            "{file}"
+        );
+        assert!(file.contains(&format!("CREATED:{created}\r\n")), "{file}");
+        assert!(file.contains(&format!("{uid_before}\r\n")), "{file}");
+    }
+
+    #[tokio::test]
+    async fn declined_or_pending_member() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        assert_eq!(open(&pool, Some(&secret)).await.1["calendar"], false);
+        assert_eq!(
+            download(&pool, Some(&secret)).await.0,
+            StatusCode::NOT_FOUND
+        );
+        respond(&pool, &secret, "declined").await;
+        assert_eq!(open(&pool, Some(&secret)).await.1["calendar"], false);
+        let (status, _, body) = download(&pool, Some(&secret)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(body, "");
+    }
+
+    #[tokio::test]
+    async fn calendar_after_the_gathering() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        respond(&pool, &secret, "accepted").await;
+        sqlx::query("UPDATE gatherings SET first_day = $1, last_day = $2")
+            .bind(api::testing::day(-3))
+            .bind(api::testing::day(-1))
+            .execute(&pool)
+            .await
+            .unwrap();
+        for cancelled in [false, true] {
+            if cancelled {
+                sqlx::query("UPDATE gatherings SET cancelled_at = now()")
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+            }
+            assert_eq!(open(&pool, Some(&secret)).await.1["calendar"], false);
+            assert_eq!(
+                download(&pool, Some(&secret)).await.0,
+                StatusCode::NOT_FOUND
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn calendar_without_a_secret() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        respond(&pool, &secret, "accepted").await;
+        for secret in [Some("0".repeat(64)), None] {
+            let (status, _, body) = download(&pool, secret.as_deref()).await;
+            assert_eq!(status, StatusCode::NOT_FOUND);
+            assert_eq!(body, "", "the answer must reveal nothing");
+        }
     }
 
     #[tokio::test]

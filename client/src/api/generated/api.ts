@@ -1473,6 +1473,133 @@ export function useInvitationPage<TData = Awaited<ReturnType<typeof invitationPa
 
 
 
+export type calendarFileResponse200 = {
+  data: string
+  status: 200
+}
+
+export type calendarFileResponse404 = {
+  data: void
+  status: 404
+}
+
+export type calendarFileResponseSuccess = (calendarFileResponse200) & {
+  headers: Headers;
+};
+export type calendarFileResponseError = (calendarFileResponse404) & {
+  headers: Headers;
+};
+
+export type calendarFileResponse = (calendarFileResponseSuccess | calendarFileResponseError)
+
+export const getCalendarFileUrl = () => {
+
+
+
+
+  return `/api/invitation/calendar`
+}
+
+/**
+ * @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`.
+ */
+export const calendarFile = async ( options?: RequestInit): Promise<calendarFileResponse> => {
+
+  const res = await fetch(getCalendarFileUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+)
+
+  const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: calendarFileResponse['data'] = body ? (contentType.includes('json') ? JSON.parse(body) : body) : {}
+  return { data, status: res.status, headers: res.headers } as calendarFileResponse
+}
+
+
+
+
+
+export const getCalendarFileQueryKey = () => {
+    return [
+    `/api/invitation/calendar`
+    ] as const;
+    }
+
+
+export const getCalendarFileQueryOptions = <TData = Awaited<ReturnType<typeof calendarFile>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof calendarFile>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCalendarFileQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof calendarFile>>> = ({ signal }) => calendarFile({ signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof calendarFile>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type CalendarFileQueryResult = NonNullable<Awaited<ReturnType<typeof calendarFile>>>
+export type CalendarFileQueryError = void
+
+
+/** @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`. */
+export function useCalendarFile<TData = Awaited<ReturnType<typeof calendarFile>>, TError = void>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof calendarFile>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof calendarFile>>,
+          TError,
+          Awaited<ReturnType<typeof calendarFile>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/** @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`. */
+export function useCalendarFile<TData = Awaited<ReturnType<typeof calendarFile>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof calendarFile>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof calendarFile>>,
+          TError,
+          Awaited<ReturnType<typeof calendarFile>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/** @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`. */
+export function useCalendarFile<TData = Awaited<ReturnType<typeof calendarFile>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof calendarFile>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/** @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`. */
+export function useCalendarFile<TData = Awaited<ReturnType<typeof calendarFile>>, TError = void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof calendarFile>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getCalendarFileQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type answerResponse200 = {
   data: ResponseValues
   status: 200

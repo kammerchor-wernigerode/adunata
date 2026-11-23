@@ -2,7 +2,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getLegalLinksMockHandler } from '@/api/generated/api.msw'
 import type { InvitationPage } from '@/api/generated/model'
 import { renderApp, violations } from '@/testing/app'
@@ -25,6 +25,7 @@ const page: InvitationPage = {
   state: 'open',
   response: null,
   attendees: { coming: [{ name: 'Anna Becker', status: 'accepted' }, { name: 'Felix Richter', status: 'tentative' }], declined: 2, pending: 5 },
+  calendar: false,
 }
 
 function openLink(answer: (request: Request) => Response) {
@@ -64,6 +65,38 @@ describe('response page', () => {
     openLink(() => HttpResponse.json({ ...page, state: 'cancelled' }))
     expect(await screen.findByText('This gathering is cancelled.')).toBeTruthy()
     expect(screen.queryByRole('form')).toBeNull()
+  })
+
+  it('offers no calendar file when the page says so', async () => {
+    openLink(() => HttpResponse.json(page))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Rehearsal weekend' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Add to calendar' })).toBeNull()
+  })
+
+  it('saves the calendar file with the secret in the Authorization header', async () => {
+    const downloads: Request[] = []
+    server.use(
+      http.get('*/api/invitation/calendar', ({ request }) => {
+        downloads.push(request)
+        return new HttpResponse('BEGIN:VCALENDAR\r\n', { headers: { 'Content-Type': 'text/calendar; charset=utf-8' } })
+      }),
+    )
+    const saved: string[] = []
+    const createObjectURL = vi.fn<() => string>(() => 'blob:calendar')
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn<() => void>() })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      saved.push(this.download)
+    })
+    const { container } = openLink(() => HttpResponse.json({ ...page, state: 'cancelled', calendar: true }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Add to calendar' }))
+    expect(screen.getByText('Your calendar does not follow later changes on its own. A new download replaces the entry.')).toBeTruthy()
+    await waitFor(() => expect(saved).toEqual(['gathering.ics']))
+    expect(downloads).toHaveLength(1)
+    expect(downloads[0]!.url).not.toContain(secret)
+    expect(downloads[0]!.headers.get('authorization')).toBe(`Bearer ${secret}`)
+    expect(createObjectURL).toHaveBeenCalledOnce()
+    expect(await violations(container)).toEqual([])
+    click.mockRestore()
   })
 
   it('lets the member read who sees name, status and comment', async () => {
