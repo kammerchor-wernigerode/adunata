@@ -110,7 +110,7 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
     return (
       <p>
         {before}
-        <Link to="/gatherings/$gatheringId" params={{ gatheringId: String(stored.id) }} className="underline">
+        <Link to="/gatherings/$gatheringId" params={{ gatheringId: String(stored.id) }} className="underline underline-offset-4">
           {stored.title}
         </Link>
         {after}
