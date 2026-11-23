@@ -37,7 +37,7 @@ export function Overview({ gathering }: { gathering: Gathering }) {
   const { rows, totals } = data
   const shown = filter === 'all' ? rows : rows.filter((row) => row.status === filter)
   const remindable = rows.filter((row) => row.status === 'pending' && row.linkActive).length
-  const open = !gathering.cancelled && !gathering.ended
+  const remindOpen = !gathering.cancelled && !gathering.begun
 
   async function reminded(message: string) {
     await queryClient.invalidateQueries({ queryKey: getOverviewQueryKey(gathering.id) })
@@ -89,7 +89,7 @@ export function Overview({ gathering }: { gathering: Gathering }) {
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-        {open && remindable > 0 && <RemindPending gathering={gathering} count={remindable} onReminded={reminded} />}
+        {remindOpen && remindable > 0 && <RemindPending gathering={gathering} count={remindable} onReminded={reminded} />}
       </div>
       <p role="status" className="mb-3 text-sm empty:hidden">
         {notice}

@@ -425,7 +425,7 @@
             "description": "No such gathering"
           },
           "422": {
-            "description": "The gathering is cancelled or has ended",
+            "description": "The gathering is cancelled, has ended or has begun",
             "content": {
               "application/json": {
                 "schema": {
@@ -1023,6 +1023,7 @@
           "firstDay",
           "lastDay",
           "cancelled",
+          "begun",
           "ended"
         ],
         "properties": {
@@ -1052,6 +1053,10 @@
           },
           "cancelled": {
             "type": "boolean"
+          },
+          "begun": {
+            "type": "boolean",
+            "description": "Whether the first day has begun in the time zone of the instance."
           },
           "ended": {
             "type": "boolean",

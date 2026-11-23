@@ -22,6 +22,7 @@ export const ListGatheringsResponse = zod.object({
   "firstDay": zod.iso.date(),
   "lastDay": zod.iso.date(),
   "cancelled": zod.boolean(),
+  "begun": zod.boolean().describe('Whether the first day has begun in the time zone of the instance.'),
   "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
 }).describe('A span of days on which the ensemble meets, as organizers see it.')),
   "past": zod.array(zod.object({
@@ -32,6 +33,7 @@ export const ListGatheringsResponse = zod.object({
   "firstDay": zod.iso.date(),
   "lastDay": zod.iso.date(),
   "cancelled": zod.boolean(),
+  "begun": zod.boolean().describe('Whether the first day has begun in the time zone of the instance.'),
   "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
 }).describe('A span of days on which the ensemble meets, as organizers see it.'))
 }).describe('Gatherings split at the present. Upcoming ones come first, ordered by first day. Past ones follow with the latest first.')
@@ -53,6 +55,7 @@ export const CreateGatheringResponse = zod.object({
   "firstDay": zod.iso.date(),
   "lastDay": zod.iso.date(),
   "cancelled": zod.boolean(),
+  "begun": zod.boolean().describe('Whether the first day has begun in the time zone of the instance.'),
   "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
 }).describe('A span of days on which the ensemble meets, as organizers see it.')
 
@@ -69,6 +72,7 @@ export const GetGatheringResponse = zod.object({
   "firstDay": zod.iso.date(),
   "lastDay": zod.iso.date(),
   "cancelled": zod.boolean(),
+  "begun": zod.boolean().describe('Whether the first day has begun in the time zone of the instance.'),
   "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
 }).describe('A span of days on which the ensemble meets, as organizers see it.')
 
@@ -93,6 +97,7 @@ export const ChangeGatheringResponse = zod.object({
   "firstDay": zod.iso.date(),
   "lastDay": zod.iso.date(),
   "cancelled": zod.boolean(),
+  "begun": zod.boolean().describe('Whether the first day has begun in the time zone of the instance.'),
   "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
 }).describe('A span of days on which the ensemble meets, as organizers see it.')
 

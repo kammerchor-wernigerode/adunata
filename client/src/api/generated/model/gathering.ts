@@ -17,6 +17,8 @@ export interface Gathering {
   firstDay: string;
   lastDay: string;
   cancelled: boolean;
+  /** Whether the first day has begun in the time zone of the instance. */
+  begun: boolean;
   /** Whether the last day has passed in the time zone of the instance. */
   ended: boolean;
 }

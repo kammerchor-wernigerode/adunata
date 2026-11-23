@@ -679,12 +679,12 @@ async fn answer_for_member(
     }
 }
 
-fn link_state(gathering: &Gathering, today: Date) -> LinkState {
+fn link_state(gathering: &Gathering) -> LinkState {
     if gathering.cancelled {
         LinkState::Cancelled
     } else if gathering.ended {
         LinkState::Ended
-    } else if gathering.has_begun(today) {
+    } else if gathering.begun {
         LinkState::Begun
     } else {
         LinkState::Open
@@ -707,7 +707,7 @@ async fn answer(
     link: PersonalLink,
     Json(values): Json<ResponseValues>,
 ) -> Response {
-    let code = match link_state(&link.gathering, state.time_zone.today()) {
+    let code = match link_state(&link.gathering) {
         LinkState::Open => None,
         LinkState::Begun => Some(ErrorCode::Begun),
         LinkState::Ended => Some(ErrorCode::Ended),
@@ -764,7 +764,7 @@ async fn invitation_page(State(state): State<AppState>, link: PersonalLink) -> R
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     let gathering = link.gathering;
-    let link_state = link_state(&gathering, state.time_zone.today());
+    let link_state = link_state(&gathering);
     let attendees = if matches!(link_state, LinkState::Open | LinkState::Begun) {
         match attendees(&mut connection, gathering.id).await {
             Ok(attendees) => Some(attendees),
