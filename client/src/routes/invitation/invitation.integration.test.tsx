@@ -147,6 +147,46 @@ describe('response page', () => {
     expect(screen.getByRole('button', { name: 'Save response' }).hasAttribute('disabled')).toBe(false)
   })
 
+  it('names the last day to answer while the link is open', async () => {
+    openLink(() => HttpResponse.json({ ...page, gathering: { ...page.gathering, lastDayToAnswer: '2027-03-06' } }))
+    expect(await screen.findByText('Please answer by Mar 6, 2027.')).toBeTruthy()
+  })
+
+  it('names no last day to answer without a deadline', async () => {
+    openLink(() => HttpResponse.json(page))
+    await screen.findByRole('form')
+    expect(screen.queryByText(/Please answer by/)).toBeNull()
+  })
+
+  it('offers only a decline with a comment after the deadline', async () => {
+    let sent: unknown = null
+    const { container } = openLink(() =>
+      HttpResponse.json({
+        ...page,
+        state: 'deadlinePassed',
+        gathering: { ...page.gathering, lastDayToAnswer: '2027-03-06' },
+        response: { status: 'accepted', arrival: null, departure: null, beds: 'none', bedCount: null, comment: null },
+      }),
+    )
+    server.use(
+      http.put('*/api/invitation/response', async ({ request }) => {
+        sent = await request.json()
+        return HttpResponse.json({ status: 'declined', arrival: null, departure: null, beds: null, bedCount: null, comment: 'Krank' })
+      }),
+    )
+    expect(await screen.findByText('The deadline for responses passed on Mar 6, 2027. You can still decline.')).toBeTruthy()
+    expect(screen.getByText(/Your response/).textContent).toContain('Yes')
+    expect(screen.getAllByRole('radio')).toHaveLength(1)
+    expect(screen.getByRole('radio', { name: 'No' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.queryByText('I offer beds')).toBeNull()
+    expect(screen.getByRole('heading', { level: 2, name: 'Coming: 1, maybe 1' })).toBeTruthy()
+    await userEvent.type(screen.getByLabelText('Comment'), 'Krank')
+    await userEvent.click(screen.getByRole('button', { name: 'Save response' }))
+    await screen.findByText('Response saved.')
+    expect(sent).toEqual({ status: 'declined', arrival: null, departure: null, beds: null, bedCount: null, comment: 'Krank' })
+    expect(await violations(container)).toEqual([])
+  })
+
   it('frees the save button when saving fails unexpectedly', async () => {
     openLink(() => HttpResponse.json(page))
     server.use(http.put('*/api/invitation/response', () => new HttpResponse('not json', { status: 422 })))

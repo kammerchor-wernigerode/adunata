@@ -460,6 +460,113 @@ describe('gathering form', () => {
   })
 
 
+  it('converts weeks to days and shows the last day to answer', async () => {
+    signedIn()
+    let sent: { responseDeadlineDays?: number | null } = {}
+    server.use(
+      http.post('*/api/gatherings', async ({ request }) => {
+        sent = (await request.json()) as typeof sent
+        return HttpResponse.json({ ...march, id: 20 }, { status: 201 })
+      }),
+      getGetGatheringMockHandler({ ...march, id: 20 }),
+      getListInvitationsMockHandler([]),
+      getListMembersMockHandler([]),
+      getOverviewMockHandler(emptyOverview),
+    )
+    const { container } = renderApp('/gatherings/new')
+    await userEvent.type(await screen.findByLabelText('Title'), 'Rehearsal weekend')
+    await userEvent.type(screen.getByLabelText('Location'), 'Drübeck Abbey')
+    await pickDay('First day', '14')
+    await pickDay('Last day', '14')
+    await userEvent.type(screen.getByLabelText('Number of days or weeks'), '2')
+    await userEvent.click(screen.getByRole('radio', { name: 'weeks' }))
+    expect(screen.getByLabelText('Last day to answer').textContent).toBe('Sat, February 27, 2027')
+    expect(await violations(container)).toEqual([])
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(sent.responseDeadlineDays).toBe(14))
+  })
+
+  it('sets the number in days from a day in the calendar', async () => {
+    vi.setSystemTime(new Date(2027, 2, 1, 12))
+    signedIn()
+    renderApp('/gatherings/new')
+    await screen.findByLabelText('First day')
+    await pickDay('First day', '14')
+    await userEvent.click(screen.getByRole('radio', { name: 'weeks' }))
+    await userEvent.click(screen.getByLabelText('Last day to answer'))
+    const grid = await screen.findByRole('grid', { name: 'Last day to answer' })
+    await userEvent.click(within(grid).getByRole('button', { name: /March 6th, 2027/ }))
+    expect(screen.getByLabelText<HTMLInputElement>('Number of days or weeks').value).toBe('7')
+    expect(screen.getByRole('radio', { name: 'days' }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('offers the last day to answer from today up to two days before the first day', async () => {
+    vi.setSystemTime(new Date(2027, 2, 1, 12))
+    signedIn()
+    renderApp('/gatherings/new')
+    await screen.findByLabelText('First day')
+    expect(screen.getByLabelText('Last day to answer').hasAttribute('disabled')).toBe(true)
+    await pickDay('First day', '14')
+    await userEvent.click(screen.getByLabelText('Last day to answer'))
+    const enabled = enabledDays(await screen.findByRole('grid', { name: 'Last day to answer' }))
+    expect(enabled[0]).toMatch(/March 1st, 2027/)
+    expect(enabled.at(-1)).toMatch(/March 12th, 2027/)
+    expect(enabled.some((day) => /February 28th|March 13th/.test(day))).toBe(false)
+  })
+
+  it('moves the last day to answer with the first day', async () => {
+    signedIn()
+    renderApp('/gatherings/new')
+    await screen.findByLabelText('First day')
+    await pickDay('First day', '14')
+    await userEvent.type(screen.getByLabelText('Number of days or weeks'), '7')
+    expect(screen.getByLabelText('Last day to answer').textContent).toBe('Sat, March 6, 2027')
+    await pickDay('First day', '21')
+    expect(screen.getByLabelText<HTMLInputElement>('Number of days or weeks').value).toBe('7')
+    expect(screen.getByLabelText('Last day to answer').textContent).toBe('Sat, March 13, 2027')
+  })
+
+  it('sends no deadline for an empty number', async () => {
+    signedIn()
+    const stored = storing()
+    renderApp('/gatherings/new')
+    await fillNew()
+    await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
+    await screen.findByRole('link', { name: 'Probenwochenende' })
+    expect(stored[0]!.responseDeadlineDays).toBeNull()
+  })
+
+  it('keeps number and unit of the deadline for the next gathering', async () => {
+    signedIn()
+    const stored = storing()
+    renderApp('/gatherings/new')
+    await fillNew()
+    await userEvent.type(screen.getByLabelText('Number of days or weeks'), '1')
+    await userEvent.click(screen.getByRole('radio', { name: 'weeks' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
+    await screen.findByRole('link', { name: 'Probenwochenende' })
+    expect(stored[0]!.responseDeadlineDays).toBe(7)
+    expect(screen.getByLabelText<HTMLInputElement>('Number of days or weeks').value).toBe('1')
+    expect(screen.getByRole('radio', { name: 'weeks' }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('marks a last day to answer in the past', async () => {
+    signedIn()
+    server.use(
+      http.post('*/api/gatherings', () =>
+        HttpResponse.json({ errors: [{ field: 'responseDeadlineDays', code: 'deadlineInPast' }] }, { status: 422 }),
+      ),
+    )
+    renderApp('/gatherings/new')
+    await fillNew()
+    await userEvent.type(screen.getByLabelText('Number of days or weeks'), '5')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const amount = screen.getByLabelText('Number of days or weeks')
+    await waitFor(() => expect(amount.getAttribute('aria-invalid')).toBe('true'))
+    expect(document.activeElement).toBe(amount)
+    expect(screen.getByText('The last day to answer cannot lie in the past.')).toBeTruthy()
+  })
+
   it('opens the gathering with its span and the action to edit it', async () => {
     signedIn()
     server.use(

@@ -269,10 +269,29 @@ describe('remind pending members', () => {
     ['cancelled', { ...weekend, cancelled: true }],
     ['ended', { ...weekend, begun: true, ended: true }],
     ['begun', { ...weekend, begun: true }],
+    ['deadline passed', { ...weekend, responseDeadlineDays: 7, lastDayToAnswer: '2027-03-04', deadlinePassed: true }],
   ])('offers no reminder for a %s gathering', async (_, gathering) => {
     organizerPage(gathering, remindOverview)
     await screen.findByRole('table')
     expect(screen.queryByRole('button', { name: /Remind/ })).toBeNull()
+  })
+})
+
+describe('deadline on the page of the gathering', () => {
+  it('names the last day to answer while the deadline lies ahead', async () => {
+    organizerPage({ ...weekend, responseDeadlineDays: 7, lastDayToAnswer: '2027-03-04' })
+    expect(await screen.findByText('Last day to answer: Mar 4, 2027')).toBeTruthy()
+  })
+
+  it('says that responses closed once the deadline has passed', async () => {
+    organizerPage({ ...weekend, responseDeadlineDays: 7, lastDayToAnswer: '2027-03-04', deadlinePassed: true })
+    expect(await screen.findByText('Responses closed after Mar 4, 2027.')).toBeTruthy()
+  })
+
+  it('names no deadline without one', async () => {
+    organizerPage()
+    await screen.findByRole('table')
+    expect(screen.queryByText(/Last day to answer|Responses closed/)).toBeNull()
   })
 })
 

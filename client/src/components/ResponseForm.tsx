@@ -44,6 +44,8 @@ function message(translate: Translate, error: ServerFieldError): string {
       return translate('response-error-time')
     case 'begun':
       return translate('response-error-begun')
+    case 'deadlinePassed':
+      return translate('response-error-deadline-passed')
     case 'ended':
       return translate('invitation-state-ended')
     case 'cancelled':
@@ -53,13 +55,14 @@ function message(translate: Translate, error: ServerFieldError): string {
   }
 }
 
-/** The questions of a response in their order: status, arrival and departure, beds with their count and comment. */
+/** The questions of a response in their order: status, arrival and departure, beds with their count and comment. With `declineOnly` it offers only the status declined and the comment. */
 export function ResponseForm({
   question,
   firstDay,
   lastDay,
   initial,
   saveNotice,
+  declineOnly = false,
   onSave,
 }: {
   question: string
@@ -67,12 +70,13 @@ export function ResponseForm({
   lastDay: string
   initial: ResponseValues | null | undefined
   saveNotice: string
+  declineOnly?: boolean
   onSave: (values: ResponseValues) => Promise<SaveResult>
 }) {
   const id = useId()
   const translate = useTranslate()
   const { locale } = useLocale()
-  const [status, setStatus] = useState<Status>(initial?.status ?? 'accepted')
+  const [status, setStatus] = useState<Status>(declineOnly ? 'declined' : (initial?.status ?? 'accepted'))
   const [arrival, setArrival] = useState<Moment>(moment(initial?.arrival))
   const [departure, setDeparture] = useState<Moment>(moment(initial?.departure))
   const [beds, setBeds] = useState<Beds | ''>(initial?.beds ?? '')
@@ -192,7 +196,7 @@ export function ResponseForm({
         <FieldSet>
           <FieldLegend className="text-base font-semibold">{question}</FieldLegend>
           <RadioGroup id={`${id}-status`} value={status} onValueChange={(value) => setStatus(value as Status)}>
-            {statuses.map((option) => (
+            {(declineOnly ? (['declined'] as Status[]) : statuses).map((option) => (
               <FieldLabel key={option} htmlFor={`${id}-status-${option}`} className={rowClass}>
                 <Field orientation="horizontal">
                   <RadioGroupItem

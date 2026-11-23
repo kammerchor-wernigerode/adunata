@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { answer } from '@/api/generated/api'
+import type { ResponseValues } from '@/api/generated/model'
 import { PageTitle } from '@/components/PageTitle'
 import { ResponseForm, type SaveResult } from '@/components/ResponseForm'
 import { formatDay } from '@/l10n/dates'
@@ -32,6 +33,27 @@ function ResponsePage() {
   const data = dataOf(page.data)
   if (!data) return null
   const { gathering, state, firstName, response, attendees } = data
+  const lastDayToAnswer = gathering.lastDayToAnswer ? formatDay(gathering.lastDayToAnswer, locale) : undefined
+
+  async function save(values: ResponseValues): Promise<SaveResult> {
+    const result = await answer(values, authorization(secret))
+    if (result.status === 200) {
+      await queryClient.invalidateQueries({ queryKey: invitationQueryKey(secret) })
+      return { status: 'saved', values: result.data }
+    }
+    if (result.status === 422) return { status: 'invalid', errors: result.data.errors }
+    return { status: 'failed' }
+  }
+
+  function yours() {
+    return (
+      response && (
+        <p className="mt-2">
+          {translate('response-yours')}: {translate(`response-status-${response.status}`)}
+        </p>
+      )
+    )
+  }
 
   return (
     <>
@@ -40,8 +62,9 @@ function ResponsePage() {
       {gathering.description && <p className="mt-2 max-w-prose whitespace-pre-line">{gathering.description}</p>}
       <DayStrip firstDay={gathering.firstDay} lastDay={gathering.lastDay} />
       <div className="mt-6 max-w-xl">
-        {state === 'open' ? (
+        {state === 'open' && (
           <>
+            {lastDayToAnswer && <p className="mb-2 font-semibold">{translate('response-last-day', { day: lastDayToAnswer })}</p>}
             <p className="mb-4 text-sm text-muted-foreground">{translate('response-visibility')}</p>
             <ResponseForm
               key={secret}
@@ -49,28 +72,41 @@ function ResponsePage() {
               firstDay={gathering.firstDay}
               lastDay={gathering.lastDay}
               initial={response}
-              saveNotice={translate('response-saved', { day: formatDay(gathering.firstDay, locale) })}
-              onSave={async (values): Promise<SaveResult> => {
-                const result = await answer(values, authorization(secret))
-                if (result.status === 200) {
-                  await queryClient.invalidateQueries({ queryKey: invitationQueryKey(secret) })
-                  return { status: 'saved', values: result.data }
-                }
-                if (result.status === 422) return { status: 'invalid', errors: result.data.errors }
-                return { status: 'failed' }
-              }}
+              saveNotice={
+                lastDayToAnswer
+                  ? translate('response-saved-deadline', { day: lastDayToAnswer })
+                  : translate('response-saved', { day: formatDay(gathering.firstDay, locale) })
+              }
+              onSave={save}
             />
           </>
-        ) : (
+        )}
+        {state === 'deadlinePassed' && (
+          <>
+            <p role="status" className="font-semibold">
+              {translate('invitation-state-deadlinePassed', { day: lastDayToAnswer ?? '' })}
+            </p>
+            {yours()}
+            <div className="mt-4">
+              <ResponseForm
+                key={secret}
+                question={translate('response-question', { firstName })}
+                firstDay={gathering.firstDay}
+                lastDay={gathering.lastDay}
+                initial={response}
+                saveNotice={translate('response-saved-late')}
+                declineOnly
+                onSave={save}
+              />
+            </div>
+          </>
+        )}
+        {state !== 'open' && state !== 'deadlinePassed' && (
           <>
             <p role="status" className="font-semibold">
               {translate(`invitation-state-${state}`)}
             </p>
-            {response && (
-              <p className="mt-2">
-                {translate('response-yours')}: {translate(`response-status-${response.status}`)}
-              </p>
-            )}
+            {yours()}
           </>
         )}
       </div>
