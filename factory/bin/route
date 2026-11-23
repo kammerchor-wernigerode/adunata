@@ -13,6 +13,7 @@ error in both stages. Prints the agent set.
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -20,6 +21,7 @@ from pathlib import Path
 
 FACTORY = Path(__file__).resolve().parents[1]
 CONFIG = json.loads((FACTORY / "config.json").read_text())
+JOBS = Path(os.environ.get("FACTORY_JOBS") or FACTORY / "jobs")
 CHANGE_LINE = re.compile(r"^CHANGE:[ \t]*(\S+)[ \t]*$", re.MULTILINE)
 VERIFY_SKILL = ".agents/skills/openspec-verify-change/SKILL.md"
 
@@ -30,7 +32,7 @@ def die(msg):
 
 
 def named_change(job_id):
-    spec = FACTORY / "jobs" / job_id / "spec.md"
+    spec = JOBS / job_id / "spec.md"
     if not spec.exists():
         die(f"{job_id} has no spec.md")
     match = CHANGE_LINE.search(spec.read_text())
@@ -47,7 +49,7 @@ def main(argv):
     res = subprocess.run([job_bin, "sync", job_id], capture_output=True, text=True)
     if res.returncode != 0:
         die(res.stderr.strip())
-    job = json.loads((FACTORY / "jobs" / job_id / "job.json").read_text())
+    job = json.loads((JOBS / job_id / "job.json").read_text())
     intake = job["intake"] or die(f"{job_id} has no intake.md")
     risk = CONFIG["routing"].get(intake["risk"]) or die(
         f"risk {intake['risk']!r} isn't in config.json routing ({', '.join(CONFIG['routing'])})")

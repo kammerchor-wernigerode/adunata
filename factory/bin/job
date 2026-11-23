@@ -22,6 +22,9 @@ Usage:
   job self-check                 assert the parser of the remote findings; run by hand, wired into nothing
 
 <job> is a job id (004-dark-mode) or an issue number (12).
+
+The environment variable FACTORY_JOBS names another jobs folder, such as one under /tmp
+for a test. It moves only the state. gh and git still act on the real repository.
 """
 
 import fcntl
@@ -36,7 +39,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 FACTORY = REPO / "factory"
-JOBS = FACTORY / "jobs"
+JOBS = Path(os.environ.get("FACTORY_JOBS") or FACTORY / "jobs").resolve()
 CONFIG = json.loads((FACTORY / "config.json").read_text())
 LABELS = CONFIG["labels"]
 BASE = CONFIG["base_branch"]
@@ -731,6 +734,8 @@ def ignore_jobs():
     A tracked .gitignore would hide the state from every repository that shares
     the work tree. info/exclude hides it only from this clone's own repository.
     """
+    if not JOBS.is_relative_to(REPO):
+        return
     common = run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"]).stdout.strip()
     exclude = Path(common) / "info" / "exclude"
     line = "/" + str(JOBS.relative_to(REPO)) + "/"
