@@ -1,13 +1,10 @@
-use std::fmt::Write;
-
 use time::{Date, OffsetDateTime, UtcOffset};
+use uuid::Uuid;
 
 use crate::gatherings::{Gathering, Revision};
 
-/// The namespace `81aa7074-4fe3-41aa-8af7-5d34430bdd9d` of the UIDs of gatherings. Changing it duplicates every entry in the calendars of members.
-const NAMESPACE: [u8; 16] = [
-    0x81, 0xaa, 0x70, 0x74, 0x4f, 0xe3, 0x41, 0xaa, 0x8a, 0xf7, 0x5d, 0x34, 0x43, 0x0b, 0xdd, 0x9d,
-];
+/// The namespace of the UIDs of gatherings. Changing it duplicates every entry in the calendars of members.
+const NAMESPACE: Uuid = Uuid::from_u128(0x81aa_7074_4fe3_41aa_8af7_5d34_430b_dd9d);
 const MAX_LINE_OCTETS: usize = 75;
 
 /// The calendar file of a gathering as RFC 5545 describes it, with whole days and a UID that stays the same across every download.
@@ -59,84 +56,7 @@ fn uid(id: i64, created_at: OffsetDateTime) -> String {
 }
 
 fn uuid_v5(name: &str) -> String {
-    let mut input = NAMESPACE.to_vec();
-    input.extend_from_slice(name.as_bytes());
-    let mut bytes = sha1(&input);
-    bytes[6] = (bytes[6] & 0x0f) | 0x50;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    let hex = hex(&bytes[..16]);
-    format!(
-        "{}-{}-{}-{}-{}",
-        &hex[..8],
-        &hex[8..12],
-        &hex[12..16],
-        &hex[16..20],
-        &hex[20..]
-    )
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().fold(String::new(), |mut text, byte| {
-        let _ = write!(text, "{byte:02x}");
-        text
-    })
-}
-
-/// SHA-1 as FIPS 180-4 describes it. It only derives names here, so its weakness against collisions does not matter.
-fn sha1(message: &[u8]) -> [u8; 20] {
-    let mut state: [u32; 5] = [
-        0x6745_2301,
-        0xefcd_ab89,
-        0x98ba_dcfe,
-        0x1032_5476,
-        0xc3d2_e1f0,
-    ];
-    let bit_length = u64::try_from(message.len()).expect("a message fits in u64") * 8;
-    let mut padded = message.to_vec();
-    padded.push(0x80);
-    while padded.len() % 64 != 56 {
-        padded.push(0);
-    }
-    padded.extend_from_slice(&bit_length.to_be_bytes());
-    for block in padded.chunks_exact(64) {
-        let mut words = [0u32; 80];
-        for (word, bytes) in words.iter_mut().zip(block.chunks_exact(4)) {
-            *word = u32::from_be_bytes(bytes.try_into().expect("chunks of four bytes"));
-        }
-        for index in 16..80 {
-            words[index] =
-                (words[index - 3] ^ words[index - 8] ^ words[index - 14] ^ words[index - 16])
-                    .rotate_left(1);
-        }
-        let mut working = state;
-        for (round, word) in words.iter().enumerate() {
-            let [first, second, third, fourth, fifth] = working;
-            let (mixed, constant) = match round {
-                0..20 => ((second & third) | (!second & fourth), 0x5a82_7999),
-                20..40 => (second ^ third ^ fourth, 0x6ed9_eba1),
-                40..60 => (
-                    (second & third) | (second & fourth) | (third & fourth),
-                    0x8f1b_bcdc,
-                ),
-                _ => (second ^ third ^ fourth, 0xca62_c1d6),
-            };
-            let next = first
-                .rotate_left(5)
-                .wrapping_add(mixed)
-                .wrapping_add(fifth)
-                .wrapping_add(constant)
-                .wrapping_add(*word);
-            working = [next, first, second.rotate_left(30), third, fourth];
-        }
-        for (value, added) in state.iter_mut().zip(working) {
-            *value = value.wrapping_add(added);
-        }
-    }
-    let mut digest = [0u8; 20];
-    for (bytes, value) in digest.chunks_exact_mut(4).zip(state) {
-        bytes.copy_from_slice(&value.to_be_bytes());
-    }
-    digest
+    Uuid::new_v5(&NAMESPACE, name.as_bytes()).to_string()
 }
 
 fn day(date: Date) -> String {
@@ -217,21 +137,6 @@ mod tests {
             .split("\r\n")
             .map(str::to_owned)
             .collect()
-    }
-
-    #[test]
-    fn sha1_of_fips_vectors() {
-        assert_eq!(
-            hex(&sha1(b"abc")),
-            "a9993e364706816aba3e25717850c26c9cd0d89d"
-        );
-        assert_eq!(hex(&sha1(b"")), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
-        assert_eq!(
-            hex(&sha1(
-                b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
-            )),
-            "84983e441c3bd26ebaae4aa1f95129e5e54670f1"
-        );
     }
 
     #[test]
