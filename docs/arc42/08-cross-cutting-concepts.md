@@ -41,6 +41,8 @@ Personal data expires by default. Once per hour a task of the module `responses`
 
 Each module deletes its own rows through a public function, so `responses` asks `invitations` and `access` to do so. Deleting a member deletes the member's invitations, responses, sessions, sign-in links and waiting mail through foreign keys. Mail loses its content once its delivery ends, see mail delivery below.
 
+A CSV file of the overview that an organizer downloads lies outside these periods, because Adunata cannot delete it. The overview says so next to the download link.
+
 ## Time
 
 The days of a gathering are dates. Times of arrival and departure are wall-clock times without an offset, such as `2027-03-14T18:00`. The database, the API, the client and mail carry them unchanged, so every view shows the same time. [ADR 0012](../decisions/0012-wall-clock-times-in-the-instance-time-zone.md) records why.

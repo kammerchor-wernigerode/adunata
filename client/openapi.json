@@ -348,6 +348,50 @@
         }
       }
     },
+    "/api/gatherings/{id}/overview.csv": {
+      "get": {
+        "operationId": "overview_csv",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Id of the gathering",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "description": "Language of headings and statuses, such as de. Missing or unsupported languages yield English.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every invitation with its response as CSV file",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid organizer session"
+          },
+          "404": {
+            "description": "No such gathering"
+          }
+        }
+      }
+    },
     "/api/gatherings/{id}/reminders": {
       "post": {
         "operationId": "remind",

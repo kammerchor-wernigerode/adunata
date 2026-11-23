@@ -1,11 +1,12 @@
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
+use fluent_bundle::FluentArgs;
 use serde::{Deserialize, Serialize};
 use sqlx::PgConnection;
 use time::{Date, PrimitiveDateTime};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
@@ -16,6 +17,7 @@ use crate::configuration::{InstanceTimeZone, Retention, RetentionPeriod};
 use crate::gatherings;
 use crate::gatherings::Gathering;
 use crate::invitations::{self, MailState, PersonalLink};
+use crate::localization;
 use crate::validation::{ErrorCode, FieldError, field_error, invalid};
 
 time::serde::format_description!(iso_date, Date, "[year]-[month]-[day]");
@@ -318,6 +320,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(answer))
         .routes(routes!(answer_for_member))
         .routes(routes!(overview))
+        .routes(routes!(overview_csv))
 }
 
 /// Where an invitation stands. Without a response it is pending.
@@ -469,6 +472,168 @@ async fn build_overview(
         })
         .collect();
     Ok(Some(Overview { rows, totals }))
+}
+
+/// The language of a downloaded file.
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+struct CsvLanguage {
+    /// Language of headings and statuses, such as de. Missing or unsupported languages yield English.
+    language: Option<String>,
+}
+
+const CSV_HEADINGS: [&str; 8] = [
+    "overview-csv-last-name",
+    "overview-csv-first-name",
+    "overview-csv-status",
+    "overview-csv-arrival",
+    "overview-csv-departure",
+    "overview-csv-beds-needed",
+    "overview-csv-beds-offered",
+    "overview-csv-comment",
+];
+
+#[utoipa::path(
+    get,
+    path = "/api/gatherings/{id}/overview.csv",
+    params(("id" = i64, Path, description = "Id of the gathering"), CsvLanguage),
+    responses(
+        (status = 200, description = "Every invitation with its response as CSV file", content_type = "text/csv", body = String),
+        (status = 401, description = "No valid organizer session"),
+        (status = 404, description = "No such gathering"),
+    )
+)]
+async fn overview_csv(
+    _: Organizer,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Query(query): Query<CsvLanguage>,
+) -> Response {
+    let Ok(mut connection) = state.pool.acquire().await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let gathering = match gatherings::find(&mut connection, id, state.time_zone.today()).await {
+        Ok(Some(gathering)) => gathering,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    match build_overview(&mut connection, &state, id).await {
+        Ok(Some(overview)) => (
+            [
+                (header::CONTENT_TYPE, "text/csv; charset=utf-8".to_owned()),
+                (
+                    header::CONTENT_DISPOSITION,
+                    content_disposition(&gathering.title, gathering.first_day),
+                ),
+            ],
+            csv(&overview.rows, query.language.as_deref().unwrap_or("en")),
+        )
+            .into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+/// Renders the rows as RFC 4180 CSV with a byte order mark, headings and statuses in the given language.
+fn csv(rows: &[OverviewRow], language: &str) -> String {
+    let localizer = localization::localizer();
+    let text = |id: &str| localizer.message(language, id, &FluentArgs::new());
+    let mut file = String::from("\u{feff}");
+    push_record(&mut file, CSV_HEADINGS.map(text));
+    for row in rows {
+        let beds = |kind: Beds| {
+            if row.beds == Some(kind) {
+                row.bed_count
+                    .map(|count| count.to_string())
+                    .unwrap_or_default()
+            } else {
+                String::new()
+            }
+        };
+        push_record(
+            &mut file,
+            [
+                row.last_name.clone(),
+                row.first_name.clone(),
+                text(status_message(row.status)),
+                csv_time(row.arrival),
+                csv_time(row.departure),
+                beds(Beds::Need),
+                beds(Beds::Offer),
+                row.comment.clone().unwrap_or_default(),
+            ],
+        );
+    }
+    file
+}
+
+fn status_message(status: InvitationStatus) -> &'static str {
+    match status {
+        InvitationStatus::Pending => "status-pending",
+        InvitationStatus::Accepted => "status-accepted",
+        InvitationStatus::Tentative => "status-tentative",
+        InvitationStatus::Declined => "status-declined",
+    }
+}
+
+fn csv_time(time: Option<PrimitiveDateTime>) -> String {
+    time.map(|time| {
+        time.format(time::macros::format_description!(
+            "[year]-[month]-[day] [hour]:[minute]"
+        ))
+        .expect("a wall-clock time must format")
+    })
+    .unwrap_or_default()
+}
+
+fn push_record(file: &mut String, cells: [String; 8]) {
+    let cells = cells.map(|cell| csv_cell(&cell));
+    file.push_str(&cells.join(","));
+    file.push_str("\r\n");
+}
+
+/// Guards a value against formulas with a leading apostrophe, as OWASP recommends, then quotes it where RFC 4180 needs it.
+fn csv_cell(value: &str) -> String {
+    let guarded = if value.starts_with(['=', '+', '-', '@', '\t', '\r']) {
+        format!("'{value}")
+    } else {
+        value.to_owned()
+    };
+    if guarded.contains([',', '"', '\r', '\n']) {
+        format!("\"{}\"", guarded.replace('"', "\"\""))
+    } else {
+        guarded
+    }
+}
+
+/// Names the file after title and first day, with an ASCII fallback and the full name as UTF-8 (RFC 6266).
+fn content_disposition(title: &str, first_day: Date) -> String {
+    let name: String = title
+        .chars()
+        .map(|character| {
+            if character.is_control() || r#"/\:*?"<>|"#.contains(character) {
+                '_'
+            } else {
+                character
+            }
+        })
+        .collect();
+    let name = format!("{name} {first_day}.csv");
+    let fallback: String = name
+        .chars()
+        .map(|character| if character.is_ascii() { character } else { '_' })
+        .collect();
+    let encoded: String = name
+        .bytes()
+        .map(|byte| {
+            if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) {
+                char::from(byte).to_string()
+            } else {
+                format!("%{byte:02X}")
+            }
+        })
+        .collect();
+    format!("attachment; filename=\"{fallback}\"; filename*=UTF-8''{encoded}")
 }
 
 fn count(totals: &mut Totals, row: &OverviewRow) {
@@ -673,6 +838,150 @@ async fn calendar_file(State(state): State<AppState>, link: PersonalLink) -> Res
         calendar::file(&gathering, &revision),
     )
         .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use time::macros::{date, datetime};
+
+    use super::{Beds, InvitationStatus, OverviewRow, content_disposition, csv, csv_cell};
+
+    fn row(last_name: &str, first_name: &str) -> OverviewRow {
+        OverviewRow {
+            invitation_id: 1,
+            first_name: first_name.to_owned(),
+            last_name: last_name.to_owned(),
+            status: InvitationStatus::Pending,
+            arrival: None,
+            departure: None,
+            beds: None,
+            bed_count: None,
+            comment: None,
+            changed_by: None,
+            changed_at: None,
+            outside_span: false,
+            link_active: true,
+            mail: None,
+        }
+    }
+
+    fn records(rows: &[OverviewRow], language: &str) -> Vec<String> {
+        csv(rows, language)
+            .trim_start_matches('\u{feff}')
+            .split_terminator("\r\n")
+            .map(str::to_owned)
+            .collect()
+    }
+
+    #[test]
+    fn member_needs_beds() {
+        let anna = OverviewRow {
+            status: InvitationStatus::Accepted,
+            arrival: Some(datetime!(2027-03-14 18:00)),
+            departure: Some(datetime!(2027-03-16 15:00)),
+            beds: Some(Beds::Need),
+            bed_count: Some(2),
+            comment: Some("vegan".to_owned()),
+            ..row("Becker", "Anna")
+        };
+        assert_eq!(
+            records(&[anna], "en")[1],
+            "Becker,Anna,Accepted,2027-03-14 18:00,2027-03-16 15:00,2,,vegan"
+        );
+    }
+
+    #[test]
+    fn member_offers_beds() {
+        let felix = OverviewRow {
+            status: InvitationStatus::Accepted,
+            beds: Some(Beds::Offer),
+            bed_count: Some(3),
+            ..row("Kraus", "Felix")
+        };
+        assert_eq!(records(&[felix], "en")[1], "Kraus,Felix,Accepted,,,,3,");
+    }
+
+    #[test]
+    fn pending_invitation() {
+        assert_eq!(
+            records(&[row("Graf", "Sophie")], "en")[1],
+            "Graf,Sophie,Pending,,,,,"
+        );
+    }
+
+    #[test]
+    fn only_an_arrival_stated() {
+        let ben = OverviewRow {
+            status: InvitationStatus::Accepted,
+            arrival: Some(datetime!(2027-03-14 18:00)),
+            beds: Some(Beds::None),
+            ..row("Kraus", "Ben")
+        };
+        assert_eq!(
+            records(&[ben], "en")[1],
+            "Kraus,Ben,Accepted,2027-03-14 18:00,,,,"
+        );
+    }
+
+    #[test]
+    fn headings_per_language() {
+        let accepted = OverviewRow {
+            status: InvitationStatus::Accepted,
+            ..row("Becker", "Anna")
+        };
+        assert_eq!(
+            records(std::slice::from_ref(&accepted), "de"),
+            [
+                "Nachname,Vorname,Status,Ankunft,Abreise,Betten gesucht,Betten angeboten,Kommentar",
+                "Becker,Anna,Zugesagt,,,,,"
+            ]
+        );
+        let english = [
+            "Last name,First name,Status,Arrival,Departure,Beds needed,Beds offered,Comment",
+            "Becker,Anna,Accepted,,,,,",
+        ];
+        assert_eq!(records(std::slice::from_ref(&accepted), "en"), english);
+        assert_eq!(records(&[accepted], "fr"), english);
+    }
+
+    #[test]
+    fn byte_order_mark_and_line_ends() {
+        let file = csv(&[row("Graf", "Sophie")], "en");
+        assert_eq!(&file.as_bytes()[..3], [0xEF, 0xBB, 0xBF]);
+        assert!(file.ends_with("Pending,,,,,\r\n"), "{file}");
+        assert_eq!(file.matches("\r\n").count(), 2);
+    }
+
+    #[test]
+    fn comment_with_special_characters() {
+        assert_eq!(
+            csv_cell("Late, \"maybe\"\nBring a tent"),
+            "\"Late, \"\"maybe\"\"\nBring a tent\""
+        );
+    }
+
+    #[test]
+    fn formula_in_a_comment() {
+        assert_eq!(csv_cell("=HYPERLINK(\"x\")"), "\"'=HYPERLINK(\"\"x\"\")\"");
+    }
+
+    #[test]
+    fn guarded_starts() {
+        assert_eq!(csv_cell("-Smith"), "'-Smith");
+        assert_eq!(csv_cell("+1"), "'+1");
+        assert_eq!(csv_cell("@sum"), "'@sum");
+        assert_eq!(csv_cell("\tnote"), "'\tnote");
+        assert_eq!(csv_cell("\rnote"), "\"'\rnote\"");
+        assert_eq!(csv_cell("Smith-Jones"), "Smith-Jones");
+    }
+
+    #[test]
+    fn title_with_umlaut_slash_and_quote() {
+        assert_eq!(
+            content_disposition("Probe \"Süd\"/Nord", date!(2027 - 03 - 14)),
+            "attachment; filename=\"Probe _S_d__Nord 2027-03-14.csv\"; filename*=UTF-8''Probe%20_S%C3%BCd__Nord%202027-03-14.csv"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -1196,6 +1505,112 @@ mod integration {
         overview
     }
 
+    async fn download(pool: &PgPool, query: &str, signed_in: bool) -> (StatusCode, String, String) {
+        let gathering_id: i64 = sqlx::query_scalar("SELECT id FROM gatherings")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
+        let mut request = Request::get(format!(
+            "/api/gatherings/{gathering_id}/overview.csv{query}"
+        ));
+        if signed_in {
+            let organizer: i64 = sqlx::query_scalar("SELECT id FROM members WHERE organizer")
+                .fetch_one(pool)
+                .await
+                .unwrap();
+            let cookie = crate::access::testing::session_cookie(pool, organizer).await;
+            request = request.header(header::COOKIE, cookie);
+        }
+        let response = api::router(api::testing::state(pool.clone()))
+            .oneshot(request.body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let status = response.status();
+        let disposition = response
+            .headers()
+            .get(header::CONTENT_DISPOSITION)
+            .map(|value| value.to_str().unwrap().to_owned())
+            .unwrap_or_default();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        (
+            status,
+            disposition,
+            String::from_utf8(bytes.to_vec()).unwrap(),
+        )
+    }
+
+    #[tokio::test]
+    async fn download_every_invitation() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        gathering_with(
+            &pool,
+            &[("Anna", Some("accepted"), None), ("Ben", None, None)],
+        )
+        .await;
+        let (status, disposition, file) = download(&pool, "?language=de", true).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(
+            disposition.starts_with("attachment; filename=\"Probenwochenende "),
+            "{disposition}"
+        );
+        let records: Vec<&str> = file.split_terminator("\r\n").collect();
+        assert_eq!(
+            records,
+            [
+                "\u{feff}Nachname,Vorname,Status,Ankunft,Abreise,Betten gesucht,Betten angeboten,Kommentar",
+                "Tester,Anna,Zugesagt,,,,,",
+                "Tester,Ben,Offen,,,,,",
+                "Tester,Clara,Offen,,,,,",
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn download_in_english_for_unsupported_language() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        invited(&pool, 10, 12).await;
+        for query in ["", "?language=en", "?language=fr"] {
+            let (status, _, file) = download(&pool, query, true).await;
+            assert_eq!(status, StatusCode::OK);
+            assert!(
+                file.starts_with("\u{feff}Last name,First name,Status,Arrival,Departure,Beds needed,Beds offered,Comment\r\n"),
+                "{query}: {file}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn download_of_gathering_without_invitations() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        signed_in_organizer(&pool).await;
+        gathering(&pool, "Leer", 10, 12).await;
+        let (status, _, file) = download(&pool, "", true).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(file.matches("\r\n").count(), 1, "{file}");
+    }
+
+    #[tokio::test]
+    async fn download_without_session() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        invited(&pool, 10, 12).await;
+        let (status, _, file) = download(&pool, "", false).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert!(!file.contains("Clara"));
+    }
+
+    #[tokio::test]
+    async fn download_of_unknown_gathering() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        signed_in_organizer(&pool).await;
+        let (status, _, _) = download(&pool, "", true).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
     #[tokio::test]
     async fn plan_beds() {
         let database = fresh_database().await;
@@ -1524,7 +1939,10 @@ mod integration {
         assert_eq!(page["state"], "begun");
     }
 
-    async fn download(pool: &PgPool, secret: Option<&str>) -> (StatusCode, String, String) {
+    async fn download_calendar(
+        pool: &PgPool,
+        secret: Option<&str>,
+    ) -> (StatusCode, String, String) {
         let mut request = Request::get("/api/invitation/calendar");
         if let Some(secret) = secret {
             request = request.header(header::AUTHORIZATION, format!("Bearer {secret}"));
@@ -1578,7 +1996,7 @@ mod integration {
         let secret = invited(&pool, 10, 12).await;
         respond(&pool, &secret, "accepted").await;
         assert_eq!(open(&pool, Some(&secret)).await.1["calendar"], true);
-        let (status, content_type, file) = download(&pool, Some(&secret)).await;
+        let (status, content_type, file) = download_calendar(&pool, Some(&secret)).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(content_type, "text/calendar; charset=utf-8");
         assert!(file.contains("SUMMARY:Probenwochenende\r\n"), "{file}");
@@ -1607,7 +2025,7 @@ mod integration {
         .await;
         assert_eq!(status, StatusCode::NO_CONTENT);
         assert_eq!(open(&pool, Some(&secret)).await.1["calendar"], true);
-        let (status, _, file) = download(&pool, Some(&secret)).await;
+        let (status, _, file) = download_calendar(&pool, Some(&secret)).await;
         assert_eq!(status, StatusCode::OK);
         assert!(file.contains("STATUS:CANCELLED\r\n"), "{file}");
         assert!(file.contains("SEQUENCE:1\r\n"), "{file}");
@@ -1619,7 +2037,7 @@ mod integration {
         let pool = database.pool();
         let secret = invited(&pool, 10, 12).await;
         respond(&pool, &secret, "accepted").await;
-        let uid_before = download(&pool, Some(&secret))
+        let uid_before = download_calendar(&pool, Some(&secret))
             .await
             .2
             .lines()
@@ -1645,7 +2063,7 @@ mod integration {
         .fetch_one(&pool)
         .await
         .unwrap();
-        let file = download(&pool, Some(&secret)).await.2;
+        let file = download_calendar(&pool, Some(&secret)).await.2;
         assert!(file.contains("SEQUENCE:2\r\n"), "{file}");
         assert!(file.contains(&format!("DTSTAMP:{changed}\r\n")), "{file}");
         assert!(
@@ -1663,12 +2081,12 @@ mod integration {
         let secret = invited(&pool, 10, 12).await;
         assert_eq!(open(&pool, Some(&secret)).await.1["calendar"], false);
         assert_eq!(
-            download(&pool, Some(&secret)).await.0,
+            download_calendar(&pool, Some(&secret)).await.0,
             StatusCode::NOT_FOUND
         );
         respond(&pool, &secret, "declined").await;
         assert_eq!(open(&pool, Some(&secret)).await.1["calendar"], false);
-        let (status, _, body) = download(&pool, Some(&secret)).await;
+        let (status, _, body) = download_calendar(&pool, Some(&secret)).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert_eq!(body, "");
     }
@@ -1694,7 +2112,7 @@ mod integration {
             }
             assert_eq!(open(&pool, Some(&secret)).await.1["calendar"], false);
             assert_eq!(
-                download(&pool, Some(&secret)).await.0,
+                download_calendar(&pool, Some(&secret)).await.0,
                 StatusCode::NOT_FOUND
             );
         }
@@ -1707,7 +2125,7 @@ mod integration {
         let secret = invited(&pool, 10, 12).await;
         respond(&pool, &secret, "accepted").await;
         for secret in [Some("0".repeat(64)), None] {
-            let (status, _, body) = download(&pool, secret.as_deref()).await;
+            let (status, _, body) = download_calendar(&pool, secret.as_deref()).await;
             assert_eq!(status, StatusCode::NOT_FOUND);
             assert_eq!(body, "", "the answer must reveal nothing");
         }

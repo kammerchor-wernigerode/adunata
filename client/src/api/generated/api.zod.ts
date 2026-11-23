@@ -168,6 +168,17 @@ export const OverviewResponse = zod.object({
 }).describe('Everything organizers plan a gathering with.')
 
 
+export const OverviewCsvParams = zod.object({
+  "id": zod.int().describe('Id of the gathering')
+})
+
+export const OverviewCsvQueryParams = zod.object({
+  "language": zod.string().optional().describe('Language of headings and statuses, such as de. Missing or unsupported languages yield English.')
+})
+
+export const OverviewCsvResponse = zod.unknown()
+
+
 export const RemindParams = zod.object({
   "id": zod.int().describe('Id of the gathering')
 })
