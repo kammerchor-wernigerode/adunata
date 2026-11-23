@@ -1,3 +1,3 @@
 Scratch note for a test of the factory.
 
-It holds one sentence.
+It holds two sentences.
