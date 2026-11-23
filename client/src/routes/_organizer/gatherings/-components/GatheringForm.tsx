@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useState, type BaseSyntheticEvent, type ReactNode } from 'react'
 import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import {
   changeGathering,
@@ -85,6 +85,13 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
       }
       const input = { ...values, responseDeadlineDays }
       if (!(await finished(() => save(input, addAnother)))) setRefusal(translate('error-unexpected'))
+    }
+  }
+
+  function submit(addAnother: boolean) {
+    return (event?: BaseSyntheticEvent) => {
+      form.clearErrors('responseDeadlineDays')
+      return form.handleSubmit(saveOrRefuse(addAnother))(event)
     }
   }
 
@@ -246,7 +253,7 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
   }
 
   return (
-    <form noValidate onSubmit={form.handleSubmit(saveOrRefuse(false))} className="max-w-xl">
+    <form noValidate onSubmit={submit(false)} className="max-w-xl">
       <FieldGroup>
         {field('title', translate('gathering-title'), <Input autoComplete="off" {...control('title')} />)}
         {field('location', translate('gathering-location'), <Input autoComplete="off" {...control('location')} />)}
@@ -265,7 +272,7 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
             {translate('gathering-save')}
           </Button>
           {!gathering && (
-            <Button type="button" variant="outline" disabled={isSubmitting} onClick={form.handleSubmit(saveOrRefuse(true))}>
+            <Button type="button" variant="outline" disabled={isSubmitting} onClick={submit(true)}>
               {translate('gathering-save-next')}
             </Button>
           )}

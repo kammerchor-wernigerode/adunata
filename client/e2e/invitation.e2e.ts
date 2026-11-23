@@ -32,7 +32,7 @@ function isoDay(offset: number): string {
 
 /** Opens the calendar of a day field, turns to the month of an ISO day and picks it. */
 async function pickDay(page: Page, label: string, day: string): Promise<void> {
-  await page.getByRole('button', { name: new RegExp(`^${label}`) }).click()
+  await page.getByRole('button', { name: new RegExp(`^${label} (Choose a day|\\w{3}, )`) }).click()
   const grid = page.locator(`[role="grid"][aria-label="${label}"]`)
   await expect(grid).toBeVisible()
   const button = grid.locator(`[data-day="${day}"]:not([data-outside]) button`)

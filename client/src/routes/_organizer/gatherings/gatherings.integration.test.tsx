@@ -567,6 +567,31 @@ describe('gathering form', () => {
     expect(screen.getByText('The last day to answer cannot lie in the past.')).toBeTruthy()
   })
 
+  it.each([
+    ['the number', () => userEvent.type(screen.getByLabelText('Number of days or weeks'), '{Backspace}1')],
+    ['the first day', () => pickDay('First day', '19')],
+  ])('saves again after a refused deadline once %s changes', async (_, change) => {
+    signedIn()
+    const sent: unknown[] = []
+    server.use(
+      http.post('*/api/gatherings', async ({ request }) => {
+        sent.push(await request.json())
+        if (sent.length === 1) {
+          return HttpResponse.json({ errors: [{ field: 'responseDeadlineDays', code: 'deadlineInPast' }] }, { status: 422 })
+        }
+        return HttpResponse.json({ ...march, id: 20 }, { status: 201 })
+      }),
+    )
+    renderApp('/gatherings/new')
+    await fillNew()
+    await userEvent.type(screen.getByLabelText('Number of days or weeks'), '5')
+    await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
+    await screen.findByText('The last day to answer cannot lie in the past.')
+    await change()
+    await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
+    await waitFor(() => expect(sent).toHaveLength(2))
+  })
+
   it('opens the gathering with its span and the action to edit it', async () => {
     signedIn()
     server.use(
