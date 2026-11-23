@@ -307,7 +307,7 @@ describe('gathering form', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
     const firstDay = screen.getByLabelText('First day')
     await waitFor(() => expect(firstDay.getAttribute('aria-invalid')).toBe('true'))
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('')
     expect(document.activeElement).toBe(firstDay)
     expect(screen.getByLabelText<HTMLInputElement>('Title').value).toBe('Probenwochenende')
     expect(firstDay.textContent).toBe('Thu, March 18, 2027')

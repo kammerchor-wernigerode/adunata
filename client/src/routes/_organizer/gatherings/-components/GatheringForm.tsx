@@ -108,15 +108,13 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
       span: formatSpan(stored.firstDay, stored.lastDay, locale),
     }).split(marker)
     return (
-      <Alert role="status">
-        <p>
-          {before}
-          <Link to="/gatherings/$gatheringId" params={{ gatheringId: String(stored.id) }} className="underline">
-            {stored.title}
-          </Link>
-          {after}
-        </p>
-      </Alert>
+      <p>
+        {before}
+        <Link to="/gatherings/$gatheringId" params={{ gatheringId: String(stored.id) }} className="underline">
+          {stored.title}
+        </Link>
+        {after}
+      </p>
     )
   }
 
@@ -203,7 +201,9 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
             {translate('member-cancel')}
           </Button>
         </div>
-        {saved && savedLine(saved)}
+        <Alert role="status" className={saved ? undefined : 'sr-only'}>
+          {saved && savedLine(saved)}
+        </Alert>
         <p role="alert">{refusal}</p>
       </FieldGroup>
     </form>
