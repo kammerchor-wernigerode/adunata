@@ -55,10 +55,6 @@ Invitation links and sign-in links follow one rule, see [ADR 0011](../decisions/
 
 The module `invitations` resolves the secret of an invitation through the extractor `PersonalLink`, which the routes of `responses` take as an argument. An unknown or revoked secret fails with status 404 and reveals no gathering or member. Resending and reminding both store the hash of a new secret in place of the old one.
 
-## Calendar file
-
-The server decides whether the response page offers the calendar file and reports it as `calendar` on the page. The route `GET /api/invitation/calendar` behind the personal link serves the file, which the module `calendar` writes without I/O. The [responses specification](../../openspec/specs/responses/spec.md) defines who gets the file and what it holds. [ADR 0025](../decisions/0025-stable-calendar-uids-for-gatherings.md) defines how an entry keeps its identity and when it counts as newer.
-
 ## Security headers
 
 One layer around the whole router sets these headers on every response, whether it comes from the API or serves the client:
