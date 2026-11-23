@@ -6,6 +6,7 @@ import type { Gathering, InvitationStatus } from '@/api/generated/model'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useTranslate, type Translate } from '@/l10n/translate'
 import { dataOf } from '@/lib/dataOf'
+import { DownloadOverview } from './DownloadOverview'
 import { OverviewTable } from './OverviewTable'
 import { RemindPending } from './RemindPending'
 
@@ -94,6 +95,9 @@ export function Overview({ gathering }: { gathering: Gathering }) {
         {notice}
       </p>
       <OverviewTable gathering={gathering} rows={shown} />
+      <div className="mt-4">
+        <DownloadOverview gatheringId={gathering.id} />
+      </div>
     </section>
   )
 }

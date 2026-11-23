@@ -10,8 +10,8 @@
 ## 2. Client
 
 - [x] 2.1 Regenerate `client/src/api/generated/` with `pnpm run generate` and verify `pnpm run check:generated` passes.
-- [ ] 2.2 Add the catalog keys for the link and its notice in both languages with the texts of the requirement "Download link on the overview".
-- [ ] 2.3 Add a component `DownloadOverview.tsx` in `client/src/routes/_organizer/gatherings/$gatheringId/-components/` that renders `Button` with `asChild` around an anchor to `/api/gatherings/{id}/overview.csv?language=<locale>` with the notice next to it, linked through `aria-describedby`, and place it in `Overview.tsx`. Verify in `overview.integration.test.tsx` that the link and notice show in English, that the address names `de` in German and that both show for a cancelled gathering.
+- [x] 2.2 Add the catalog keys for the link and its notice in both languages with the texts of the requirement "Download link on the overview".
+- [x] 2.3 Add a component `DownloadOverview.tsx` in `client/src/routes/_organizer/gatherings/$gatheringId/-components/` that renders `Button` with `asChild` around an anchor to `/api/gatherings/{id}/overview.csv?language=<locale>` with the notice next to it, linked through `aria-describedby`, and place it in `Overview.tsx`. Verify in `overview.integration.test.tsx` that the link and notice show in English, that the address names `de` in German and that both show for a cancelled gathering.
 
 ## 3. Documentation
 
