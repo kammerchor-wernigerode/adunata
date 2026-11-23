@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
-import { useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import {
   changeGathering,
@@ -11,11 +11,13 @@ import {
 } from '@/api/generated/api'
 import type { FieldError as ServerFieldError, Gathering, GatheringInput } from '@/api/generated/model'
 import { DatePicker } from '@/components/DatePicker'
+import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { useTranslate, type Translate } from '@/l10n/translate'
+import { formatSpan } from '@/l10n/dates'
+import { useLocale, useTranslate, type Translate } from '@/l10n/translate'
 import { finished } from '@/lib/succeeded'
 
 const fields = ['title', 'location', 'description', 'firstDay', 'lastDay'] as const
@@ -43,7 +45,9 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
   const translate = useTranslate()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { locale } = useLocale()
   const [refusal, setRefusal] = useState('')
+  const [saved, setSaved] = useState<Gathering>()
   const form = useForm<GatheringInput>({
     defaultValues: gathering
       ? {
@@ -59,16 +63,24 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
   const chosenFirstDay = useWatch({ control: form.control, name: 'firstDay' })
   const [today] = useState(() => format(new Date(), 'yyyy-MM-dd'))
 
-  async function saveOrRefuse(values: GatheringInput) {
-    if (!(await finished(() => save(values)))) setRefusal(translate('error-unexpected'))
+  useEffect(() => {
+    if (saved) form.setFocus('title')
+  }, [saved, form])
+
+  function saveOrRefuse(addAnother: boolean) {
+    return async (values: GatheringInput) => {
+      if (!(await finished(() => save(values, addAnother)))) setRefusal(translate('error-unexpected'))
+    }
   }
 
-  async function save(values: GatheringInput) {
+  async function save(values: GatheringInput, addAnother: boolean) {
     setRefusal('')
+    setSaved(undefined)
     const result = gathering ? await changeGathering(gathering.id, values) : await createGathering(values)
     if (result.status === 200 || result.status === 201) {
       await queryClient.invalidateQueries({ queryKey: getListGatheringsQueryKey() })
       await queryClient.invalidateQueries({ queryKey: getGetGatheringQueryKey(result.data.id) })
+      if (addAnother) return startNext(result.data)
       return navigate({ to: '/gatherings/$gatheringId', params: { gatheringId: String(result.data.id) } })
     }
     if (result.status === 401) return navigate({ to: '/sign-in' })
@@ -82,6 +94,28 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
     }
     const first = fields.find((name) => result.data.errors.some((error) => error.field === name))
     if (first) form.setFocus(first)
+  }
+
+  function startNext(stored: Gathering) {
+    form.reset({ ...form.getValues(), firstDay: '', lastDay: '' })
+    setSaved(stored)
+  }
+
+  function savedLine(stored: Gathering) {
+    const marker = '\u0000'
+    const [before, after] = translate('gathering-saved', {
+      title: marker,
+      span: formatSpan(stored.firstDay, stored.lastDay, locale),
+    }).split(marker)
+    return (
+      <p>
+        {before}
+        <Link to="/gatherings/$gatheringId" params={{ gatheringId: String(stored.id) }} className="underline underline-offset-4">
+          {stored.title}
+        </Link>
+        {after}
+      </p>
+    )
   }
 
   function field(name: FieldPath<GatheringInput>, label: string, input: ReactNode) {
@@ -141,7 +175,7 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
   }
 
   return (
-    <form noValidate onSubmit={form.handleSubmit(saveOrRefuse)} className="max-w-xl">
+    <form noValidate onSubmit={form.handleSubmit(saveOrRefuse(false))} className="max-w-xl">
       <FieldGroup>
         {field('title', translate('gathering-title'), <Input autoComplete="off" {...control('title')} />)}
         {field('location', translate('gathering-location'), <Input autoComplete="off" {...control('location')} />)}
@@ -158,9 +192,17 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
           <Button type="submit" disabled={isSubmitting}>
             {translate('gathering-save')}
           </Button>
+          {!gathering && (
+            <Button type="button" variant="outline" disabled={isSubmitting} onClick={form.handleSubmit(saveOrRefuse(true))}>
+              {translate('gathering-save-next')}
+            </Button>
+          )}
           <Button type="button" variant="outline" onClick={() => navigate({ to: '/gatherings' })}>
             {translate('member-cancel')}
           </Button>
+        </div>
+        <div role="status" className={saved ? undefined : 'sr-only'}>
+          {saved && <Alert role={undefined}>{savedLine(saved)}</Alert>}
         </div>
         <p role="alert">{refusal}</p>
       </FieldGroup>
