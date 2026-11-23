@@ -1,6 +1,6 @@
 use std::fmt::Write;
 
-use time::{Date, Duration, OffsetDateTime, UtcOffset};
+use time::{Date, OffsetDateTime, UtcOffset};
 
 use crate::gatherings::{Gathering, Revision};
 
@@ -24,7 +24,10 @@ pub fn file(gathering: &Gathering, revision: &Revision) -> String {
         format!("DTSTART;VALUE=DATE:{}", day(gathering.first_day)),
         format!(
             "DTEND;VALUE=DATE:{}",
-            day(gathering.last_day + Duration::days(1))
+            day(gathering
+                .last_day
+                .next_day()
+                .expect("validation keeps a day after the last day"))
         ),
         format!("SUMMARY:{}", escaped(&gathering.title)),
         format!("LOCATION:{}", escaped(&gathering.location)),

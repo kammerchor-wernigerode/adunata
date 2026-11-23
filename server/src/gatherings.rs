@@ -350,6 +350,8 @@ fn validate(
     }
     if input.last_day < input.first_day {
         errors.push(field_error("lastDay", ErrorCode::BeforeFirstDay));
+    } else if input.last_day.next_day().is_none() {
+        errors.push(field_error("lastDay", ErrorCode::Invalid));
     }
     errors
 }
@@ -420,6 +422,14 @@ mod tests {
         assert_eq!(
             validate(&input(stored, fixed_day()), fixed_day(), Some(stored)),
             vec![]
+        );
+    }
+
+    #[test]
+    fn refuses_last_day_without_a_following_day() {
+        assert_eq!(
+            validate(&input(Date::MAX, Date::MAX), fixed_day(), None),
+            vec![field_error("lastDay", ErrorCode::Invalid)]
         );
     }
 
