@@ -461,23 +461,22 @@ describe('gathering form', () => {
 
 
   it('converts weeks to days and shows the last day to answer', async () => {
+    vi.setSystemTime(new Date(2027, 1, 20, 12))
     signedIn()
     let sent: { responseDeadlineDays?: number | null } = {}
+    const fourteenth = { ...march, firstDay: '2027-03-14', lastDay: '2027-03-14' }
     server.use(
-      http.post('*/api/gatherings', async ({ request }) => {
+      http.put('*/api/gatherings/1', async ({ request }) => {
         sent = (await request.json()) as typeof sent
-        return HttpResponse.json({ ...march, id: 20 }, { status: 201 })
+        return HttpResponse.json(fourteenth)
       }),
-      getGetGatheringMockHandler({ ...march, id: 20 }),
+      getGetGatheringMockHandler(fourteenth),
       getListInvitationsMockHandler([]),
       getListMembersMockHandler([]),
       getOverviewMockHandler(emptyOverview),
     )
-    const { container } = renderApp('/gatherings/new')
-    await userEvent.type(await screen.findByLabelText('Title'), 'Rehearsal weekend')
-    await userEvent.type(screen.getByLabelText('Location'), 'Drübeck Abbey')
-    await pickDay('First day', '14')
-    await pickDay('Last day', '14')
+    const { container } = renderApp('/gatherings/1/edit')
+    await screen.findByLabelText('Title')
     await userEvent.type(screen.getByLabelText('Number of days or weeks'), '2')
     await userEvent.click(screen.getByRole('radio', { name: 'weeks' }))
     expect(screen.getByLabelText('Last day to answer').textContent).toBe('Sat, February 27, 2027')
@@ -537,6 +536,7 @@ describe('gathering form', () => {
   })
 
   it('keeps number and unit of the deadline for the next gathering', async () => {
+    vi.setSystemTime(new Date(2027, 2, 1, 12))
     signedIn()
     const stored = storing()
     renderApp('/gatherings/new')
@@ -551,6 +551,7 @@ describe('gathering form', () => {
   })
 
   it('marks a last day to answer in the past', async () => {
+    vi.setSystemTime(new Date(2027, 2, 1, 12))
     signedIn()
     server.use(
       http.post('*/api/gatherings', () =>
@@ -571,6 +572,7 @@ describe('gathering form', () => {
     ['the number', () => userEvent.type(screen.getByLabelText('Number of days or weeks'), '{Backspace}1')],
     ['the first day', () => pickDay('First day', '19')],
   ])('saves again after a refused deadline once %s changes', async (_, change) => {
+    vi.setSystemTime(new Date(2027, 2, 1, 12))
     signedIn()
     const sent: unknown[] = []
     server.use(
@@ -590,6 +592,28 @@ describe('gathering form', () => {
     await change()
     await userEvent.click(screen.getByRole('button', { name: 'Save & add another' }))
     await waitFor(() => expect(sent).toHaveLength(2))
+  })
+
+  it.each([
+    ['0', 'Enter a whole number of at least 1.'],
+    ['5', 'The last day to answer cannot lie in the past.'],
+    ['300000000', 'The last day to answer cannot lie in the past.'],
+  ])('refuses the number %s before sending', async (amount, text) => {
+    signedIn()
+    let requests = 0
+    server.use(
+      http.post('*/api/gatherings', () => {
+        requests++
+        return HttpResponse.json({ ...march, id: 20 }, { status: 201 })
+      }),
+    )
+    renderApp('/gatherings/new')
+    await fillNew()
+    await userEvent.type(screen.getByLabelText('Number of days or weeks'), amount)
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText(text)).toBeTruthy()
+    expect(document.activeElement).toBe(screen.getByLabelText('Number of days or weeks'))
+    expect(requests).toBe(0)
   })
 
   it('opens the gathering with its span and the action to edit it', async () => {

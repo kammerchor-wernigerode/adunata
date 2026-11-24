@@ -20,7 +20,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { formatSpan } from '@/l10n/dates'
 import { useLocale, useTranslate, type Translate } from '@/l10n/translate'
 import { finished } from '@/lib/succeeded'
-import { deadlineDays, lastDayToAnswer, type DeadlineUnit } from './deadline'
+import { deadlineDays, deadlineProblem, lastDayToAnswer, type DeadlineUnit } from './deadline'
 
 const fields = ['title', 'location', 'description', 'firstDay', 'lastDay', 'responseDeadlineDays'] as const
 
@@ -79,8 +79,13 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
   function saveOrRefuse(addAnother: boolean) {
     return async (values: GatheringInput) => {
       const responseDeadlineDays = deadlineDays(deadlineAmount, deadlineUnit)
-      if (responseDeadlineDays === undefined) {
-        form.setError('responseDeadlineDays', { type: 'client', message: translate('error-deadline-invalid') })
+      const problem = deadlineProblem(responseDeadlineDays, values.firstDay, today, gathering?.lastDayToAnswer)
+      if (problem || responseDeadlineDays === undefined) {
+        form.setError('responseDeadlineDays', {
+          type: 'client',
+          message: translate(problem === 'deadlineInPast' ? 'error-deadline-in-past' : 'error-deadline-invalid'),
+        })
+        document.getElementById(`${id}-responseDeadlineDays`)?.focus()
         return
       }
       const input = { ...values, responseDeadlineDays }
