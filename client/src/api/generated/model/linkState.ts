@@ -14,6 +14,7 @@ export type LinkState = typeof LinkState[keyof typeof LinkState];
 export const LinkState = {
   open: 'open',
   begun: 'begun',
+  deadlinePassed: 'deadlinePassed',
   ended: 'ended',
   cancelled: 'cancelled',
 } as const;

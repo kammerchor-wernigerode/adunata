@@ -425,7 +425,7 @@
             "description": "No such gathering"
           },
           "422": {
-            "description": "The gathering is cancelled, has ended or has begun",
+            "description": "The gathering is cancelled, has ended or has begun, or its deadline for responses has passed",
             "content": {
               "application/json": {
                 "schema": {
@@ -535,7 +535,7 @@
             "description": "The link is unknown or revoked"
           },
           "422": {
-            "description": "Response invalid, or the gathering has begun, ended or was cancelled",
+            "description": "Response invalid, or the gathering has begun, ended or was cancelled, or its deadline has passed and the status is not declined",
             "content": {
               "application/json": {
                 "schema": {
@@ -988,7 +988,9 @@
           "ended",
           "cancelled",
           "begun",
-          "beforeArrival"
+          "beforeArrival",
+          "deadlinePassed",
+          "deadlineInPast"
         ]
       },
       "FieldError": {
@@ -1022,6 +1024,7 @@
           "location",
           "firstDay",
           "lastDay",
+          "deadlinePassed",
           "cancelled",
           "begun",
           "ended"
@@ -1050,6 +1053,26 @@
           "lastDay": {
             "type": "string",
             "format": "date"
+          },
+          "responseDeadlineDays": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Days before the first day at which responses close, or null without a deadline."
+          },
+          "lastDayToAnswer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "The first day minus the deadline minus one day, or null without a deadline."
+          },
+          "deadlinePassed": {
+            "type": "boolean",
+            "description": "Whether the last day to answer has passed in the time zone of the instance."
           },
           "cancelled": {
             "type": "boolean"
@@ -1093,6 +1116,15 @@
           "lastDay": {
             "type": "string",
             "format": "date"
+          },
+          "responseDeadlineDays": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Days before the first day at which responses close. Null or absent means no deadline.",
+            "minimum": 1
           }
         }
       },
@@ -1296,6 +1328,14 @@
           "lastDay": {
             "type": "string",
             "format": "date"
+          },
+          "lastDayToAnswer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "The last day on which the member can answer, or null without a deadline."
           }
         }
       },
@@ -1323,6 +1363,7 @@
         "enum": [
           "open",
           "begun",
+          "deadlinePassed",
           "ended",
           "cancelled"
         ]

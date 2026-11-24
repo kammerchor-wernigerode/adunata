@@ -16,6 +16,18 @@ export interface Gathering {
   description?: string | null;
   firstDay: string;
   lastDay: string;
+  /**
+     * Days before the first day at which responses close, or null without a deadline.
+     * @nullable
+     */
+  responseDeadlineDays?: number | null;
+  /**
+     * The first day minus the deadline minus one day, or null without a deadline.
+     * @nullable
+     */
+  lastDayToAnswer?: string | null;
+  /** Whether the last day to answer has passed in the time zone of the instance. */
+  deadlinePassed: boolean;
   cancelled: boolean;
   /** Whether the first day has begun in the time zone of the instance. */
   begun: boolean;

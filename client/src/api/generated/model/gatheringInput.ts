@@ -15,4 +15,10 @@ export interface GatheringInput {
   description?: string | null;
   firstDay: string;
   lastDay: string;
+  /**
+     * Days before the first day at which responses close. Null or absent means no deadline.
+     * @minimum 1
+     * @nullable
+     */
+  responseDeadlineDays?: number | null;
 }

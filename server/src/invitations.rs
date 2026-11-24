@@ -385,7 +385,7 @@ async fn rotate_and_enqueue(
         (status = 201, description = "A new link created and a reminder queued for every pending member with an active link", body = Invited),
         (status = 401, description = "No valid organizer session"),
         (status = 404, description = "No such gathering"),
-        (status = 422, description = "The gathering is cancelled, has ended or has begun", body = crate::validation::ValidationErrors),
+        (status = 422, description = "The gathering is cancelled, has ended or has begun, or its deadline for responses has passed", body = crate::validation::ValidationErrors),
     )
 )]
 async fn remind(_: Organizer, State(state): State<AppState>, Path(id): Path<i64>) -> Response {
@@ -409,6 +409,9 @@ async fn remind_pending(
     };
     if gathering.begun {
         return Ok(Outcome::Closed(ErrorCode::Begun));
+    }
+    if gathering.deadline_passed {
+        return Ok(Outcome::Closed(ErrorCode::DeadlinePassed));
     }
     let calendar = calendar_file(&mut transaction, gathering_id, state.time_zone.today()).await?;
     let pending: Vec<(i64, i64)> = sqlx::query_as(
@@ -602,14 +605,25 @@ fn invitation_mail(
     let details = localizer.message(language, texts.details, &args);
     let answer = localizer.message(language, "invitation-mail-answer", &args);
     let attached = localizer.message(language, "invitation-mail-calendar", &args);
-    let mut text = format!("{greeting}\n\n{details}\n\n{answer}\n{link}\n\n{attached}\n");
+    let mut text = format!("{greeting}\n\n{details}\n\n");
     let mut html = format!(
-        "<p>{}</p><p>{}</p><p>{}<br><a href=\"{link}\">{link}</a></p><p>{}</p>",
+        "<p>{}</p><p>{}</p>",
         mail::escape_html(&greeting),
-        mail::escape_html(&details),
+        mail::escape_html(&details)
+    );
+    if let Some(deadline) = deadline_line(gathering, language) {
+        write!(text, "{deadline}\n\n").expect("writing to a string cannot fail");
+        write!(html, "<p>{}</p>", mail::escape_html(&deadline))
+            .expect("writing to a string cannot fail");
+    }
+    write!(text, "{answer}\n{link}\n\n{attached}\n").expect("writing to a string cannot fail");
+    write!(
+        html,
+        "<p>{}<br><a href=\"{link}\">{link}</a></p><p>{}</p>",
         mail::escape_html(&answer),
         mail::escape_html(&attached)
-    );
+    )
+    .expect("writing to a string cannot fail");
     if let Some(description) = &gathering.description {
         write!(text, "\n{description}\n").expect("writing to a string cannot fail");
         write!(
@@ -652,6 +666,20 @@ fn invitation_mail(
         html,
         calendar: Some(calendar.to_owned()),
     }
+}
+
+/// The line that names the last day to answer, or that it has passed, or `None` without a deadline.
+fn deadline_line(gathering: &Gathering, language: &str) -> Option<String> {
+    let day = gathering.last_day_to_answer?;
+    let localizer = localization::localizer();
+    let mut args = FluentArgs::new();
+    args.set("day", localizer.date_span(language, day, day));
+    let id = if gathering.deadline_passed {
+        "invitation-mail-deadline-passed"
+    } else {
+        "invitation-mail-deadline"
+    };
+    Some(localizer.message(language, id, &args))
 }
 
 #[cfg(test)]
@@ -826,6 +854,9 @@ mod tests {
             description: Some("Wir proben das Programm\\nfür April.".to_owned()),
             first_day: time::macros::date!(2027 - 03 - 12),
             last_day: time::macros::date!(2027 - 03 - 14),
+            response_deadline_days: None,
+            last_day_to_answer: None,
+            deadline_passed: false,
             cancelled: false,
             begun: false,
             ended: false,
@@ -964,6 +995,83 @@ mod tests {
             mail.html
         );
         assert!(!mail.html.contains("<b>"), "{}", mail.html);
+    }
+
+    fn with_deadline(mut gathering: Gathering, passed: bool) -> Gathering {
+        gathering.response_deadline_days = Some(7);
+        gathering.last_day_to_answer = Some(time::macros::date!(2027 - 03 - 06));
+        gathering.deadline_passed = passed;
+        gathering
+    }
+
+    #[test]
+    fn invitation_with_a_deadline() {
+        let (member, gathering) = sample();
+        let mail = invitation_mail(
+            &member,
+            &with_deadline(gathering, false),
+            "https://adunata.example.org/invitation#abc",
+            &LegalLinks::default(),
+            11,
+            CALENDAR,
+            &INVITATION,
+        );
+        assert!(mail.text.contains("6. März 2027"), "{}", mail.text);
+        assert!(mail.html.contains("6. März 2027"), "{}", mail.html);
+    }
+
+    #[test]
+    fn reminder_with_a_deadline() {
+        let (mut member, gathering) = sample();
+        member.language = "en".to_owned();
+        let mail = invitation_mail(
+            &member,
+            &with_deadline(gathering, false),
+            "https://adunata.example.org/invitation#abc",
+            &LegalLinks::default(),
+            11,
+            CALENDAR,
+            &REMINDER,
+        );
+        assert!(mail.text.contains("March 6, 2027"), "{}", mail.text);
+    }
+
+    #[test]
+    fn invitation_after_the_deadline() {
+        let (mut member, gathering) = sample();
+        member.language = "en".to_owned();
+        let mail = invitation_mail(
+            &member,
+            &with_deadline(gathering, true),
+            "https://adunata.example.org/invitation#abc",
+            &LegalLinks::default(),
+            11,
+            CALENDAR,
+            &INVITATION,
+        );
+        assert!(
+            mail.text
+                .contains("The deadline for responses passed on March 6, 2027. You can still decline through your personal link."),
+            "{}",
+            mail.text
+        );
+    }
+
+    #[test]
+    fn invitation_without_a_deadline() {
+        let (mut member, gathering) = sample();
+        member.language = "en".to_owned();
+        let mail = invitation_mail(
+            &member,
+            &gathering,
+            "https://adunata.example.org/invitation#abc",
+            &LegalLinks::default(),
+            11,
+            CALENDAR,
+            &INVITATION,
+        );
+        assert!(!mail.text.contains("March 6"), "{}", mail.text);
+        assert!(!mail.text.contains("deadline"), "{}", mail.text);
     }
 
     mod integration {
@@ -1674,6 +1782,76 @@ mod tests {
             let (status, body) = remind(&pool, &cookie, weekend).await;
             assert_eq!(status, StatusCode::CREATED);
             assert_eq!(body, json!({ "count": 1 }));
+        }
+
+        async fn set_deadline(pool: &PgPool, gathering_id: i64, days: i32) {
+            sqlx::query("UPDATE gatherings SET response_deadline_days = $2 WHERE id = $1")
+                .bind(gathering_id)
+                .bind(days)
+                .execute(pool)
+                .await
+                .unwrap();
+        }
+
+        #[tokio::test]
+        async fn remind_after_the_deadline() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            invite(&pool, &cookie, weekend, json!({})).await;
+            set_deadline(&pool, weekend, 10).await;
+            let before = secret_hash(&pool, weekend, "Root").await;
+            let (status, body) = remind(&pool, &cookie, weekend).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(
+                body,
+                json!({ "errors": [{ "field": "gathering", "code": "deadlinePassed" }] })
+            );
+            assert_eq!(secret_hash(&pool, weekend, "Root").await, before);
+            assert_eq!(mails(&pool).await, 1);
+        }
+
+        #[tokio::test]
+        async fn remind_on_the_last_day_to_answer() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            invite(&pool, &cookie, weekend, json!({})).await;
+            set_deadline(&pool, weekend, 9).await;
+            let (status, body) = remind(&pool, &cookie, weekend).await;
+            assert_eq!(status, StatusCode::CREATED);
+            assert_eq!(body, json!({ "count": 1 }));
+        }
+
+        #[tokio::test]
+        async fn invite_and_resend_after_the_deadline() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            set_deadline(&pool, weekend, 10).await;
+            let (status, _) = invite(&pool, &cookie, weekend, json!({})).await;
+            assert_eq!(status, StatusCode::CREATED);
+            let (_, list) = send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "GET",
+                &format!("/api/gatherings/{weekend}/invitations"),
+                &Value::Null,
+            )
+            .await;
+            let (status, _) = send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "POST",
+                &format!("/api/invitations/{}/resend", list[0]["id"]),
+                &Value::Null,
+            )
+            .await;
+            assert_eq!(status, StatusCode::NO_CONTENT);
+            assert_eq!(mails(&pool).await, 2);
         }
 
         #[tokio::test]

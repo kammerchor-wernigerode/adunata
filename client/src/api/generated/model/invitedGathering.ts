@@ -15,4 +15,9 @@ export interface InvitedGathering {
   description?: string | null;
   firstDay: string;
   lastDay: string;
+  /**
+     * The last day on which the member can answer, or null without a deadline.
+     * @nullable
+     */
+  lastDayToAnswer?: string | null;
 }

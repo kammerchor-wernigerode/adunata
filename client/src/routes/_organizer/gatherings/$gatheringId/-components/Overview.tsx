@@ -37,7 +37,7 @@ export function Overview({ gathering }: { gathering: Gathering }) {
   const { rows, totals } = data
   const shown = filter === 'all' ? rows : rows.filter((row) => row.status === filter)
   const remindable = rows.filter((row) => row.status === 'pending' && row.linkActive).length
-  const remindOpen = !gathering.cancelled && !gathering.begun
+  const remindOpen = !gathering.cancelled && !gathering.begun && !gathering.deadlinePassed
 
   async function reminded(message: string) {
     await queryClient.invalidateQueries({ queryKey: getOverviewQueryKey(gathering.id) })

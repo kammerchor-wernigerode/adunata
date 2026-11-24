@@ -1,6 +1,6 @@
 ## 1. Outbox
 
-- [x] 1.1 Add migration `server/migrations/0004_attach_calendar_file.sql` with the nullable `TEXT` column `calendar` and the check `mail_outbox_calendar_while_pending`
+- [x] 1.1 Add migration `server/migrations/0005_attach_calendar_file.sql` with the nullable `TEXT` column `calendar` and the check `mail_outbox_calendar_while_pending`
 - [x] 1.2 Add `calendar: Option<String>` to `mail::Mail`, write it in `enqueue`, read it into the pending mail and clear it in `mark_sent` and in the final branch of `schedule_retry`
 - [x] 1.3 In `send`, wrap the alternative parts and a `gathering.ics` attachment of type `text/calendar; charset=utf-8` in `multipart/mixed` when a file is present, and leave the message unchanged otherwise
 - [x] 1.4 Integration tests in `server/src/mail.rs` against Mailpit: attachment name, content type and byte-equal decoded content with umlauts, no attachment without a file, file kept across a retry, `content_left` includes `calendar` for sent and failed mail

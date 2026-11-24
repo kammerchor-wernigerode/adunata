@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { addDays, differenceInCalendarDays, format, parseISO } from 'date-fns'
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useState, type BaseSyntheticEvent, type ReactNode } from 'react'
 import { Controller, useForm, useWatch, type FieldPath } from 'react-hook-form'
 import {
   changeGathering,
@@ -13,14 +13,16 @@ import type { FieldError as ServerFieldError, Gathering, GatheringInput } from '
 import { DatePicker } from '@/components/DatePicker'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { formatSpan } from '@/l10n/dates'
 import { useLocale, useTranslate, type Translate } from '@/l10n/translate'
 import { finished } from '@/lib/succeeded'
+import { deadlineDays, deadlineProblem, lastDayToAnswer, type DeadlineUnit } from './deadline'
 
-const fields = ['title', 'location', 'description', 'firstDay', 'lastDay'] as const
+const fields = ['title', 'location', 'description', 'firstDay', 'lastDay', 'responseDeadlineDays'] as const
 
 function message(translate: Translate, error: ServerFieldError): string {
   switch (error.code) {
@@ -34,6 +36,10 @@ function message(translate: Translate, error: ServerFieldError): string {
       return translate('error-first-day-in-past')
     case 'ended':
       return translate('error-gathering-ended')
+    case 'invalid':
+      return translate('error-deadline-invalid')
+    case 'deadlineInPast':
+      return translate('error-deadline-in-past')
     default:
       return translate('error-unexpected')
   }
@@ -62,6 +68,9 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
   const { errors, isSubmitting } = form.formState
   const chosenFirstDay = useWatch({ control: form.control, name: 'firstDay' })
   const [today] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [deadlineAmount, setDeadlineAmount] = useState(gathering?.responseDeadlineDays ? String(gathering.responseDeadlineDays) : '')
+  const [deadlineUnit, setDeadlineUnit] = useState<DeadlineUnit>('days')
+  const chosenDeadline = deadlineDays(deadlineAmount, deadlineUnit)
 
   useEffect(() => {
     if (saved) form.setFocus('title')
@@ -69,7 +78,25 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
 
   function saveOrRefuse(addAnother: boolean) {
     return async (values: GatheringInput) => {
-      if (!(await finished(() => save(values, addAnother)))) setRefusal(translate('error-unexpected'))
+      const responseDeadlineDays = deadlineDays(deadlineAmount, deadlineUnit)
+      const problem = deadlineProblem(responseDeadlineDays, values.firstDay, today, gathering?.lastDayToAnswer)
+      if (problem || responseDeadlineDays === undefined) {
+        form.setError('responseDeadlineDays', {
+          type: 'client',
+          message: translate(problem === 'deadlineInPast' ? 'error-deadline-in-past' : 'error-deadline-invalid'),
+        })
+        document.getElementById(`${id}-responseDeadlineDays`)?.focus()
+        return
+      }
+      const input = { ...values, responseDeadlineDays }
+      if (!(await finished(() => save(input, addAnother)))) setRefusal(translate('error-unexpected'))
+    }
+  }
+
+  function submit(addAnother: boolean) {
+    return (event?: BaseSyntheticEvent) => {
+      form.clearErrors('responseDeadlineDays')
+      return form.handleSubmit(saveOrRefuse(addAnother))(event)
     }
   }
 
@@ -93,7 +120,7 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
       }
     }
     const first = fields.find((name) => result.data.errors.some((error) => error.field === name))
-    if (first) form.setFocus(first)
+    if (first) document.getElementById(`${id}-${first}`)?.focus()
   }
 
   function startNext(stored: Gathering) {
@@ -174,8 +201,65 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
     )
   }
 
+  function deadline() {
+    const name = 'responseDeadlineDays'
+    const lastDay = chosenFirstDay ? lastDayToAnswer(chosenFirstDay, 1) : undefined
+    return (
+      <FieldSet data-invalid={errors[name] ? true : undefined}>
+        <FieldLegend variant="label">{translate('gathering-deadline')}</FieldLegend>
+        <FieldDescription id={`${id}-${name}-hint`}>{translate('gathering-deadline-hint')}</FieldDescription>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            id={`${id}-${name}`}
+            type="number"
+            inputMode="numeric"
+            min={1}
+            step={1}
+            className="h-9.5 w-20"
+            aria-label={translate('gathering-deadline-amount')}
+            value={deadlineAmount}
+            onChange={(event) => setDeadlineAmount(event.target.value)}
+            aria-invalid={errors[name] ? true : undefined}
+            aria-describedby={[`${id}-${name}-hint`, errors[name] ? `${id}-${name}-error` : ''].filter(Boolean).join(' ')}
+          />
+          <ToggleGroup
+            type="single"
+            value={deadlineUnit}
+            onValueChange={(value) => value && setDeadlineUnit(value as DeadlineUnit)}
+            aria-label={translate('gathering-deadline-unit')}
+          >
+            <ToggleGroupItem value="days">{translate('gathering-deadline-days')}</ToggleGroupItem>
+            <ToggleGroupItem value="weeks">{translate('gathering-deadline-weeks')}</ToggleGroupItem>
+          </ToggleGroup>
+          <span id={`${id}-${name}-day-label`} className="sr-only">
+            {translate('gathering-deadline-last-day')}
+          </span>
+          <div className="min-w-56 flex-1">
+            <DatePicker
+              id={`${id}-${name}-day`}
+              labelId={`${id}-${name}-day-label`}
+              value={chosenFirstDay && chosenDeadline ? lastDayToAnswer(chosenFirstDay, chosenDeadline) : ''}
+              onChange={(chosen) => {
+                setDeadlineAmount(String(differenceInCalendarDays(parseISO(chosenFirstDay), parseISO(chosen)) - 1))
+                setDeadlineUnit('days')
+              }}
+              firstDay={today}
+              lastDay={lastDay}
+              disabled={!chosenFirstDay}
+              className="h-9.5 w-full justify-between border-input font-normal"
+              gridLabel={translate('gathering-deadline-last-day')}
+              navigationLabel={translate('gathering-deadline-last-day-months')}
+              displayFormat={{ weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }}
+            />
+          </div>
+        </div>
+        <FieldError id={`${id}-${name}-error`} errors={errors[name] ? [{ message: errors[name].message }] : []} />
+      </FieldSet>
+    )
+  }
+
   return (
-    <form noValidate onSubmit={form.handleSubmit(saveOrRefuse(false))} className="max-w-xl">
+    <form noValidate onSubmit={submit(false)} className="max-w-xl">
       <FieldGroup>
         {field('title', translate('gathering-title'), <Input autoComplete="off" {...control('title')} />)}
         {field('location', translate('gathering-location'), <Input autoComplete="off" {...control('location')} />)}
@@ -188,12 +272,13 @@ export function GatheringForm({ gathering }: { gathering?: Gathering }) {
           {field('firstDay', translate('gathering-first-day'), day('firstDay'))}
           {field('lastDay', translate('gathering-last-day'), day('lastDay'))}
         </div>
+        {deadline()}
         <div className="flex flex-wrap gap-3">
           <Button type="submit" disabled={isSubmitting}>
             {translate('gathering-save')}
           </Button>
           {!gathering && (
-            <Button type="button" variant="outline" disabled={isSubmitting} onClick={form.handleSubmit(saveOrRefuse(true))}>
+            <Button type="button" variant="outline" disabled={isSubmitting} onClick={submit(true)}>
               {translate('gathering-save-next')}
             </Button>
           )}

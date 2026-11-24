@@ -19,6 +19,7 @@ The main changes:
 - `factory/bin/job` opens a new pull request ready, so no draft run exists. It marks an existing draft ready only after CI has started a run for the pushed commit. It also starts a missing ready run of CI, so the wait does not hang on a check that never comes.
 - `factory/bin/job feedback` also sends an approved job back to the builder, with the person's feedback in place of the approver's decision.
 - The dashboard is fixed for keyboard use and for answers that arrive out of order.
+- The dashboard fits small screens. Its board scrolls sideways. A round that does not fit shows its passed checks as a count. The Done column folds every earlier day. It fetches only the files of a round that exist.
 - A job has up to five rounds instead of three.
 - The builder has no Stop hook. It runs single checks while it works and `factory/checks.sh` as its last step. The gate confirms that run.
 - Two steps follow the reviews. `factory/bin/job publish` waits for pending checks, syncs the base branch, pushes once per round, opens the pull request ready and writes `round-N/review-remote.md` from CI and CodeRabbit. `factory/bin/job merge` then only merges the verified head.
