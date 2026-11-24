@@ -312,6 +312,7 @@ fn sign_in_mail(organizer: &Member, link: &str) -> Mail {
             mail::escape_html(&body),
             mail::escape_html(&ignore)
         ),
+        calendar: None,
     }
 }
 

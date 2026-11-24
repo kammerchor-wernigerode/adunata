@@ -29,6 +29,7 @@ invitation-mail-subject = Einladung: { $title }, { $span }
 invitation-mail-greeting = Hallo { $firstName },
 invitation-mail-details = du bist zu { $title } in { $location } eingeladen, { $span }.
 invitation-mail-answer = Sag uns über deinen persönlichen Link, ob und wann du kommst. Bitte leite ihn nicht weiter, denn er funktioniert ohne Passwort.
+invitation-mail-calendar = Die angehängte Datei trägt das Treffen in deinen Kalender ein. Das Speichern beantwortet die Einladung nicht.
 invitation-mail-deadline = Bitte antworte bis zum { $day }.
 invitation-mail-deadline-passed = Die Frist für Antworten ist am { $day } abgelaufen. Absagen kannst du über deinen persönlichen Link weiterhin.
 
@@ -37,6 +38,7 @@ reminder-mail-details = von dir ist noch keine Antwort zu { $title } in { $locat
 
 cancellation-mail-subject = Abgesagt: { $title }, { $span }
 cancellation-mail-body = { $title } in { $location }, { $span }, findet nicht statt.
+cancellation-mail-calendar = Die angehängte Datei markiert den Eintrag in deinem Kalender als abgesagt.
 
 sign-in-mail-subject = Dein Anmeldelink für Adunata
 sign-in-mail-body = Hallo { $firstName }, öffne diesen Link innerhalb einer Stunde, um dich bei Adunata anzumelden. Er funktioniert einmal.
