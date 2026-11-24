@@ -19,6 +19,8 @@ describe('deadline', () => {
   it('gives no day outside the range of Date', () => {
     expect(lastDayToAnswer('2027-03-14', 200_000_000)).toBe('')
     expect(lastDayToAnswer('2027-03-14', 30_000_000)).toBe('')
+    expect(lastDayToAnswer('2027-03-14', 800_000)).toBe('')
+    expect(deadlineProblem(800_000, '2027-03-14', '2027-03-01', null)).toBe('deadlineInPast')
   })
 
   it('refuses zero, a past last day and a huge number but keeps the stored day', () => {

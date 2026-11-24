@@ -14,7 +14,7 @@ export function deadlineDays(amount: string, unit: DeadlineUnit): number | null 
 /** The last day to answer, the first day minus the deadline minus one day, or an empty string when no ISO date can name that day. */
 export function lastDayToAnswer(firstDay: string, days: number): string {
   const day = subDays(parseISO(firstDay), days + 1)
-  if (!isValid(day)) return ''
+  if (!isValid(day) || day.getFullYear() < 1) return ''
   const iso = format(day, 'yyyy-MM-dd')
   return isValid(parseISO(iso)) ? iso : ''
 }
