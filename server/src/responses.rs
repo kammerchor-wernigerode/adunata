@@ -1727,7 +1727,7 @@ mod integration {
         let database = fresh_database().await;
         let pool = database.pool();
         invited(&pool, 10, 12).await;
-        sqlx::query("UPDATE mail_outbox SET failed_at = now(), attempts = 8, recipient = NULL, subject = NULL, text_body = NULL, html_body = NULL")
+        sqlx::query("UPDATE mail_outbox SET failed_at = now(), attempts = 8, recipient = NULL, subject = NULL, text_body = NULL, html_body = NULL, calendar = NULL")
             .execute(&pool)
             .await
             .unwrap();

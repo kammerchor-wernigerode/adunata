@@ -14,6 +14,7 @@ use utoipa_axum::routes;
 
 use crate::access::Organizer;
 use crate::api::AppState;
+use crate::calendar;
 use crate::configuration::{LegalLinks, PublicUrl};
 use crate::gatherings::{self, Gathering};
 use crate::localization;
@@ -185,11 +186,12 @@ async fn cancel_gathering(state: &AppState, id: i64) -> Result<Outcome<()>, sqlx
             .bind(id)
             .fetch_all(&mut *transaction)
             .await?;
+    let calendar = calendar_file(&mut transaction, id, today).await?;
     for (invitation_id, member_id) in invited {
         if let Some(member) = members::find(&mut transaction, member_id).await? {
             mail::enqueue(
                 &mut transaction,
-                &cancellation_mail(&member, &gathering, invitation_id),
+                &cancellation_mail(&member, &gathering, invitation_id, &calendar),
             )
             .await?;
         }
@@ -198,7 +200,24 @@ async fn cancel_gathering(state: &AppState, id: i64) -> Result<Outcome<()>, sqlx
     Ok(Outcome::Done(()))
 }
 
-fn cancellation_mail(member: &Member, gathering: &Gathering, invitation_id: i64) -> Mail {
+/// The calendar file of a gathering as the response page serves it, read in the transaction that queues the mails about it.
+async fn calendar_file(
+    connection: &mut PgConnection,
+    id: i64,
+    today: time::Date,
+) -> Result<String, sqlx::Error> {
+    let (gathering, revision) = gatherings::find_with_revision(connection, id, today)
+        .await?
+        .ok_or(sqlx::Error::RowNotFound)?;
+    Ok(calendar::file(&gathering, &revision))
+}
+
+fn cancellation_mail(
+    member: &Member,
+    gathering: &Gathering,
+    invitation_id: i64,
+    calendar: &str,
+) -> Mail {
     let localizer = localization::localizer();
     let language = member.language.as_str();
     let mut args = FluentArgs::new();
@@ -211,17 +230,20 @@ fn cancellation_mail(member: &Member, gathering: &Gathering, invitation_id: i64)
     );
     let greeting = localizer.message(language, "invitation-mail-greeting", &args);
     let body = localizer.message(language, "cancellation-mail-body", &args);
+    let attached = localizer.message(language, "cancellation-mail-calendar", &args);
     Mail {
         recipient: member.mail.clone(),
         member_id: Some(member.id),
         invitation_id: Some(invitation_id),
         subject: localizer.message(language, "cancellation-mail-subject", &args),
-        text: format!("{greeting}\n\n{body}\n"),
+        text: format!("{greeting}\n\n{body}\n\n{attached}\n"),
         html: format!(
-            "<p>{}</p><p>{}</p>",
+            "<p>{}</p><p>{}</p><p>{}</p>",
             mail::escape_html(&greeting),
-            mail::escape_html(&body)
+            mail::escape_html(&body),
+            mail::escape_html(&attached)
         ),
+        calendar: Some(calendar.to_owned()),
     }
 }
 
@@ -297,6 +319,7 @@ async fn resend_invitation(state: &AppState, id: i64) -> Result<Outcome<()>, sql
         Err(Outcome::Closed(code)) => return Ok(Outcome::Closed(code)),
         Err(_) => return Ok(Outcome::NotFound),
     };
+    let calendar = calendar_file(&mut transaction, gathering_id, state.time_zone.today()).await?;
     let member_id: Option<i64> =
         sqlx::query_scalar("SELECT member_id FROM invitations WHERE id = $1 FOR UPDATE")
             .bind(id)
@@ -314,6 +337,7 @@ async fn resend_invitation(state: &AppState, id: i64) -> Result<Outcome<()>, sql
         id,
         &member,
         &gathering,
+        &calendar,
         &INVITATION,
     )
     .await?;
@@ -328,6 +352,7 @@ async fn rotate_and_enqueue(
     invitation_id: i64,
     member: &Member,
     gathering: &Gathering,
+    calendar: &str,
     texts: &MailTexts,
 ) -> Result<(), sqlx::Error> {
     let secret = secret::generate();
@@ -345,6 +370,7 @@ async fn rotate_and_enqueue(
             &link,
             &state.legal_links,
             invitation_id,
+            calendar,
             texts,
         ),
     )
@@ -384,6 +410,7 @@ async fn remind_pending(
     if gathering.begun {
         return Ok(Outcome::Closed(ErrorCode::Begun));
     }
+    let calendar = calendar_file(&mut transaction, gathering_id, state.time_zone.today()).await?;
     let pending: Vec<(i64, i64)> = sqlx::query_as(
         "SELECT id, member_id FROM invitations WHERE gathering_id = $1 AND secret_hash IS NOT NULL AND NOT EXISTS (SELECT 1 FROM responses WHERE responses.invitation_id = invitations.id) ORDER BY id FOR UPDATE",
     )
@@ -399,6 +426,7 @@ async fn remind_pending(
                 invitation_id,
                 &member,
                 &gathering,
+                &calendar,
                 &REMINDER,
             )
             .await?;
@@ -493,6 +521,7 @@ async fn invite_members(
         Ok(gathering) => gathering,
         Err(outcome) => return Ok(outcome),
     };
+    let calendar = calendar_file(&mut transaction, gathering_id, state.time_zone.today()).await?;
     let candidates = members::active_members(&mut transaction)
         .await?
         .into_iter()
@@ -518,6 +547,7 @@ async fn invite_members(
             &link,
             &state.legal_links,
             invitation_id,
+            &calendar,
             &INVITATION,
         );
         mail::enqueue(&mut transaction, &mail).await?;
@@ -554,6 +584,7 @@ fn invitation_mail(
     link: &str,
     legal_links: &LegalLinks,
     invitation_id: i64,
+    calendar: &str,
     texts: &MailTexts,
 ) -> Mail {
     let localizer = localization::localizer();
@@ -570,12 +601,14 @@ fn invitation_mail(
     let greeting = localizer.message(language, "invitation-mail-greeting", &args);
     let details = localizer.message(language, texts.details, &args);
     let answer = localizer.message(language, "invitation-mail-answer", &args);
-    let mut text = format!("{greeting}\n\n{details}\n\n{answer}\n{link}\n");
+    let attached = localizer.message(language, "invitation-mail-calendar", &args);
+    let mut text = format!("{greeting}\n\n{details}\n\n{answer}\n{link}\n\n{attached}\n");
     let mut html = format!(
-        "<p>{}</p><p>{}</p><p>{}<br><a href=\"{link}\">{link}</a></p>",
+        "<p>{}</p><p>{}</p><p>{}<br><a href=\"{link}\">{link}</a></p><p>{}</p>",
         mail::escape_html(&greeting),
         mail::escape_html(&details),
-        mail::escape_html(&answer)
+        mail::escape_html(&answer),
+        mail::escape_html(&attached)
     );
     if let Some(description) = &gathering.description {
         write!(text, "\n{description}\n").expect("writing to a string cannot fail");
@@ -617,6 +650,7 @@ fn invitation_mail(
         subject,
         text,
         html,
+        calendar: Some(calendar.to_owned()),
     }
 }
 
@@ -684,10 +718,12 @@ pub mod testing {
 mod tests {
     use super::*;
 
+    const CALENDAR: &str = "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n";
+
     #[test]
     fn cancellation_mail_in_german() {
         let (member, gathering) = sample();
-        let mail = cancellation_mail(&member, &gathering, 11);
+        let mail = cancellation_mail(&member, &gathering, 11, CALENDAR);
         assert_eq!(
             mail.subject,
             "Abgesagt: Probenwochenende, 12.–14. März 2027"
@@ -700,6 +736,77 @@ mod tests {
             "{}",
             mail.text
         );
+    }
+
+    #[test]
+    fn calendar_sentence_after_the_link() {
+        let (mut member, gathering) = sample();
+        let link = "https://adunata.example.org/invitation#abc";
+        for (language, sentence) in [
+            (
+                "de",
+                "Die angehängte Datei trägt das Treffen in deinen Kalender ein. Das Speichern beantwortet die Einladung nicht.",
+            ),
+            (
+                "en",
+                "The attached file adds the gathering to your calendar. Saving it does not answer the invitation.",
+            ),
+        ] {
+            member.language = language.to_owned();
+            for texts in [&INVITATION, &REMINDER] {
+                let mail = invitation_mail(
+                    &member,
+                    &gathering,
+                    link,
+                    &LegalLinks::default(),
+                    11,
+                    CALENDAR,
+                    texts,
+                );
+                assert!(
+                    mail.text.contains(&format!("{link}\n\n{sentence}\n")),
+                    "{}",
+                    mail.text
+                );
+                assert!(
+                    mail.html
+                        .contains(&format!("{link}</a></p><p>{sentence}</p>")),
+                    "{}",
+                    mail.html
+                );
+                assert_eq!(mail.calendar.as_deref(), Some(CALENDAR));
+            }
+        }
+    }
+
+    #[test]
+    fn calendar_sentence_after_the_cancellation() {
+        let (mut member, gathering) = sample();
+        for (language, sentence) in [
+            (
+                "de",
+                "Die angehängte Datei markiert den Eintrag in deinem Kalender als abgesagt.",
+            ),
+            (
+                "en",
+                "The attached file marks the entry in your calendar as cancelled.",
+            ),
+        ] {
+            member.language = language.to_owned();
+            let mail = cancellation_mail(&member, &gathering, 11, CALENDAR);
+            assert!(
+                mail.text.ends_with(&format!("\n\n{sentence}\n")),
+                "{}",
+                mail.text
+            );
+            assert!(
+                mail.html.ends_with(&format!("<p>{sentence}</p>")),
+                "{}",
+                mail.html
+            );
+            assert!(!mail.text.contains("answer") && !mail.text.contains("beantwortet"));
+            assert_eq!(mail.calendar.as_deref(), Some(CALENDAR));
+        }
     }
 
     fn sample() -> (Member, Gathering) {
@@ -734,7 +841,7 @@ mod tests {
             privacy: Some("https://choir.example.org/privacy".to_owned()),
             imprint: Some("https://choir.example.org/imprint".to_owned()),
         };
-        let mail = invitation_mail(&member, &gathering, link, &legal, 11, &INVITATION);
+        let mail = invitation_mail(&member, &gathering, link, &legal, 11, CALENDAR, &INVITATION);
         assert_eq!(
             mail.subject,
             "Einladung: Probenwochenende, 12.–14. März 2027"
@@ -772,6 +879,7 @@ mod tests {
             link,
             &LegalLinks::default(),
             11,
+            CALENDAR,
             &REMINDER,
         );
         assert_eq!(
@@ -785,6 +893,7 @@ mod tests {
             link,
             &LegalLinks::default(),
             11,
+            CALENDAR,
             &REMINDER,
         );
         assert!(
@@ -802,7 +911,7 @@ mod tests {
             privacy: Some("https://choir.example.org/privacy".to_owned()),
             imprint: Some("https://choir.example.org/imprint".to_owned()),
         };
-        let mail = invitation_mail(&member, &gathering, link, &legal, 11, &REMINDER);
+        let mail = invitation_mail(&member, &gathering, link, &legal, 11, CALENDAR, &REMINDER);
         for expected in [
             "noch keine Antwort",
             "Probenwochenende",
@@ -829,6 +938,7 @@ mod tests {
             "https://adunata.example.org/invitation#abc",
             &LegalLinks::default(),
             11,
+            CALENDAR,
             &INVITATION,
         );
         assert!(!mail.text.contains("Datenschutz"), "{}", mail.text);
@@ -845,6 +955,7 @@ mod tests {
             "https://adunata.example.org/invitation#abc",
             &LegalLinks::default(),
             11,
+            CALENDAR,
             &INVITATION,
         );
         assert!(
@@ -1130,6 +1241,112 @@ mod tests {
             assert_eq!(mails(&pool).await, 1);
         }
 
+        async fn expected_calendar(pool: &PgPool, gathering_id: i64) -> String {
+            let mut connection = pool.acquire().await.unwrap();
+            let (gathering, revision) =
+                gatherings::find_with_revision(&mut connection, gathering_id, api::testing::day(0))
+                    .await
+                    .unwrap()
+                    .unwrap();
+            calendar::file(&gathering, &revision)
+        }
+
+        async fn newest_calendar(pool: &PgPool, recipient: &str) -> String {
+            sqlx::query_scalar(
+                "SELECT calendar FROM mail_outbox WHERE recipient = $1 ORDER BY id DESC LIMIT 1",
+            )
+            .bind(recipient)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+        }
+
+        async fn change_twice(pool: &PgPool, gathering_id: i64) {
+            for _ in 0..2 {
+                sqlx::query(
+                    "UPDATE gatherings SET version = version + 1, changed_at = now() WHERE id = $1",
+                )
+                .bind(gathering_id)
+                .execute(pool)
+                .await
+                .unwrap();
+            }
+        }
+
+        #[tokio::test]
+        async fn invitation_carries_the_calendar_file() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let clara = member(&pool, "Clara", "de").await;
+            let weekend = gathering(&pool, "Probenwochenende", 10, 12).await;
+            change_twice(&pool, weekend).await;
+            invite(&pool, &cookie, weekend, json!({ "memberIds": [clara] })).await;
+            let attached = newest_calendar(&pool, "Clara@example.org").await;
+            assert_eq!(attached, expected_calendar(&pool, weekend).await);
+            for line in ["SEQUENCE:2", "STATUS:CONFIRMED"] {
+                assert!(attached.contains(line), "{attached}");
+            }
+            for name in ["METHOD", "ORGANIZER", "ATTENDEE"] {
+                assert!(!attached.contains(name), "{attached}");
+            }
+        }
+
+        #[tokio::test]
+        async fn reminder_and_resend_carry_the_calendar_file() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (weekend, invitation) = one_invitation(&pool, &cookie).await;
+            change_twice(&pool, weekend).await;
+            remind(&pool, &cookie, weekend).await;
+            let expected = expected_calendar(&pool, weekend).await;
+            assert!(expected.contains("SEQUENCE:2"), "{expected}");
+            assert_eq!(reminded(&pool).await, vec!["Clara@example.org"]);
+            assert_eq!(newest_calendar(&pool, "Clara@example.org").await, expected);
+            change_twice(&pool, weekend).await;
+            send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "POST",
+                &format!("/api/invitations/{}/resend", invitation["id"]),
+                &Value::Null,
+            )
+            .await;
+            let expected = expected_calendar(&pool, weekend).await;
+            assert!(expected.contains("SEQUENCE:4"), "{expected}");
+            assert_eq!(newest_calendar(&pool, "Clara@example.org").await, expected);
+        }
+
+        #[tokio::test]
+        async fn cancellation_carries_the_cancelled_calendar_file() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (weekend, _) = one_invitation(&pool, &cookie).await;
+            let invited = newest_calendar(&pool, "Clara@example.org").await;
+            assert!(invited.contains("SEQUENCE:0"), "{invited}");
+            send(
+                api::testing::state(pool.clone()),
+                &cookie,
+                "POST",
+                &format!("/api/gatherings/{weekend}/cancellation"),
+                &Value::Null,
+            )
+            .await;
+            let cancelled = newest_calendar(&pool, "Clara@example.org").await;
+            assert_eq!(cancelled, expected_calendar(&pool, weekend).await);
+            for line in ["STATUS:CANCELLED", "SEQUENCE:1"] {
+                assert!(cancelled.contains(line), "{cancelled}");
+            }
+            let uid = |file: &str| {
+                file.lines()
+                    .find(|line| line.starts_with("UID:"))
+                    .map(str::to_owned)
+            };
+            assert_eq!(uid(&cancelled), uid(&invited));
+        }
+
         #[tokio::test]
         async fn cancel_with_mail_to_every_invited_member() {
             let database = fresh_database().await;
@@ -1366,7 +1583,7 @@ mod tests {
                 .await
                 .unwrap();
             sqlx::query(
-                "UPDATE mail_outbox SET failed_at = now(), recipient = NULL, subject = NULL, text_body = NULL, html_body = NULL WHERE member_id = (SELECT id FROM members WHERE first_name = 'Johannes')",
+                "UPDATE mail_outbox SET failed_at = now(), recipient = NULL, subject = NULL, text_body = NULL, html_body = NULL, calendar = NULL WHERE member_id = (SELECT id FROM members WHERE first_name = 'Johannes')",
             )
             .execute(&pool)
             .await

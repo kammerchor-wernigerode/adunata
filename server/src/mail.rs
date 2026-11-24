@@ -1,7 +1,8 @@
 use std::time::Duration;
 
+use lettre::message::header::ContentType;
 use lettre::message::header::{HeaderName, HeaderValue};
-use lettre::message::{Mailbox, MultiPart};
+use lettre::message::{Attachment, Mailbox, MultiPart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 use sqlx::{PgConnection, PgPool};
@@ -20,6 +21,8 @@ pub struct Mail {
     pub subject: String,
     pub text: String,
     pub html: String,
+    /// The calendar file sent as the attachment `gathering.ics`.
+    pub calendar: Option<String>,
 }
 
 pub struct Delivery {
@@ -38,6 +41,7 @@ struct PendingMail {
     subject: String,
     text_body: String,
     html_body: String,
+    calendar: Option<String>,
     attempts: i32,
 }
 
@@ -67,13 +71,14 @@ pub fn transport(smtp: &Smtp) -> Result<Transport, lettre::transport::smtp::Erro
 }
 
 pub async fn enqueue(connection: &mut PgConnection, mail: &Mail) -> Result<(), sqlx::Error> {
-    sqlx::query("INSERT INTO mail_outbox (recipient, member_id, invitation_id, subject, text_body, html_body) VALUES ($1, $2, $3, $4, $5, $6)")
+    sqlx::query("INSERT INTO mail_outbox (recipient, member_id, invitation_id, subject, text_body, html_body, calendar) VALUES ($1, $2, $3, $4, $5, $6, $7)")
         .bind(&mail.recipient)
         .bind(mail.member_id)
         .bind(mail.invitation_id)
         .bind(&mail.subject)
         .bind(&mail.text)
         .bind(&mail.html)
+        .bind(&mail.calendar)
         .execute(connection)
         .await
         .map(|_| ())
@@ -93,7 +98,7 @@ pub async fn deliver_due(pool: &PgPool, delivery: &Delivery) -> Result<(), sqlx:
     for _ in 0..BATCH_SIZE {
         let mut transaction = pool.begin().await?;
         let pending: Option<PendingMail> = sqlx::query_as(
-            "SELECT outbox.id, COALESCE(members.mail, outbox.recipient) AS recipient, members.first_name || ' ' || members.last_name AS recipient_name, outbox.subject, outbox.text_body, outbox.html_body, outbox.attempts FROM mail_outbox outbox LEFT JOIN members ON members.id = outbox.member_id WHERE outbox.sent_at IS NULL AND outbox.failed_at IS NULL AND outbox.next_attempt_at <= now() ORDER BY outbox.id LIMIT 1 FOR UPDATE OF outbox SKIP LOCKED",
+            "SELECT outbox.id, COALESCE(members.mail, outbox.recipient) AS recipient, members.first_name || ' ' || members.last_name AS recipient_name, outbox.subject, outbox.text_body, outbox.html_body, outbox.calendar, outbox.attempts FROM mail_outbox outbox LEFT JOIN members ON members.id = outbox.member_id WHERE outbox.sent_at IS NULL AND outbox.failed_at IS NULL AND outbox.next_attempt_at <= now() ORDER BY outbox.id LIMIT 1 FOR UPDATE OF outbox SKIP LOCKED",
         )
         .fetch_optional(&mut *transaction)
         .await?;
@@ -134,12 +139,21 @@ async fn send(delivery: &Delivery, mail: &PendingMail) -> Result<(), String> {
         }
         None => builder.to(Mailbox::new(mail.recipient_name.clone(), address)),
     };
+    let alternative =
+        MultiPart::alternative_plain_html(mail.text_body.clone(), mail.html_body.clone());
+    let body = match &mail.calendar {
+        Some(calendar) => MultiPart::mixed().multipart(alternative).singlepart(
+            Attachment::new("gathering.ics".to_owned()).body(
+                calendar.clone(),
+                ContentType::parse("text/calendar; charset=utf-8")
+                    .expect("the content type is valid"),
+            ),
+        ),
+        None => alternative,
+    };
     let message = builder
         .subject(&mail.subject)
-        .multipart(MultiPart::alternative_plain_html(
-            mail.text_body.clone(),
-            mail.html_body.clone(),
-        ))
+        .multipart(body)
         .map_err(|_| "invalid message".to_owned())?;
     delivery
         .transport
@@ -176,7 +190,7 @@ fn failed_handshake(error: &(dyn std::error::Error + 'static)) -> bool {
 }
 
 async fn mark_sent(connection: &mut PgConnection, id: i64) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE mail_outbox SET sent_at = now(), attempts = attempts + 1, recipient = NULL, subject = NULL, text_body = NULL, html_body = NULL WHERE id = $1")
+    sqlx::query("UPDATE mail_outbox SET sent_at = now(), attempts = attempts + 1, recipient = NULL, subject = NULL, text_body = NULL, html_body = NULL, calendar = NULL WHERE id = $1")
         .bind(id)
         .execute(connection)
         .await
@@ -190,7 +204,7 @@ async fn schedule_retry(
 ) -> Result<(), sqlx::Error> {
     let attempts = mail.attempts + 1;
     sqlx::query(
-        "UPDATE mail_outbox SET attempts = $2, next_attempt_at = now() + make_interval(secs => LEAST(10 * power(2, $2 - 1), 3600)), failed_at = CASE WHEN $2 >= $3 THEN now() END, recipient = CASE WHEN $2 < $3 THEN recipient END, subject = CASE WHEN $2 < $3 THEN subject END, text_body = CASE WHEN $2 < $3 THEN text_body END, html_body = CASE WHEN $2 < $3 THEN html_body END WHERE id = $1",
+        "UPDATE mail_outbox SET attempts = $2, next_attempt_at = now() + make_interval(secs => LEAST(10 * power(2, $2 - 1), 3600)), failed_at = CASE WHEN $2 >= $3 THEN now() END, recipient = CASE WHEN $2 < $3 THEN recipient END, subject = CASE WHEN $2 < $3 THEN subject END, text_body = CASE WHEN $2 < $3 THEN text_body END, html_body = CASE WHEN $2 < $3 THEN html_body END, calendar = CASE WHEN $2 < $3 THEN calendar END WHERE id = $1",
     )
     .bind(mail.id)
     .bind(attempts)
@@ -312,6 +326,7 @@ mod tests {
                 subject: format!("Invitation {token}"),
                 text: format!("Plain {token}"),
                 html: format!("<p>Rich {token}</p>"),
+                calendar: None,
             };
             enqueue(&mut connection, &mail).await.unwrap();
         }
@@ -412,6 +427,7 @@ mod tests {
                 subject: format!("Response {token}"),
                 text: format!("Plain {token}"),
                 html: format!("<p>Rich {token}</p>"),
+                calendar: None,
             };
             enqueue(&mut connection, &mail).await.unwrap();
         }
@@ -593,7 +609,7 @@ mod tests {
 
         async fn content_left(pool: &PgPool) -> bool {
             sqlx::query_scalar(
-                    "SELECT recipient IS NOT NULL OR subject IS NOT NULL OR text_body IS NOT NULL OR html_body IS NOT NULL FROM mail_outbox",
+                    "SELECT recipient IS NOT NULL OR subject IS NOT NULL OR text_body IS NOT NULL OR html_body IS NOT NULL OR calendar IS NOT NULL FROM mail_outbox",
                 )
                 .fetch_one(pool)
                 .await
@@ -658,6 +674,7 @@ mod tests {
                 subject: format!("Links {token}"),
                 text: format!("Answer here: {link}"),
                 html: format!("<p>Answer <a href=\"{link}\">here</a>.</p>"),
+                calendar: None,
             };
             enqueue(&mut connection, &mail).await.unwrap();
             drop(connection);
@@ -683,6 +700,7 @@ mod tests {
                 subject: title.clone(),
                 text: title.clone(),
                 html: format!("<p>{}</p>", escape_html(&title)),
+                calendar: None,
             };
             enqueue(&mut connection, &mail).await.unwrap();
             drop(connection);
@@ -716,6 +734,7 @@ mod tests {
                 subject: format!("Named {token}"),
                 text: token.clone(),
                 html: format!("<p>{token}</p>"),
+                calendar: None,
             };
             enqueue(&mut connection, &mail).await.unwrap();
             drop(connection);
@@ -746,6 +765,7 @@ mod tests {
                 subject: format!("Moved {token}"),
                 text: token.clone(),
                 html: format!("<p>{token}</p>"),
+                calendar: None,
             };
             enqueue(&mut connection, &mail).await.unwrap();
             drop(connection);
@@ -774,6 +794,7 @@ mod tests {
                 subject: "Rolled back".to_owned(),
                 text: "Rolled back".to_owned(),
                 html: "<p>Rolled back</p>".to_owned(),
+                calendar: None,
             };
             enqueue(&mut transaction, &mail).await.unwrap();
             transaction.rollback().await.unwrap();
@@ -782,6 +803,134 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(mails, 0, "a rolled back action must take its mail with it");
+        }
+
+        const CALENDAR: &str = "BEGIN:VCALENDAR\r\nSUMMARY:Chorprobe in Drübeck mit Gäste-Öffnung\r\nEND:VCALENDAR\r\n";
+
+        async fn enqueue_calendar_mail(pool: &PgPool, token: &str) {
+            let mut connection = pool.acquire().await.unwrap();
+            let mail = Mail {
+                recipient: "organizer@example.org".to_owned(),
+                member_id: None,
+                invitation_id: None,
+                subject: format!("Calendar {token}"),
+                text: format!("Plain {token}"),
+                html: format!("<p>Rich {token}</p>"),
+                calendar: Some(CALENDAR.to_owned()),
+            };
+            enqueue(&mut connection, &mail).await.unwrap();
+        }
+
+        async fn mailpit_raw(port: u16, path: &str) -> Vec<u8> {
+            let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+                .await
+                .unwrap();
+            let request = format!("GET {path} HTTP/1.0\r\nHost: localhost\r\n\r\n");
+            stream.write_all(request.as_bytes()).await.unwrap();
+            let mut response = Vec::new();
+            stream.read_to_end(&mut response).await.unwrap();
+            let start = response
+                .windows(4)
+                .position(|window| window == b"\r\n\r\n")
+                .unwrap()
+                + 4;
+            response[start..].to_vec()
+        }
+
+        async fn assert_calendar_attachment(token: &str) {
+            let message = mailpit_message(token).await;
+            assert!(message["Text"].as_str().unwrap().contains(token));
+            assert!(message["HTML"].as_str().unwrap().contains(token));
+            let attachments = message["Attachments"].as_array().unwrap();
+            assert_eq!(attachments.len(), 1, "{message}");
+            let attachment = &attachments[0];
+            assert_eq!(attachment["FileName"], "gathering.ics");
+            assert_eq!(attachment["ContentType"], "text/calendar");
+            let id = message["ID"].as_str().unwrap();
+            let port = setting_port("MAILPIT_UI_PORT");
+            let raw =
+                String::from_utf8(mailpit_raw(port, &format!("/api/v1/message/{id}/raw")).await)
+                    .unwrap();
+            assert!(
+                raw.to_ascii_lowercase()
+                    .contains("content-type: text/calendar; charset=utf-8"),
+                "{raw}"
+            );
+            let part_id = attachment["PartID"].as_str().unwrap();
+            let content = mailpit_raw(port, &format!("/api/v1/message/{id}/part/{part_id}")).await;
+            assert_eq!(content, CALENDAR.as_bytes());
+        }
+
+        #[tokio::test]
+        async fn mail_with_a_calendar_file() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let token = unique_token();
+            enqueue_calendar_mail(&pool, &token).await;
+            deliver_due(&pool, &delivery(setting_port("ADNT_SMTP_PORT")))
+                .await
+                .unwrap();
+            assert_calendar_attachment(&token).await;
+            assert!(!content_left(&pool).await);
+        }
+
+        #[tokio::test]
+        async fn mail_without_a_calendar_file_has_no_attachment() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let token = unique_token();
+            enqueue_test_mail(&pool, &token).await;
+            deliver_due(&pool, &delivery(setting_port("ADNT_SMTP_PORT")))
+                .await
+                .unwrap();
+            let message = mailpit_message(&token).await;
+            assert_eq!(message["Attachments"].as_array().map_or(0, Vec::len), 0);
+            assert!(message["Text"].as_str().unwrap().contains(&token));
+            assert!(message["HTML"].as_str().unwrap().contains(&token));
+        }
+
+        #[tokio::test]
+        async fn retry_keeps_the_calendar_file() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let token = unique_token();
+            enqueue_calendar_mail(&pool, &token).await;
+            deliver_due(&pool, &delivery(1)).await.unwrap();
+            let kept: Option<String> = sqlx::query_scalar("SELECT calendar FROM mail_outbox")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            assert_eq!(kept.as_deref(), Some(CALENDAR));
+            make_due(&pool).await;
+            deliver_due(&pool, &delivery(setting_port("ADNT_SMTP_PORT")))
+                .await
+                .unwrap();
+            assert_eq!(state(&pool).await, (2, true, false));
+            assert_calendar_attachment(&token).await;
+        }
+
+        #[tokio::test]
+        async fn failed_mail_loses_its_calendar_file() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            enqueue_calendar_mail(&pool, &unique_token()).await;
+            for _ in 0..3 {
+                make_due(&pool).await;
+                deliver_due(&pool, &delivery(1)).await.unwrap();
+            }
+            assert_eq!(state(&pool).await, (3, false, true));
+            assert!(!content_left(&pool).await);
+        }
+
+        #[tokio::test]
+        async fn finished_mail_cannot_keep_its_calendar_file() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            enqueue_calendar_mail(&pool, &unique_token()).await;
+            let refused = sqlx::query("UPDATE mail_outbox SET sent_at = now(), recipient = NULL, subject = NULL, text_body = NULL, html_body = NULL")
+                .execute(&pool)
+                .await;
+            assert!(refused.is_err());
         }
 
         #[tokio::test]

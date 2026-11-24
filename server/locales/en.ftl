@@ -29,12 +29,14 @@ invitation-mail-subject = Invitation: { $title }, { $span }
 invitation-mail-greeting = Hello { $firstName },
 invitation-mail-details = you are invited to { $title } in { $location }, { $span }.
 invitation-mail-answer = Tell us through your personal link whether and when you come. Please do not forward it, because it works without a password.
+invitation-mail-calendar = The attached file adds the gathering to your calendar. Saving it does not answer the invitation.
 
 reminder-mail-subject = Reminder: { $title }, { $span }
 reminder-mail-details = we have no answer from you yet for { $title } in { $location }, { $span }.
 
 cancellation-mail-subject = Cancelled: { $title }, { $span }
 cancellation-mail-body = { $title } in { $location }, { $span }, does not take place.
+cancellation-mail-calendar = The attached file marks the entry in your calendar as cancelled.
 
 sign-in-mail-subject = Your sign-in link for Adunata
 sign-in-mail-body = Hello { $firstName }, open this link within one hour to sign in to Adunata. It works once.
