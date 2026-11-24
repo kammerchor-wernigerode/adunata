@@ -40,4 +40,4 @@ All decisions from the issue stand as written: the three mails carry the file, t
 
 ## Migration Plan
 
-Migration `0004` adds the column and the check. Existing rows have `NULL` and satisfy it. Rollback is dropping both, which older code ignores anyway.
+Migration `0004` adds the column and the check. Existing rows have `NULL` and satisfy it. Going back to an older release means restoring a backup from before the update.
