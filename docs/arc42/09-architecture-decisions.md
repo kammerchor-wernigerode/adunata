@@ -26,3 +26,4 @@
 |0022|[Healthcheck as a command of the binary](../decisions/0022-healthcheck-as-a-command-of-the-binary.md)|Accepted|
 |0023|[Local mode on localhost](../decisions/0023-local-mode-on-localhost.md)|Accepted|
 |0024|[Mail confinement behind serve --dev](../decisions/0024-mail-confinement-behind-serve-dev.md)|Accepted|
+|0025|[Stable calendar UIDs for gatherings](../decisions/0025-stable-calendar-uids-for-gatherings.md)|Accepted|

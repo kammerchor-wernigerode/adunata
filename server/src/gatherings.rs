@@ -3,8 +3,8 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
-use sqlx::PgConnection;
-use time::Date;
+use sqlx::{FromRow, PgConnection};
+use time::{Date, OffsetDateTime};
 use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
@@ -67,6 +67,15 @@ impl Gathering {
             ended: row.last_day < today,
         }
     }
+}
+
+/// How often a gathering changed since its creation and when it changed last.
+#[derive(Clone, Debug, PartialEq, Eq, sqlx::FromRow)]
+pub struct Revision {
+    pub created_at: OffsetDateTime,
+    pub changed_at: OffsetDateTime,
+    /// The number of stored changes and cancellations.
+    pub version: i32,
 }
 
 /// What an organizer enters for a gathering.
@@ -228,7 +237,7 @@ async fn change(
         return Ok(invalid(errors));
     }
     let query = format!(
-        "UPDATE gatherings SET title = $1, location = $2, description = $3, first_day = $4, last_day = $5 WHERE id = $6 RETURNING {COLUMNS}"
+        "UPDATE gatherings SET title = $1, location = $2, description = $3, first_day = $4, last_day = $5, version = version + 1, changed_at = statement_timestamp() WHERE id = $6 RETURNING {COLUMNS}"
     );
     let row = bind(sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(query)), input)
         .bind(id)
@@ -238,14 +247,18 @@ async fn change(
     Ok(Json(Gathering::from_row(row, today)).into_response())
 }
 
-/// Marks a gathering as cancelled unless it is cancelled already or has ended. Returns the gathering as it was cancelled, or `None` when nothing changed.
+/// Marks a gathering as cancelled unless it is cancelled already or has ended. Locks the row first, so the time of the change follows any edit that held the lock. Returns the gathering as it was cancelled, or `None` when nothing changed.
 pub async fn cancel(
     connection: &mut PgConnection,
     id: i64,
     today: Date,
 ) -> Result<Option<Gathering>, sqlx::Error> {
+    sqlx::query("SELECT 1 FROM gatherings WHERE id = $1 FOR UPDATE")
+        .bind(id)
+        .execute(&mut *connection)
+        .await?;
     let query = format!(
-        "UPDATE gatherings SET cancelled_at = now() WHERE id = $1 AND cancelled_at IS NULL AND last_day >= $2 RETURNING {COLUMNS}"
+        "UPDATE gatherings SET cancelled_at = now(), version = version + 1, changed_at = statement_timestamp() WHERE id = $1 AND cancelled_at IS NULL AND last_day >= $2 RETURNING {COLUMNS}"
     );
     Ok(sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(query))
         .bind(id)
@@ -281,6 +294,27 @@ pub async fn find(
         .fetch_optional(connection)
         .await?
         .map(|row| Gathering::from_row(row, today)))
+}
+
+/// The gathering with this id and its revision, read in one statement so both describe the same state.
+pub async fn find_with_revision(
+    connection: &mut PgConnection,
+    id: i64,
+    today: Date,
+) -> Result<Option<(Gathering, Revision)>, sqlx::Error> {
+    let query =
+        format!("SELECT {COLUMNS}, created_at, changed_at, version FROM gatherings WHERE id = $1");
+    let Some(row) = sqlx::query(sqlx::AssertSqlSafe(query))
+        .bind(id)
+        .fetch_optional(connection)
+        .await?
+    else {
+        return Ok(None);
+    };
+    Ok(Some((
+        Gathering::from_row(Row::from_row(&row)?, today),
+        Revision::from_row(&row)?,
+    )))
 }
 
 fn bind<'q>(
@@ -331,6 +365,8 @@ fn validate(
     }
     if input.last_day < input.first_day {
         errors.push(field_error("lastDay", ErrorCode::BeforeFirstDay));
+    } else if input.last_day.next_day().is_none() {
+        errors.push(field_error("lastDay", ErrorCode::Invalid));
     }
     errors
 }
@@ -399,6 +435,14 @@ mod tests {
         assert_eq!(
             validate(&input(stored, fixed_day()), fixed_day(), Some(stored)),
             vec![]
+        );
+    }
+
+    #[test]
+    fn refuses_last_day_without_a_following_day() {
+        assert_eq!(
+            validate(&input(Date::MAX, Date::MAX), fixed_day(), None),
+            vec![field_error("lastDay", ErrorCode::Invalid)]
         );
     }
 
@@ -611,6 +655,41 @@ mod tests {
             let (_, stored) = send(&pool, &cookie, "GET", &path, &Value::Null).await;
             assert_eq!(stored["firstDay"], day(-2));
             assert_eq!(stored["lastDay"], day(3));
+        }
+
+        async fn version(pool: &sqlx::PgPool) -> (i32, bool) {
+            sqlx::query_as("SELECT version, changed_at > created_at FROM gatherings")
+                .fetch_one(pool)
+                .await
+                .unwrap()
+        }
+
+        #[tokio::test]
+        async fn each_change_raises_the_version() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (_, created) =
+                send(&pool, &cookie, "POST", "/api/gatherings", &weekend(10, 12)).await;
+            assert_eq!(version(&pool).await, (0, false));
+            let path = format!("/api/gatherings/{}", created["id"]);
+            send(&pool, &cookie, "PUT", &path, &weekend(10, 13)).await;
+            assert_eq!(version(&pool).await, (1, true));
+            send(&pool, &cookie, "PUT", &path, &weekend(10, 13)).await;
+            assert_eq!(version(&pool).await.0, 2);
+        }
+
+        #[tokio::test]
+        async fn cancellation_raises_the_version() {
+            let database = fresh_database().await;
+            let pool = database.pool();
+            let (_, cookie) = signed_in_organizer(&pool).await;
+            let (_, created) =
+                send(&pool, &cookie, "POST", "/api/gatherings", &weekend(10, 12)).await;
+            let path = format!("/api/gatherings/{}/cancellation", created["id"]);
+            let (status, _) = send(&pool, &cookie, "POST", &path, &Value::Null).await;
+            assert_eq!(status, StatusCode::NO_CONTENT);
+            assert_eq!(version(&pool).await, (1, true));
         }
     }
 }

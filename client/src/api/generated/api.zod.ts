@@ -237,8 +237,15 @@ export const InvitationPageResponse = zod.object({
 }).describe('A member who accepted or accepted tentatively, as other invited members see them.')),
   "declined": zod.int(),
   "pending": zod.int()
-}).describe('Who comes. Absent once the gathering has ended or when it is cancelled.'),zod.null()]).optional()
+}).describe('Who comes. Absent once the gathering has ended or when it is cancelled.'),zod.null()]).optional(),
+  "calendar": zod.boolean().describe('Whether the page offers the calendar file of the gathering.')
 }).describe('The response page of one invitation as its member sees it.')
+
+
+/**
+ * @summary Expects the secret of the personal link as `Authorization: Bearer <secret>`.
+ */
+export const CalendarFileResponse = zod.unknown()
 
 
 /**
