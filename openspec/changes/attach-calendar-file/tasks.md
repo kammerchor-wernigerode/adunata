@@ -15,5 +15,5 @@
 
 ## 3. Documentation
 
-- [ ] 3.1 Write `docs/decisions/0026-calendar-file-attached-to-mails-about-a-gathering.md` from the draft in design.md
-- [ ] 3.2 Update `docs/arc42/08-cross-cutting-concepts.md`, `docs/arc42/05-building-block-view.md` and `docs/arc42/09-architecture-decisions.md` as design.md names
+- [x] 3.1 Write `docs/decisions/0026-calendar-file-attached-to-mails-about-a-gathering.md` from the draft in design.md
+- [x] 3.2 Update `docs/arc42/08-cross-cutting-concepts.md`, `docs/arc42/05-building-block-view.md` and `docs/arc42/09-architecture-decisions.md` as design.md names
