@@ -94,5 +94,5 @@ sequenceDiagram
 |Step|Building block|What happens|
 |-|-|-|
 |Open|`responses`, `invitations`|An unknown or revoked secret ends in status 404 that names nothing. Otherwise the page shows the gathering, the member's stored response and who comes.|
-|State|`responses`, `gatherings`|Before the first day the member answers. From the first day the page shows the response without a form, after the last day also without attendees, and a cancelled gathering takes no answer.|
+|State|`responses`, `gatherings`|Before the first day the member answers. Once the optional deadline for responses has passed, the page shows the response, the attendees and a form that offers only a decline with a comment. From the first day the page shows the response without a form, after the last day also without attendees, and a cancelled gathering takes no answer. The states take precedence in the order cancelled, ended, begun, deadline passed, open.|
 |Store|`responses`|Times are wall-clock times of the instance in steps of 30 minutes within the days of the gathering. A decline clears period and beds. The row records that the member changed it last.|

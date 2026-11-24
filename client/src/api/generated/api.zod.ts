@@ -21,6 +21,9 @@ export const ListGatheringsResponse = zod.object({
   "description": zod.string().nullish(),
   "firstDay": zod.iso.date(),
   "lastDay": zod.iso.date(),
+  "responseDeadlineDays": zod.int().nullish().describe('Days before the first day at which responses close, or null without a deadline.'),
+  "lastDayToAnswer": zod.iso.date().nullish().describe('The first day minus the deadline minus one day, or null without a deadline.'),
+  "deadlinePassed": zod.boolean().describe('Whether the last day to answer has passed in the time zone of the instance.'),
   "cancelled": zod.boolean(),
   "begun": zod.boolean().describe('Whether the first day has begun in the time zone of the instance.'),
   "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
@@ -32,6 +35,9 @@ export const ListGatheringsResponse = zod.object({
   "description": zod.string().nullish(),
   "firstDay": zod.iso.date(),
   "lastDay": zod.iso.date(),
+  "responseDeadlineDays": zod.int().nullish().describe('Days before the first day at which responses close, or null without a deadline.'),
+  "lastDayToAnswer": zod.iso.date().nullish().describe('The first day minus the deadline minus one day, or null without a deadline.'),
+  "deadlinePassed": zod.boolean().describe('Whether the last day to answer has passed in the time zone of the instance.'),
   "cancelled": zod.boolean(),
   "begun": zod.boolean().describe('Whether the first day has begun in the time zone of the instance.'),
   "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
@@ -39,12 +45,16 @@ export const ListGatheringsResponse = zod.object({
 }).describe('Gatherings split at the present. Upcoming ones come first, ordered by first day. Past ones follow with the latest first.')
 
 
+
+
+
 export const CreateGatheringBody = zod.object({
   "title": zod.string(),
   "location": zod.string(),
   "description": zod.string().nullish(),
   "firstDay": zod.iso.date(),
-  "lastDay": zod.iso.date()
+  "lastDay": zod.iso.date(),
+  "responseDeadlineDays": zod.int().min(1).nullish().describe('Days before the first day at which responses close. Null or absent means no deadline.')
 }).describe('What an organizer enters for a gathering.')
 
 export const CreateGatheringResponse = zod.object({
@@ -54,6 +64,9 @@ export const CreateGatheringResponse = zod.object({
   "description": zod.string().nullish(),
   "firstDay": zod.iso.date(),
   "lastDay": zod.iso.date(),
+  "responseDeadlineDays": zod.int().nullish().describe('Days before the first day at which responses close, or null without a deadline.'),
+  "lastDayToAnswer": zod.iso.date().nullish().describe('The first day minus the deadline minus one day, or null without a deadline.'),
+  "deadlinePassed": zod.boolean().describe('Whether the last day to answer has passed in the time zone of the instance.'),
   "cancelled": zod.boolean(),
   "begun": zod.boolean().describe('Whether the first day has begun in the time zone of the instance.'),
   "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
@@ -71,6 +84,9 @@ export const GetGatheringResponse = zod.object({
   "description": zod.string().nullish(),
   "firstDay": zod.iso.date(),
   "lastDay": zod.iso.date(),
+  "responseDeadlineDays": zod.int().nullish().describe('Days before the first day at which responses close, or null without a deadline.'),
+  "lastDayToAnswer": zod.iso.date().nullish().describe('The first day minus the deadline minus one day, or null without a deadline.'),
+  "deadlinePassed": zod.boolean().describe('Whether the last day to answer has passed in the time zone of the instance.'),
   "cancelled": zod.boolean(),
   "begun": zod.boolean().describe('Whether the first day has begun in the time zone of the instance.'),
   "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
@@ -81,12 +97,16 @@ export const ChangeGatheringParams = zod.object({
   "id": zod.int().describe('Id of the gathering')
 })
 
+
+
+
 export const ChangeGatheringBody = zod.object({
   "title": zod.string(),
   "location": zod.string(),
   "description": zod.string().nullish(),
   "firstDay": zod.iso.date(),
-  "lastDay": zod.iso.date()
+  "lastDay": zod.iso.date(),
+  "responseDeadlineDays": zod.int().min(1).nullish().describe('Days before the first day at which responses close. Null or absent means no deadline.')
 }).describe('What an organizer enters for a gathering.')
 
 export const ChangeGatheringResponse = zod.object({
@@ -96,6 +116,9 @@ export const ChangeGatheringResponse = zod.object({
   "description": zod.string().nullish(),
   "firstDay": zod.iso.date(),
   "lastDay": zod.iso.date(),
+  "responseDeadlineDays": zod.int().nullish().describe('Days before the first day at which responses close, or null without a deadline.'),
+  "lastDayToAnswer": zod.iso.date().nullish().describe('The first day minus the deadline minus one day, or null without a deadline.'),
+  "deadlinePassed": zod.boolean().describe('Whether the last day to answer has passed in the time zone of the instance.'),
   "cancelled": zod.boolean(),
   "begun": zod.boolean().describe('Whether the first day has begun in the time zone of the instance.'),
   "ended": zod.boolean().describe('Whether the last day has passed in the time zone of the instance.')
@@ -219,9 +242,10 @@ export const InvitationPageResponse = zod.object({
   "location": zod.string(),
   "description": zod.string().nullish(),
   "firstDay": zod.iso.date(),
-  "lastDay": zod.iso.date()
+  "lastDay": zod.iso.date(),
+  "lastDayToAnswer": zod.iso.date().nullish().describe('The last day on which the member can answer, or null without a deadline.')
 }).describe('What a member sees of the gathering on the response page.'),
-  "state": zod.enum(['open', 'begun', 'ended', 'cancelled']).describe('Whether a member can still answer through the personal link.'),
+  "state": zod.enum(['open', 'begun', 'deadlinePassed', 'ended', 'cancelled']).describe('Whether a member can still answer through the personal link.'),
   "response": zod.union([zod.object({
   "status": zod.enum(['accepted', 'tentative', 'declined']).describe('Whether a member comes. An invitation without a response is pending.'),
   "arrival": zod.string().nullish(),

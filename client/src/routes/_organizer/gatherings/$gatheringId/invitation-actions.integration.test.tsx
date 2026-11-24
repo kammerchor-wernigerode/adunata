@@ -28,6 +28,7 @@ const weekend: Gathering = {
   firstDay: '2027-03-12',
   lastDay: '2027-03-14',
   cancelled: false,
+  deadlinePassed: false,
   begun: false,
   ended: false,
 }
