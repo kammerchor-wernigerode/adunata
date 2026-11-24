@@ -370,8 +370,14 @@ async function roundVerdicts(job, n, jobNames) {
   const key = `${job.id}/${n}`
   if (roundCache.has(key)) return roundCache.get(key)
   const dir = `jobs/${job.id}/round-${n}/`
-  const names = new Set((await jobNames()).includes(`round-${n}/`) ? await listNames(dir) : [])
-  const first = async (name) => names.has(name) ? (await fetchText(dir + name)).split('\n')[0].trim() : null
+  // A failed read leaves its verdict pending for this poll only, so the rest of the board still renders.
+  let failed = false
+  const tolerate = (promise, fallback) => promise.catch(() => { failed = true; return fallback })
+  const roundExists = (await tolerate(jobNames(), [])).includes(`round-${n}/`)
+  const names = new Set(roundExists ? await tolerate(listNames(dir), []) : [])
+  const first = async (name) => names.has(name)
+    ? tolerate(fetchText(dir + name).then((text) => text.split('\n')[0].trim()), null)
+    : null
   const v = { gate: verdictOf(await first('checks.md'), 'gate'), reviews: {} }
   if (v.gate === 'PASS') {
     await Promise.all(Object.keys(job.agents?.reviewers || {}).map(async (r) => {
@@ -383,7 +389,8 @@ async function roundVerdicts(job, n, jobNames) {
     v.remote = verdictOf(await first('review-remote.md'), 'review')
   }
   // A finished round never changes, even if one of its files is missing.
-  if (n < job.round || job.stage === 'merged' || job.stage === 'rejected') roundCache.set(key, v)
+  const over = n < job.round || job.stage === 'merged' || job.stage === 'rejected'
+  if (over && !failed) roundCache.set(key, v)
   return v
 }
 
