@@ -147,7 +147,8 @@
   .chip.tally, .compact .chip.quiet { display: none; }
   .compact .chip { flex: 0 0 auto; }
   .compact .chip.tally { display: block; }
-  .chip.tally.done { border-style: solid; }
+  .chip.tally { color: var(--muted); border-color: var(--muted); }
+  .chip.tally.done { border-style: solid; border-color: transparent; color: var(--pass); }
   .chip.wait { animation: breathe 1.6s ease-in-out infinite; }
   .chip.PASS {
     border: 1px solid transparent; color: var(--pass);
@@ -266,6 +267,7 @@
       scroll-padding-inline: 16px; scroll-snap-type: x proximity;
     }
     .col { scroll-snap-align: start; }
+    .needs { padding: 10px 14px; }
     footer { padding: 0 16px 24px; }
     .d-head { padding: 16px; }
     .d-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
@@ -340,7 +342,7 @@ let openText = null
 let lastFocus = null
 
 async function fetchText(url) {
-  const res = await fetch(url, { cache: 'no-store' })
+  const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) })
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`)
   return res.text()
 }
@@ -397,7 +399,7 @@ function tally(cells) {
   const waiting = cells.some((c) => c.v === 'pending' && c.waiting)
   const done = passed === cells.length
   const text = `${passed} of ${cells.length} checks passed`
-  return `<span class="chip tally ${done ? 'PASS done' : ''} ${waiting ? 'wait' : ''}" title="${text}" aria-label="${text}">${passed}/${cells.length}</span>`
+  return `<span class="chip tally ${done ? 'PASS done' : ''} ${waiting ? 'wait' : ''}" role="img" title="${text}" aria-label="${text}">${passed}/${cells.length}</span>`
 }
 
 function roundRow(job, n, v) {
@@ -530,6 +532,8 @@ async function render() {
     $('banner').innerHTML = banner
     for (const day of $('board').querySelectorAll('details.day')) day.open = openDays.has(day.dataset.day)
     fitRounds()
+    if (firstRender) showFirstJob()
+    firstRender = false
   }
   const waiting = jobs.filter((j) => j.stage === 'needs-human').length
   $('needs').hidden = !waiting
@@ -539,7 +543,18 @@ async function render() {
   $('totals').textContent = `${running} running · $${cost.toFixed(2)} API-equivalent`
 }
 
+// On a narrow screen the board opens at the first column that holds a job.
+let firstRender = true
+function showFirstJob() {
+  const col = [...$('board').querySelectorAll('.col')].find((c) => c.querySelector('.card'))
+  col?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+}
+
+// A slow poll must not overlap the next one, or an older render could win.
+let polling = false
 async function poll() {
+  if (polling) return
+  polling = true
   const status = $('status')
   try {
     jobs = await loadJobs()
@@ -550,19 +565,19 @@ async function poll() {
   } catch (err) {
     status.className = 'status error'
     status.innerHTML = `<span class="dot"></span>${esc(err.message)}`
+  } finally {
+    polling = false
   }
 }
 
 // factory/bin/job writes each jobs/<id>/job.json.
 async function loadJobs() {
-  let listing
-  try { listing = await fetchText('jobs/') } catch (err) {
+  let names
+  try { names = await listNames('jobs/') } catch (err) {
     if (err.message.endsWith('HTTP 404')) return [] // no job has run yet
     throw err
   }
-  const doc = new DOMParser().parseFromString(listing, 'text/html')
-  const ids = [...doc.querySelectorAll('a')]
-    .map((a) => decodeURIComponent(a.getAttribute('href')))
+  const ids = names
     .filter((h) => h.endsWith('/'))
     .map((h) => h.slice(0, -1))
     .sort()
