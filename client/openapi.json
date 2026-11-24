@@ -485,6 +485,27 @@
         }
       }
     },
+    "/api/invitation/calendar": {
+      "get": {
+        "summary": "Expects the secret of the personal link as `Authorization: Bearer <secret>`.",
+        "operationId": "calendar_file",
+        "responses": {
+          "200": {
+            "description": "The calendar file of the gathering",
+            "content": {
+              "text/calendar": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The link is unknown or revoked, or the page offers no calendar file"
+          }
+        }
+      }
+    },
     "/api/invitation/response": {
       "put": {
         "summary": "Expects the secret of the personal link as `Authorization: Bearer <secret>`.",
@@ -1198,7 +1219,8 @@
         "required": [
           "firstName",
           "gathering",
-          "state"
+          "state",
+          "calendar"
         ],
         "properties": {
           "firstName": {
@@ -1231,6 +1253,10 @@
                 "type": "null"
               }
             ]
+          },
+          "calendar": {
+            "type": "boolean",
+            "description": "Whether the page offers the calendar file of the gathering."
           }
         }
       },

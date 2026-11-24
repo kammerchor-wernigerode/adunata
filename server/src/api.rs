@@ -91,7 +91,7 @@ mod integration {
     use super::*;
 
     /// Operations that answer without an organizer session: health, catalogs, the links every page shows, sign-in and sign-out and the routes behind an invitation link.
-    const PUBLIC: [&str; 8] = [
+    const PUBLIC: [&str; 9] = [
         "GET /api/health",
         "GET /api/catalogs/{locale}",
         "GET /api/legal-links",
@@ -99,6 +99,7 @@ mod integration {
         "POST /api/sessions",
         "DELETE /api/session",
         "GET /api/invitation",
+        "GET /api/invitation/calendar",
         "PUT /api/invitation/response",
     ];
 

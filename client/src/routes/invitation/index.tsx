@@ -8,6 +8,7 @@ import { formatDay } from '@/l10n/dates'
 import { useLocale, useTranslate } from '@/l10n/translate'
 import { dataOf } from '@/lib/dataOf'
 import { Attendees } from './-components/Attendees'
+import { CalendarDownload } from './-components/CalendarDownload'
 import { DayStrip } from './-components/DayStrip'
 import { authorization, invitationQueryKey, useInvitationPage, usePersonalLinkSecret } from './-personalLink'
 
@@ -32,7 +33,7 @@ function ResponsePage() {
   if (page.isError) throw page.error
   const data = dataOf(page.data)
   if (!data) return null
-  const { gathering, state, firstName, response, attendees } = data
+  const { gathering, state, firstName, response, attendees, calendar } = data
   const lastDayToAnswer = gathering.lastDayToAnswer ? formatDay(gathering.lastDayToAnswer, locale) : undefined
 
   async function save(values: ResponseValues): Promise<SaveResult> {
@@ -110,6 +111,7 @@ function ResponsePage() {
           </>
         )}
       </div>
+      {calendar && <CalendarDownload secret={secret} />}
       {attendees && <Attendees attendees={attendees} />}
     </>
   )

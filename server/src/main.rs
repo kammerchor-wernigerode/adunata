@@ -1,5 +1,6 @@
 mod access;
 mod api;
+mod calendar;
 mod client;
 mod configuration;
 mod database;

@@ -18,4 +18,6 @@ export interface InvitationPage {
   state: LinkState;
   response?: ResponseValues | null;
   attendees?: Attendees | null;
+  /** Whether the page offers the calendar file of the gathering. */
+  calendar: boolean;
 }
