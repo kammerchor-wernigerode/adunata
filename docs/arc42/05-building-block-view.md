@@ -2,7 +2,7 @@
 
 ## Whitebox overall system
 
-Adunata has two building blocks, the client and the server. The diagram shows them and their one dependency. In every diagram of this section a box inside another box is a part of it, and an arrow means that a block depends on the public interface of the block it points to. The diagrams show no data flow. The [runtime view](06-runtime-view.md) shows what the blocks exchange, and the [deployment view](07-deployment-view.md) shows where they run.
+Adunata has two building blocks, the client and the server. The diagram shows them and their one dependency. In every diagram of this section a box inside another box is a part of it. An arrow means that a block depends on the public interface of the block it points to. The diagrams show no data flow. The [runtime view](06-runtime-view.md) shows what the blocks exchange. The [deployment view](07-deployment-view.md) shows where they run.
 
 ```mermaid
 flowchart LR
@@ -15,7 +15,7 @@ flowchart LR
 
 ### Motivation
 
-The split follows [ADR 0003](../decisions/0003-single-page-client-with-api.md). The client holds everything that people see and operate. The server holds every rule and all data. The client therefore decides nothing that the server does not check again. The client depends on the server, and the server knows nothing about the client except its built files, which it embeds.
+The split follows [ADR 0003](../decisions/0003-single-page-client-with-api.md). The client holds everything that people see and operate. The server holds every rule and all data. The client therefore decides nothing that the server does not check again. The client depends on the server. The server knows nothing about the client except its built files, which it embeds.
 
 ### Contained building blocks
 
@@ -26,7 +26,7 @@ The split follows [ADR 0003](../decisions/0003-single-page-client-with-api.md). 
 
 ### Important interfaces
 
-The API is the only interface between client and server. The server describes it as one OpenAPI document, which the repository tracks as [`client/openapi.json`](../../client/openapi.json). The client calls the API only through code that is generated from this document. A contract test fails when the document, the server and the generated code differ.
+The API is the only interface between client and server. The server describes it as one OpenAPI document, which the repository tracks as [`client/openapi.json`](../../client/openapi.json). The client calls the API only through code that Orval generates from this document. A contract test fails when the document, the server and the generated code differ.
 
 ## Level 2
 
@@ -78,7 +78,7 @@ flowchart TB
 
 The server has three kinds of modules. A feature module owns one part of the domain with its routes, its rules and its tables. A technical module solves one problem for several other modules, such as mail or localization. An assembly module puts the others together into one router and one process.
 
-The feature modules follow the things that the domain names, which are members, gatherings, invitations and responses, and `access` holds sign-in. `responses` depends on `invitations`, and `invitations` depends on `gatherings` and `members`. The modules `access` and `members` depend on each other, because a session belongs to a member and the member routes need a session. [ADR 0007](../decisions/0007-modular-monolith.md) restricts no direction.
+The feature modules follow the things that the domain names, which are members, gatherings, invitations and responses. The module `access` holds sign-in. `responses` depends on `invitations`. `invitations` depends on `gatherings` and `members`. The modules `access` and `members` depend on each other, because a session belongs to a member and the member routes need a session. [ADR 0007](../decisions/0007-modular-monolith.md) restricts no direction.
 
 Every module with routes takes the shared state of the server, such as the connection pool and the public URL, from `api`. The table does not repeat this dependency.
 
@@ -96,7 +96,7 @@ Every module with routes takes the shared state of the server, such as the conne
 |`configuration`|Technical|Reads and checks the settings of the instance.|The settings as one typed value.|`localization`|
 |`database`|Technical|Opens the connection pool and applies pending migrations.|A connected pool and the exit status of a failed start.|none|
 |`mail`|Technical|Stores mail in the outbox and delivers it in the background.|A function that adds a mail within a transaction and the delivery task.|`configuration`|
-|`localization`|Technical|Holds one catalog per language and formats messages.|Functions that format messages and date ranges, and the catalog route.|none|
+|`localization`|Technical|Holds one catalog per language and formats messages.|Functions that format messages and date ranges as well as the catalog route.|none|
 |`calendar`|Technical|Writes the calendar file of a gathering without I/O.|A function that turns a gathering into the text of the file.|`gatherings`|
 |`secret`|Technical|Creates the secret of a link and its hash.|Functions that create a secret and hash a given one.|none|
 |`validation`|Technical|Describes rejected fields the same way for every module.|The types of a field error and the response that carries them.|none|
@@ -143,4 +143,4 @@ flowchart TB
 |`lib`|Holds helpers without a user interface, such as the query client and the reaction to an expired session.|Functions.|
 |`api/generated`|Calls the API. Orval generates this code and the mocks for tests from the OpenAPI document of the server.|One function and one query hook per operation.|
 
-Only `api/generated` depends on the API of the server. A change to the API therefore reaches the client as a change of generated code, and the contract test fails until both match.
+Only `api/generated` depends on the API of the server. A change to the API reaches the client as a change of generated code. The contract test fails until both match.

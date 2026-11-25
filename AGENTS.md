@@ -39,7 +39,7 @@ A job's worktree gets its own ports and services when git-worktree-init with the
 
 ## Pull requests
 
-CI runs the checks up to `integration` on every push to a pull request that changes a file one of those checks reads. Pull requests that are ready for review and pushes to `main` also run the jobs that take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) says what each level of tests proves, and [Continuous integration](docs/maintenance/ci.md) describes the jobs.
+CI runs the checks up to `integration` on every push to a pull request that changes a file one of those checks reads. Pull requests that are ready for review and pushes to `main` also run the jobs that take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) says what each level of tests proves. [Continuous integration](docs/maintenance/ci.md) describes the jobs.
 
 - The factory verifies its own pull requests. Its gate runs the checks up to integration. Its reviewers check the change against the spec and the OpenSpec change. A script then publishes the branch, and its approver decides once CI and CodeRabbit have raised nothing. An approved pull request merges at once. Failing checks and remarks of CodeRabbit still send it back to the builder.
 - A person reviews only the pull requests that the factory labels `factory:needs-human`. Merging one approves it.

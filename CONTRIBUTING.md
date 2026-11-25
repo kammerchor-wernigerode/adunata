@@ -120,7 +120,7 @@ Commit the component together with those packages.
 
 ## Checks before a push
 
-Run the checks up to `integration` locally before each push. CI runs them in the job `build` and runs the end-to-end tests, the image and the NixOS VM test once a pull request is ready for review. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) says what each level of tests proves, and [Continuous integration](docs/maintenance/ci.md) describes the jobs.
+Run the checks up to `integration` locally before each push. CI runs them in the job `build` and runs the end-to-end tests, the image and the NixOS VM test once a pull request is ready for review. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) says what each level of tests proves. [Continuous integration](docs/maintenance/ci.md) describes the jobs.
 
 One script runs them, in the root of the checkout:
 

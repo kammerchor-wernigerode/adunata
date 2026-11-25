@@ -157,4 +157,4 @@ sequenceDiagram
 |Retry|`mail`|Each failed attempt moves the next one further away. After the configured number of attempts the mail fails for good and loses its content too.|
 |Result|`mail`|The outbox keeps the row with its time of delivery or failure. `invitations` reads it to show where the mail of an invitation stands.|
 
-The [mail delivery specification](../../openspec/specs/mail-delivery/spec.md) holds the requirements for retries, and the [configuration reference](../operating/configuration.md#settings) names the setting for the number of attempts.
+The [mail delivery specification](../../openspec/specs/mail-delivery/spec.md) holds the requirements for retries. The [configuration reference](../operating/configuration.md#settings) names the setting for the number of attempts.

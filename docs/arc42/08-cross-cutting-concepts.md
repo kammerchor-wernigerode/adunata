@@ -2,7 +2,7 @@
 
 ## Data model
 
-Each table has one module that writes it. Three modules also read tables of other modules in a join. `mail` reads `members`, `invitations` reads `members`, `responses` and `mail_outbox`, and `responses` reads `gatherings`, `invitations` and `members`. No decision covers this yet, see [risks and technical debt](11-risks-and-technical-debt.md).
+Each table has one module that writes it. Three modules also read tables of other modules in a join. `mail` reads `members`. `invitations` reads `members`, `responses` and `mail_outbox`. `responses` reads `gatherings`, `invitations` and `members`. No decision covers this yet, see [risks and technical debt](11-risks-and-technical-debt.md).
 
 The diagram shows the tables and how their rows depend on each other.
 
@@ -27,7 +27,7 @@ erDiagram
 |`responses`|`responses`|At most one response per invitation.|
 |`mail_outbox`|`mail`|Each mail until its delivery ends, then only the result.|
 
-Every relation in the diagram is a foreign key that deletes the dependent rows with their parent. Deleting a member or a gathering therefore removes everything that refers to it, and no module has to know which other modules store data about it. The database also holds the rules that must never break, such as the allowed values of a status, as constraints.
+Every relation in the diagram is a foreign key that deletes the dependent rows with their parent. Deleting a member or a gathering removes everything that refers to it. No module has to know which other modules store data about it. The database also holds the rules that must never break, such as the allowed values of a status, as constraints.
 
 ## Configuration
 
@@ -119,7 +119,7 @@ The client builds on the components and libraries of [ADR 0008](../decisions/000
 |Sizes are in `rem`.|The interface scales with the text size of the browser.|
 |The binary serves the fonts with their licenses.|The Content Security Policy allows no other origin, see [security headers](#security-headers).|
 |A state such as a chosen option or a status shows through shape or text and never through color alone.|People who do not see the color still read the state.|
-|Every route sets its page title through the main heading, and focus moves there after a route change.|A screen reader announces the new page.|
+|Every route sets its page title through the main heading. Focus moves there after a route change.|A screen reader announces the new page.|
 |A field with an error carries `aria-invalid` and links its message through `aria-describedby`. After a rejected save, focus moves to the first invalid field.|People find the error without sight.|
 |A successful save is announced through an element with `role="status"`.|A screen reader reports the result.|
 
@@ -137,7 +137,7 @@ Waiting for a database connection is capped at five seconds, so a lost database 
 
 ## Process model
 
-An instance is one process. The delivery of mail and the retention task run as background tasks inside it, and the limit of sign-in requests per network address lives in its memory. The process keeps no other state, so a restart loses only that limit. Everything else is in PostgreSQL.
+An instance is one process. The delivery of mail and the retention task run as background tasks inside it. The limit of sign-in requests per network address lives in its memory. The process keeps no other state, so a restart loses only that limit. Everything else is in PostgreSQL.
 
 ## Logging
 
@@ -184,11 +184,11 @@ Tests run at several levels. Each level checks what the level below cannot see.
 |-|-|-|
 |Unit|Logic without any input or output is correct, such as the formatting of a message.|`plural_forms_in_german` in [`server/src/localization.rs`](../../server/src/localization.rs)|
 |Server integration|An API handler works with real routing against a real PostgreSQL and a real mail server for tests. Each test gets its own empty database with all migrations applied.|`duplicate_address` in [`server/src/members.rs`](../../server/src/members.rs)|
-|Client integration|A page works when someone drives it like a user, against mocks that are generated from the OpenAPI document. Each page passes the accessibility checks of axe.|[`client/src/routes/_organizer/members/members.integration.test.tsx`](../../client/src/routes/_organizer/members/members.integration.test.tsx)|
-|Contract|The tracked OpenAPI document matches the server, and the generated client code matches the document.|`the_client_holds_the_current_document` in [`server/src/api.rs`](../../server/src/api.rs)|
+|Client integration|A page works when someone drives it like a user, against mocks that Orval generates from the OpenAPI document. Each page passes the accessibility checks of axe.|[`client/src/routes/_organizer/members/members.integration.test.tsx`](../../client/src/routes/_organizer/members/members.integration.test.tsx)|
+|Contract|The tracked OpenAPI document matches the server. The generated client code matches the document.|`the_client_holds_the_current_document` in [`server/src/api.rs`](../../server/src/api.rs)|
 |End to end|A few complete flows work in a browser against the real binary, PostgreSQL and a mail server for tests. This level checks what needs computed colors and a layout, which are contrast, both color schemes and reflow on a narrow screen with enlarged text.|[`client/e2e/invitation.e2e.ts`](../../client/e2e/invitation.e2e.ts)|
 |Installation|Each supported way to run Adunata starts in a virtual machine, migrates the database, reports healthy and serves the client.|[`nix/test.nix`](../../nix/test.nix)|
 
 A unit test has no input or output. It uses no database, no mail server, no socket, no file and no router. Every other test is an integration test. On the server it lives in a module named `integration`, on the client in a file named `*.integration.test.ts` or `*.integration.test.tsx`.
 
-The same checks run on a laptop and in CI, see [ADR 0005](../decisions/0005-nix-flake-as-build-definition.md). The end-to-end tests are the exception and run outside the flake. The [contributing guide](../../CONTRIBUTING.md#checks-before-a-push) describes how to run each level, and [Continuous integration](../maintenance/ci.md) describes the jobs. The installation tests do not run on `aarch64`, see [risks and technical debt](11-risks-and-technical-debt.md).
+The same checks run on a laptop and in CI, see [ADR 0005](../decisions/0005-nix-flake-as-build-definition.md). The end-to-end tests are the exception and run outside the flake. The [contributing guide](../../CONTRIBUTING.md#checks-before-a-push) describes how to run each level. [Continuous integration](../maintenance/ci.md) describes the jobs. The installation tests do not run on `aarch64`, see [risks and technical debt](11-risks-and-technical-debt.md).
