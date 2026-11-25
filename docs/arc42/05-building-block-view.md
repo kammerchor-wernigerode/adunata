@@ -26,7 +26,7 @@ The split follows [ADR 0003](../decisions/0003-single-page-client-with-api.md). 
 
 ### Important interfaces
 
-The API is the only interface between client and server. The server describes it as one OpenAPI document, which the repository tracks as [`client/openapi.json`](../../client/openapi.json). The client calls the API only through code that Orval generates from this document. A contract test fails when the document, the server and the generated code differ.
+The API is the only interface between client and server. The server describes it as one OpenAPI document, which the repository tracks as [`client/openapi.json`](../../client/openapi.json). The client calls the API only through code that Orval generates from this document. One test fails when the document differs from the server. A second check fails when the generated code differs from the document.
 
 ## Level 2
 
@@ -90,7 +90,7 @@ Every module with routes takes the shared state of the server, such as the conne
 |`client`|Assembly|Serves the files of the built client from the binary.|The router for all paths outside the API.|none|
 |`access`|Feature|Signs organizers in, keeps their sessions and decides whether a request may change data.|The sign-in and session routes, the extractor `Organizer` and the layer for the `Origin` check.|`members`, `mail`, `localization`, `secret`, `configuration`|
 |`members`|Feature|Keeps the member list with the organizer role.|The member routes and functions that read members.|`access`, `localization`, `validation`|
-|`gatherings`|Feature|Keeps gatherings and decides from the date of the instance whether one is upcoming or past.|The gathering routes and functions that find a gathering.|`access`, `validation`|
+|`gatherings`|Feature|Keeps gatherings with their days.|The gathering routes and functions that find a gathering.|`access`, `validation`|
 |`invitations`|Feature|Keeps the invitations of members to gatherings with their personal links and queues the mail about a gathering.|The invitation routes and the extractor `PersonalLink`.|`gatherings`, `members`, `access`, `mail`, `calendar`, `localization`, `secret`, `validation`, `configuration`|
 |`responses`|Feature|Stores the response to each invitation, serves the overview of a gathering and applies the retention periods.|The routes behind a personal link, the response and overview routes for organizers and the retention task.|`invitations`, `gatherings`, `access`, `calendar`, `localization`, `validation`, `configuration`|
 |`configuration`|Technical|Reads and checks the settings of the instance.|The settings as one typed value.|`localization`|
@@ -143,4 +143,4 @@ flowchart TB
 |`lib`|Holds helpers without a user interface, such as the query client and the reaction to an expired session.|Functions.|
 |`api/generated`|Calls the API. Orval generates this code and the mocks for tests from the OpenAPI document of the server.|One function and one query hook per operation.|
 
-Only `api/generated` depends on the API of the server. A change to the API reaches the client as a change of generated code. The contract test fails until both match.
+Only `api/generated` depends on the API of the server. A change to the API reaches the client as a change of generated code. The [contract checks](08-cross-cutting-concepts.md#testing) fail until document and code match the server.

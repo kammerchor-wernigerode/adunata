@@ -28,6 +28,6 @@
 |Beds|Whether a member who comes needs beds, offers beds or needs none, with their number.|
 |Calendar file|The file in iCalendar format that describes a gathering. Members download it from the response page and receive it with mail about the gathering.|
 |Local mode|The mode of `adunata serve --local` for debug runs on `localhost`, which writes sign-in links to the log.|
-|Mail confinement|The mode behind `adunata serve --dev` that sends every mail to one address instead of its recipient.|
+|Mail confinement|The state in which Adunata sends every mail to one redirect address instead of its recipient. Two settings turn it on, and only `adunata serve --dev` accepts them.|
 |Feature module|A module of the server that owns one part of the domain with its routes, its rules and its tables.|
 |Technical module|A module of the server that solves one problem for several feature modules.|

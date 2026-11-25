@@ -153,7 +153,7 @@ sequenceDiagram
 
 |Step|Building block|What happens|
 |-|-|-|
-|Pick|`mail`|One transaction locks a due mail and skips mail that another transaction holds, so two deliveries never send the same mail.|
+|Pick|`mail`|One transaction locks a due mail and skips mail that another transaction holds, so two deliveries never pick the same mail at the same time. The mail counts as sent only when this transaction commits. If the process stops after the mail server accepted the mail and before the commit, the next delivery sends the mail again.|
 |Retry|`mail`|Each failed attempt moves the next one further away. After the configured number of attempts the mail fails for good and loses its content too.|
 |Result|`mail`|The outbox keeps the row with its time of delivery or failure. `invitations` reads it to show where the mail of an invitation stands.|
 

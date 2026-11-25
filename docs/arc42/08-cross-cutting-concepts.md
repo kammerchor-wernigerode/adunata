@@ -13,8 +13,8 @@ erDiagram
   members ||--o{ invitations : receives
   gatherings ||--o{ invitations : has
   invitations ||--o| responses : answered_by
-  members ||--o{ mail_outbox : addressed_to
-  invitations ||--o{ mail_outbox : announced_by
+  members |o--o{ mail_outbox : addressed_to
+  invitations |o--o{ mail_outbox : announced_by
 ```
 
 |Table|Written by|Holds|
@@ -27,7 +27,7 @@ erDiagram
 |`responses`|`responses`|At most one response per invitation.|
 |`mail_outbox`|`mail`|Each mail until its delivery ends, then only the result.|
 
-Every relation in the diagram is a foreign key that deletes the dependent rows with their parent. Deleting a member or a gathering removes everything that refers to it. No module has to know which other modules store data about it. The database also holds the rules that must never break, such as the allowed values of a status, as constraints.
+Every relation in the diagram is a foreign key that deletes the dependent rows with their parent. A mail names a member and an invitation only when it has one, so a sign-in mail names no invitation. Deleting a member or a gathering removes everything that refers to it. No module has to know which other modules store data about it. The database also holds the rules that must never break, such as the allowed values of a status, as constraints.
 
 ## Configuration
 
