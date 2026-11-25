@@ -18,8 +18,31 @@ arc42 holds how Adunata is built and why. Three other places own facts that arc4
 |Behavior and requirements|`openspec/specs/`|links from section 1|
 |Architecture decisions with rationale|`docs/decisions/`|links from sections 4 and 9|
 |Work in flight|`openspec/changes/`|nothing, a change updates arc42 when it lands|
+|Steps for operators and every setting|`docs/operating/`|links from sections 3, 7 and 8|
+|Commands, tools and settings for development|`CONTRIBUTING.md` and `README.md`|links from section 8|
+|Workflows of CI, releases and dependency updates|`docs/maintenance/`|links from section 8|
 
 arc42 describes the current architecture and, where planned, the target architecture. It never describes how it got there. Git and the decision records hold that.
+
+## What belongs in arc42
+
+arc42 holds concepts, never instructions. A concept says how Adunata is built and which rule its parts follow. An instruction says which command to run, which job does what or which value a setting has.
+
+The template asks for restraint in its own words. Section 5 describes the system "on an abstract level without disclosing implementation details". Section 8 says "pick only the most-needed topics". Sections 5 and 6 say "prefer relevance over completeness", and section 9 says "avoid redundancy".
+
+Ask three questions of every sentence before you write it:
+
+1. Would the sentence still be true after a refactoring that keeps the structure? A sentence that names a job of CI, a runner, a command, a color value or the order of entries in a menu fails this question.
+2. Does another place already own the fact? Then link to it.
+3. Does an architect, an operator or a contributor need the fact to understand the structure? A fact that only helps to carry out a task belongs in the guide for that task.
+
+|Detail|Home|
+|-|-|
+|A command, a tool or its version|`CONTRIBUTING.md`|
+|A job, a runner or a workflow of CI|`docs/maintenance/`|
+|A setting, its default or its allowed values|`docs/operating/configuration.md`|
+|A limit, a period or a text that users see|`openspec/specs/`|
+|A color, a size or the layout of one page|the code or `openspec/specs/`|
 
 ## Files
 
@@ -58,13 +81,13 @@ Each entry says what the section holds and what it does not.
 
 **4 Solution strategy.** It holds a short summary of the fundamental decisions, such as technology, top-level decomposition and how the architecture reaches each quality goal. One or two sentences per item, each linking to its decision record and to the section with the details. It never holds the full reasoning, which lives in the decision record.
 
-**5 Building block view.** It holds the static decomposition. Level 1 is the white box of the whole system with a black box description of each contained building block, meaning its responsibility and interfaces. Level 2 and deeper zoom into selected blocks only when that helps. It does not describe behavior over time, which belongs in section 6, or concerns that span many blocks, which belong in section 8.
+**5 Building block view.** It holds the static decomposition. The view is a hierarchy. Level 1 is the white box of the whole system with an overview diagram, the motivation for the decomposition and a black box description of each contained building block. It holds the few blocks that someone names first when asked what Adunata consists of, which are the client and the server. A module of the server or a folder of the client never appears on level 1. Level 2 opens one block of level 1 as a white box. The white box of the server lists every module that `server/src/main.rs` declares, grouped by kind. Level 3 opens a module only when it is important, surprising, risky or complex. A black box description is one sentence for the responsibility and one for the interface. It names no feature, no route and no rule of the domain. A diagram of this section shows only what a block contains and what it depends on. A box inside a box is a part, and an arrow without a label means that one block depends on the public interface of the other. It shows no data flow, no protocol and no communication partner, which belong in sections 6, 7 and 3. It does not describe behavior over time, which belongs in section 6, or concerns that span many blocks, which belong in section 8.
 
-**6 Runtime view.** It holds a few architecturally relevant scenarios that show how building blocks work together, such as a key use case, an interaction at an external interface, start-up or an error case. Pick a representative few, not every use case. It does not restate the scenarios in the specs. It shows which blocks carry them out.
+**6 Runtime view.** It holds a few architecturally relevant scenarios that show how building blocks work together, such as a key use case, an interaction at an external interface, start-up, a background task or an error case. Pick a representative few, not every use case. It does not restate the scenarios in the specs. It shows which blocks carry them out. Rules of the domain, such as the states of a page or the allowed values of a field, stay in the specs.
 
 **7 Deployment view.** It holds the infrastructure that runs Adunata, meaning nodes, channels and which artifact runs where. Describe each supported way of running Adunata. Operating instructions for administrators belong in user-facing documentation, which this section links to.
 
-**8 Cross-cutting concepts.** It holds rules and solutions that apply across many building blocks, such as authentication, authorization, localization, accessibility, personal data, error handling, persistence or testing. Give each concept its own `##` heading and cover only the concepts Adunata needs. A concept that applies to a single building block belongs with that block in section 5.
+**8 Cross-cutting concepts.** It holds rules and solutions that apply across many building blocks, such as the data model, authentication, authorization, localization, accessibility, personal data, error handling, persistence or testing. Give each concept its own `##` heading and cover only the concepts Adunata needs. A concept states the rule and names the block that enforces it. It leaves limits, defaults and texts to the place that owns them. The testing concept names the levels of tests and what each level proves. It names no job, no runner and no command. A concept that applies to a single building block belongs with that block in section 5.
 
 **9 Architecture decisions.** It holds a table of all records in `docs/decisions/` with number, title as a link and status, ordered by number. The template file is not a record and stays out of the table. It holds no reasoning of its own.
 
@@ -83,10 +106,17 @@ Each entry says what the section holds and what it does not.
 |who talks to Adunata|3|7|
 |where Adunata runs|7|3|
 |a part of Adunata and its job|5|8|
+|what two blocks exchange and in which order|6|5|
+|a protocol or a channel|3 or 7|5|
+|a module of the server|5, level 2|5, level 1|
 |a rule that many parts follow|8|5|
 |a quality goal|1|10|
 |a measurable quality scenario|10|1|
 |what Adunata does for users|`openspec/specs/`|6|
+|what a level of tests proves|8|`CONTRIBUTING.md`|
+|how to run a test or a check|`CONTRIBUTING.md`|8|
+|what a job of CI does|`docs/maintenance/`|8|
+|a setting and its default|`docs/operating/`|8|
 
 ## Links
 
@@ -103,9 +133,10 @@ Diagrams are Mermaid code blocks, which GitHub renders. Use these types:
 |Section|Diagram|
 |-|-|
 |3 Context and scope|`flowchart` with Adunata as one node and its partners around it|
-|5 Building block view|`flowchart` with a `subgraph` per white box|
+|5 Building block view|`flowchart` with a `subgraph` per white box and arrows without labels for dependencies|
 |6 Runtime view|`sequenceDiagram`|
 |7 Deployment view|`flowchart` with a `subgraph` per node|
+|8 Cross-cutting concepts|`erDiagram` for the data model|
 
 Do not use Mermaid's C4 diagrams, which are experimental. Introduce each diagram with a sentence that says what it shows. Name every element again in the text or a table below the diagram, so the section is complete without the picture.
 
@@ -113,7 +144,7 @@ Do not use Mermaid's C4 diagrams, which are experimental. Introduce each diagram
 
 An OpenSpec change that affects the architecture names the affected sections in its `design.md`. Its `tasks.md` holds a task to update those sections and to write or supersede the decision records.
 
-A change to the development environment alone affects no section and needs no decision record. That covers services for development, the development shell, direnv and tooling for worktrees. The README documents it. Only the parts that an operator or the running system notices count, such as a rule for how the server reads its configuration.
+A change to the development environment alone affects no section and needs no decision record. That covers services for development, the development shell, direnv, tooling for worktrees and the workflows of CI. `README.md`, `CONTRIBUTING.md` and `docs/maintenance/` document it. Only the parts that an operator or the running system notices count, such as a rule for how the server reads its configuration. The testing concept in section 8 changes only when a level of tests appears, disappears or proves something else.
 
 |The change|Update|
 |-|-|
@@ -131,6 +162,8 @@ A change to the development environment alone affects no section and needs no de
 Before you finish an edit in `docs/arc42/`, check that:
 
 - each new fact sits in the section the tables above name and nowhere else
+- each new sentence passes the three questions under "What belongs in arc42"
+- section 5 keeps its levels apart, the white box of the server lists every module of `server/src/main.rs` and every arrow matches a use in the code
 - facts owned by specs or decision records appear only as links
 - every relative link and anchor resolves
 - `README.md` lists every section file that exists
