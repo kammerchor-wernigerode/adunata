@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 reviews:
   sequence_diagrams: false
+  auto_review:
+    ignore_title_keywords:
+      - "Archive completed OpenSpec changes"
   path_filters:
     - "!openspec/changes/archive/**"
     - "!client/openapi.json"
