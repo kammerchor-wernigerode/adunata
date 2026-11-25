@@ -5,7 +5,7 @@
 # working directory. People run it from the root of their checkout before a push.
 # With Nix it builds the flake target `integration`, which sees only files that Git tracks.
 # Without Nix it runs the checks of that target that need no Nix, one by one, and needs the
-# services of compose.yaml. The README names the checks that only Nix runs.
+# services of compose.yaml. CONTRIBUTING.md names the checks that only Nix runs.
 set -euo pipefail
 
 if command -v nix >/dev/null 2>&1; then

@@ -20,3 +20,14 @@
 |Instance|One installation of Adunata, run by one ensemble.|
 |Operator|The person who installs, configures and updates an instance.|
 |Outbox|The table in which Adunata stores each mail before a background task sends it.|
+|First organizer|The organizer whom the operator names in the configuration, so that someone can sign in to a new instance.|
+|Reminder|The mail that an organizer sends to every member of a gathering who has not answered. It carries a new personal link.|
+|Cancellation|The act of an organizer that marks a gathering as cancelled and informs every invited member by mail. A cancelled gathering stays visible to organizers.|
+|Revocation|The act of an organizer that makes a personal link invalid without sending a new one.|
+|Deadline for responses|The optional number of days before the first day of a gathering after which a member can only decline.|
+|Beds|Whether a member who comes needs beds, offers beds or needs none, with their number.|
+|Calendar file|The file in iCalendar format that describes a gathering. Members download it from the response page and receive it with mail about the gathering.|
+|Local mode|The mode of `adunata serve --local` for debug runs on `localhost`, which writes sign-in links to the log.|
+|Mail confinement|The state in which Adunata sends every mail to one redirect address instead of its recipient. Two settings turn it on, and only `adunata serve --dev` accepts them.|
+|Feature module|A module of the server that owns one part of the domain with its routes, its rules and its tables.|
+|Technical module|A module of the server that solves one problem for several feature modules.|

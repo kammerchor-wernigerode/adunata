@@ -16,13 +16,15 @@ This file routes. It names where things live and the rules that apply everywhere
 |`docs/decisions/`|Architecture decision records, as described in [ADR 0001](docs/decisions/0001-record-architecture-decisions.md)|
 |`docs/arc42/`|Architecture documentation, see the [entry page](docs/arc42/README.md)|
 |`docs/operating/`|Documentation for operators who install and run an instance|
+|`CONTRIBUTING.md`|Settings, tests and checks for contributors|
+|`docs/maintenance/`|Releases, dependency updates, CI and repository settings for maintainers|
 
 ## Workflow
 
 - Work starts as a GitHub issue labeled `factory`, which the [software factory](#software-factory) builds. By hand, new features start with `/openspec-propose <name>`. Open ideas start with `/openspec-explore`.
 - A person may have a change reviewed before its tasks with `/review-change [change] [model] [effort]`. Agents never start it on their own.
 - Small fixes need no change proposal.
-- An architecturally significant decision gets a record in `docs/decisions/`. Significant means that an operator or a running instance notices it. Tooling for development, tests and CI never is, even where a record mentions it. [ADR 0001](docs/decisions/0001-record-architecture-decisions.md) defines what counts. The development environment is not architecture. The README documents it.
+- An architecturally significant decision gets a record in `docs/decisions/`. Significant means that an operator or a running instance notices it. Tooling for development, tests and CI never is, even where a record mentions it. [ADR 0001](docs/decisions/0001-record-architecture-decisions.md) defines what counts. The development environment is not architecture. `README.md`, `CONTRIBUTING.md` and `docs/maintenance/` document it. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) is a concept of the architecture documentation and no decision.
 - Plan each change from its own problem and the current code. Archived changes are no template.
 - Archive merged OpenSpec changes together in a pull request of their own, once every change of a piece of work is merged or whenever a maintainer chooses. Nobody pushes to `main` directly. CI checks only `editorconfig` for a pull request that touches only files no other check reads, such as `openspec/`, `factory/` or the documentation. The job `changes` in `.github/workflows/ci.yaml` lists them.
 - When an agent repeats a mistake, add a rule here.
@@ -33,11 +35,11 @@ This file routes. It names where things live and the rules that apply everywhere
 
 Each job works in its own worktree at `.worktrees/<job-id>`, which Git ignores. A tool run from the root of the repository that does not read `.gitignore` sees those copies too, so exclude `.worktrees/` in its configuration.
 
-A job's worktree gets its own ports and services when git-worktree-init with the plugin of the README is set up, as [Parallel worktrees](README.md#parallel-worktrees) describes. An agent then starts the services with `docker compose up --detach --wait` and Adunata as [Run Adunata](README.md#run-adunata) describes, with the ports from the files the plugin wrote. Without the plugin, a job's worktree shares the services of the main checkout, so an agent starts no services there and judges pages from the code.
+A job's worktree gets its own ports and services when git-worktree-init with the plugin of the contributing guide is set up, as [Parallel worktrees](CONTRIBUTING.md#parallel-worktrees) describes. An agent then starts the services with `docker compose up --detach --wait` and Adunata as [Run Adunata](README.md#run-adunata) describes, with the ports from the files the plugin wrote. Without the plugin, a job's worktree shares the services of the main checkout, so an agent starts no services there and judges pages from the code.
 
 ## Pull requests
 
-CI runs the checks up to `integration` on every push to a pull request that changes a file one of those checks reads. Pull requests that are ready for review and pushes to `main` also run the jobs that take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) describes the checks.
+CI runs the checks up to `integration` on every push to a pull request that changes a file one of those checks reads. Pull requests that are ready for review and pushes to `main` also run the jobs that take much longer. The [testing concept](docs/arc42/08-cross-cutting-concepts.md#testing) says what each level of tests proves. [Continuous integration](docs/maintenance/ci.md) describes the jobs.
 
 - The factory verifies its own pull requests. Its gate runs the checks up to integration. Its reviewers check the change against the spec and the OpenSpec change. A script then publishes the branch, and its approver decides once CI and CodeRabbit have raised nothing. An approved pull request merges at once. Failing checks and remarks of CodeRabbit still send it back to the builder.
 - A person reviews only the pull requests that the factory labels `factory:needs-human`. Merging one approves it.
@@ -84,7 +86,7 @@ Rust code stays plain, so that it is easy to read and to change.
 - Documentation is not a changelog. Git records changes. Specs and plans are exempt, because they capture a target state at a point in time. Architecture decision records are exempt too, because they keep superseded decisions next to the ones that replace them.
 - Each fact has one home. Documentation links to it instead of copying it. Links are relative and must resolve.
 - Documentation, issues and pull requests name no maintainer or contributor.
-- Architecture documentation lives in `docs/arc42/` and follows the skill `arc42`.
+- Architecture documentation lives in `docs/arc42/` and follows the skill `arc42`. It holds concepts. Commands, jobs of CI and values of settings live in the guides it links to.
 - Markdown has no hard line breaks. A paragraph is one line. Tables use minimal padding (`|-|-|`).
 
 ## Local setup

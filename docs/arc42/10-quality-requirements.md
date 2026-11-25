@@ -8,6 +8,8 @@ The quality goals in [Introduction and goals](01-introduction-and-goals.md) name
 |-|-|-|-|-|
 |Invalid configuration|An operator starts a new instance.|Two required settings are missing and one has the wrong format.|Adunata exits with status 78 before it opens a port or touches the database. The log names all three settings in one entry each. It shows no secret value.|[`server/tests/startup.rs`](../../server/tests/startup.rs) and `several_settings_missing` in [`server/src/configuration.rs`](../../server/src/configuration.rs)|
 |Mail server outage|The mail server of the ensemble is unreachable for a few minutes.|An organizer invites members during the outage.|The invitations exist at once. Their mails wait in the outbox and arrive once the server is reachable again.|`invitation_succeeds_while_the_mail_server_is_down` in [`server/src/invitations.rs`](../../server/src/invitations.rs) and `mail_server_comes_back` in [`server/src/mail.rs`](../../server/src/mail.rs)|
+|Update|An operator installs a newer release over a running instance.|The service starts.|Adunata applies the pending migrations.|`start_after_an_update` in [`server/src/database.rs`](../../server/src/database.rs)|
+|Downgrade|An operator starts an older release against a database that a newer release migrated.|The service starts.|Adunata exits with status 65 and changes nothing, so systemd does not restart it.|`start_after_a_downgrade` in [`server/src/database.rs`](../../server/src/database.rs)|
 
 ## Security
 
@@ -32,3 +34,9 @@ The quality goals in [Introduction and goals](01-introduction-and-goals.md) name
 |Scenario|Context|Stimulus|Response|Verified by|
 |-|-|-|-|-|
 |Plural forms|A member reads the client or a mail in German or English.|A text states a count of 0, 1 or 2.|Each count uses the grammatically correct form of the language, such as "braucht eins" and "braucht 2"|`plural_forms_in_german` and `plural_forms_in_english` in [`server/src/localization.rs`](../../server/src/localization.rs) and [`client/src/l10n/bundle.test.ts`](../../client/src/l10n/bundle.test.ts)|
+
+## Changeability
+
+|Scenario|Context|Stimulus|Response|Verified by|
+|-|-|-|-|-|
+|Change of the API|A contributor changes a route or a type of the server.|The checks run.|The contract test fails until the tracked OpenAPI document and the generated client code match the server again.|`the_client_holds_the_current_document` in [`server/src/api.rs`](../../server/src/api.rs) and `pnpm run check:generated` in `client/`|

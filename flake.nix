@@ -626,9 +626,9 @@
               );
 
             cargoDenyVersion = pkgs.runCommand "check-cargo-deny-version" { } ''
-              pinned=$(sed --quiet 's/.*cargo-deny@\([0-9.]*\).*/\1/p' ${./README.md})
+              pinned=$(sed --quiet 's/.*cargo-deny@\([0-9.]*\).*/\1/p' ${./CONTRIBUTING.md})
               if [ "$pinned" != "${tools.cargo-deny.version}" ]; then
-                echo "The README pins cargo-deny $pinned, but nixpkgs ships ${tools.cargo-deny.version}. Set the version in the README to the version of nixpkgs."
+                echo "CONTRIBUTING.md pins cargo-deny $pinned, but nixpkgs ships ${tools.cargo-deny.version}. Set the version in CONTRIBUTING.md to the version of nixpkgs."
                 exit 1
               fi
               touch $out
@@ -654,9 +654,9 @@
                 '';
 
             cargoAboutVersion = pkgs.runCommand "check-cargo-about-version" { } ''
-              pinned=$(sed --quiet 's/.*cargo-about@\([0-9.]*\).*/\1/p' ${./README.md})
+              pinned=$(sed --quiet 's/.*cargo-about@\([0-9.]*\).*/\1/p' ${./CONTRIBUTING.md})
               if [ "$pinned" != "${tools.cargo-about.version}" ]; then
-                echo "The README pins cargo-about $pinned, but nixpkgs ships ${tools.cargo-about.version}. Set the version in the README to the version of nixpkgs."
+                echo "CONTRIBUTING.md pins cargo-about $pinned, but nixpkgs ships ${tools.cargo-about.version}. Set the version in CONTRIBUTING.md to the version of nixpkgs."
                 exit 1
               fi
               touch $out
