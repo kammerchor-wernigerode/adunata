@@ -94,5 +94,67 @@ sequenceDiagram
 |Step|Building block|What happens|
 |-|-|-|
 |Open|`responses`, `invitations`|An unknown or revoked secret ends in status 404 that names nothing. Otherwise the page shows the gathering, the member's stored response and who comes.|
-|State|`responses`, `gatherings`|Before the first day the member answers. Once the optional deadline for responses has passed, the page shows the response, the attendees and a form that offers only a decline with a comment. From the first day the page shows the response without a form, after the last day also without attendees, and a cancelled gathering takes no answer. The states take precedence in the order cancelled, ended, begun, deadline passed, open.|
-|Store|`responses`|Times are wall-clock times of the instance in steps of 30 minutes within the days of the gathering. A decline clears period and beds. The row records that the member changed it last.|
+|State|`responses`, `gatherings`|`responses` derives the state of the page from the gathering and the date of the instance. The state decides whether the page offers a form. The [responses specification](../../openspec/specs/responses/spec.md) defines the states.|
+|Store|`responses`|Validates the answer against the days of the gathering and stores it with a note that the member changed it last.|
+
+## Start-up
+
+The operator or the service manager runs `adunata serve`. The order matters, because each step fails before the next one causes an effect. The [installation guide](../operating/installation.md#commands) lists the exit statuses, see [ADR 0019](../decisions/0019-exit-statuses-from-sysexits-for-a-failed-start.md).
+
+```mermaid
+sequenceDiagram
+  participant Manager as Service manager
+  participant main
+  participant configuration
+  participant database
+  participant mail
+  participant responses
+  participant access
+  participant serving
+  Manager->>main: adunata serve
+  main->>configuration: reads and checks every setting
+  configuration-->>main: typed settings or every problem at once
+  main->>database: opens the pool
+  database->>database: compares the schema with the binary, applies pending migrations
+  main->>mail: starts the delivery task
+  main->>responses: starts the retention task
+  main->>main: opens the listen address
+  main->>access: creates the first organizer if the instance has none
+  main->>serving: serves the router
+  serving-->>Manager: accepts requests until SIGTERM
+```
+
+|Step|Building block|What happens|
+|-|-|-|
+|Configuration|`main`, `configuration`|An invalid configuration ends the start before Adunata touches the database or opens a port.|
+|Database|`database`|A database that is unreachable or newer than the binary ends the start. Otherwise the pending migrations run before any other module uses the pool.|
+|Background tasks|`mail`, `responses`|Both tasks run inside the process of the server, so an instance is one process.|
+|Organizers|`access`|The first organizer exists before the first request arrives, so someone can sign in.|
+|Serving|`serving`|On SIGTERM it stops accepting connections and lets requests in progress finish. Mail that waits stays in the outbox.|
+
+## Delivering mail from the outbox
+
+The delivery task of `mail` runs for as long as the process runs. The scenario shows a mail server that rejects the first attempt. See [ADR 0006](../decisions/0006-outbox-for-mail.md) for the outbox and [ADR 0013](../decisions/0013-mail-loses-its-content-once-its-delivery-ends.md) for the content.
+
+```mermaid
+sequenceDiagram
+  participant mail
+  participant Database as PostgreSQL
+  participant Mailserver as Mail server
+  mail->>Database: locks the oldest mail that is due
+  mail->>Mailserver: sends the mail
+  Mailserver-->>mail: rejects it or does not answer
+  mail->>Database: counts the attempt and sets a later time for the next one
+  mail->>Database: locks the mail again once it is due
+  mail->>Mailserver: sends the mail
+  Mailserver-->>mail: accepts it
+  mail->>Database: marks the mail as sent and clears its content
+```
+
+|Step|Building block|What happens|
+|-|-|-|
+|Pick|`mail`|One transaction locks a due mail and skips mail that another transaction holds, so two deliveries never send the same mail.|
+|Retry|`mail`|Each failed attempt moves the next one further away. After the configured number of attempts the mail fails for good and loses its content too.|
+|Result|`mail`|The outbox keeps the row with its time of delivery or failure. `invitations` reads it to show where the mail of an invitation stands.|
+
+The [mail delivery specification](../../openspec/specs/mail-delivery/spec.md) holds the requirements for retries, and the [configuration reference](../operating/configuration.md#settings) names the setting for the number of attempts.

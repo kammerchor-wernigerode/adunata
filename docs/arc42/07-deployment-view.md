@@ -9,16 +9,16 @@ flowchart LR
     proxy -- HTTP --> adunata[Adunata]
     adunata -- PostgreSQL protocol --> postgres[(PostgreSQL)]
   end
-  adunata -- SMTP with STARTTLS --> mail[Mail server]
+  adunata -- SMTP --> mail[Mail server]
 ```
 
 |Element|Description|
 |-|-|
 |Browser|Loads the client from Adunata and calls its API through the proxy.|
 |Reverse proxy|Terminates HTTPS, for example Caddy or nginx. Adunata itself listens on plain HTTP, by default on `127.0.0.1:8080`. Adunata trusts the proxy's `X-Forwarded-For` header only when the connection comes from a network in `ADNT_HTTP_TRUSTED_PROXIES`, by default the loopback addresses.|
-|Adunata|One process that serves the client and the API and sends mail in the background.|
+|Adunata|One process that runs the server with the embedded client, see the [building block view](05-building-block-view.md) and the [process model](08-cross-cutting-concepts.md#process-model).|
 |PostgreSQL|Holds all data. Often on the same host, reached through its Unix socket.|
-|Mail server|The ensemble's existing mail server or hosting account.|
+|Mail server|The ensemble's existing mail server or hosting account. The [mail delivery](08-cross-cutting-concepts.md#mail-delivery) concept describes the encryption.|
 
 ## Ways to run Adunata
 
