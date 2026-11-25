@@ -150,7 +150,7 @@ describe('response page', () => {
     openLink(() =>
       HttpResponse.json({ ...page, response: { status: 'accepted', arrival: '2027-03-12T18:00', departure: null, beds: 'none', bedCount: null, comment: null } }),
     )
-    const time = (await screen.findByLabelText('Time of arrival')) as HTMLInputElement
+    const time = await screen.findByLabelText<HTMLInputElement>('Time of arrival')
     expect(time.value).toBe('18:00')
     expect(screen.getByRole('button', { name: /Fri, March 12/ })).toBeTruthy()
   })
