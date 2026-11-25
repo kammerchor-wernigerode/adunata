@@ -61,11 +61,11 @@ Local mode for debug runs weakens these rules on `localhost` only, see [ADR 0023
 
 An integration test in [`server/src/api.rs`](../../server/src/api.rs) calls every operation of the OpenAPI document without a session and expects status 401. Only health, catalogs, the legal links, sign-in and sign-out and the routes behind an invitation link are exempt. A new route that forgets the extractor fails this test.
 
-`access` limits sign-in requests to three links per hour per address and 20 requests per hour per network address. Behind a trusted proxy the network address is the rightmost entry of `X-Forwarded-For` that is no trusted proxy.
+`access` limits sign-in requests per mail address and per network address. [ADR 0010](../decisions/0010-sign-in-by-mail-link.md) records both limits. Behind a trusted proxy the network address is the rightmost entry of `X-Forwarded-For` that is no trusted proxy.
 
 ## Personal links
 
-Invitation links and sign-in links follow one rule, see [ADR 0011](../decisions/0011-personal-links-in-the-url-fragment.md). Each carries a random secret of 256 bits in the fragment, such as `/invitation#3f9a…`. The module `secret` creates it and its SHA-256 hash, and only the hash reaches the database. The client reads the fragment and sends the secret only in the header `Authorization: Bearer <secret>`.
+Invitation links and sign-in links follow one rule, see [ADR 0011](../decisions/0011-personal-links-in-the-url-fragment.md). Each carries a random secret of 256 bits in the fragment, such as `/invitation#3f9a…`. The module `secret` creates it and its SHA-256 hash. The rows of invitations, sign-in links and sessions store only the hash. The mail that carries a link holds the secret while it waits in the outbox, see [mail delivery](#mail-delivery). The client reads the fragment and sends the secret only in the header `Authorization: Bearer <secret>`.
 
 The module `invitations` resolves the secret of an invitation through the extractor `PersonalLink`, which the routes of `responses` take as an argument. An unknown or revoked secret fails with status 404 and reveals no gathering or member. Resending and reminding both store the hash of a new secret in place of the old one.
 
