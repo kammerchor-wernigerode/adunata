@@ -48,28 +48,18 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      APP_SECRETS_AVAILABLE: ${{ secrets.CLIENT_DEPENDENCIES_APP_CLIENT_ID != '' }}
     steps:
-      - name: Hash left to the person who pushed
-        if: env.APP_SECRETS_AVAILABLE != 'true'
-        env:
-          HASH: ${{ needs.hash.outputs.hash }}
-        run: echo "::notice::Only runs of Dependabot see the secrets of the App. Write $HASH to client/pnpm-deps.hash."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: env.APP_SECRETS_AVAILABLE == 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         id: token
-        if: env.APP_SECRETS_AVAILABLE == 'true'
         with:
           client-id: ${{ secrets.CLIENT_DEPENDENCIES_APP_CLIENT_ID }}
           private-key: ${{ secrets.CLIENT_DEPENDENCIES_APP_PRIVATE_KEY }}
           permission-contents: write
       - name: Commit and push
-        if: env.APP_SECRETS_AVAILABLE == 'true'
         env:
           HASH: ${{ needs.hash.outputs.hash }}
           BRANCH: ${{ github.head_ref }}
