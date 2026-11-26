@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw'
 import { afterEach, describe, expect, it } from 'vitest'
 import { getCurrentSessionMockHandler, getLegalLinksMockHandler } from '@/api/generated/api.msw'
 import type { Member } from '@/api/generated/model'
-import { renderApp, violations } from '@/testing/app'
+import { renderApp, silenceProvokedErrors, violations } from '@/testing/app'
 import { setupApiServer } from '@/testing/server'
 
 const server = setupApiServer()
@@ -128,6 +128,7 @@ describe('sign-in page', () => {
   })
 
   it('names an unreachable server and offers to try again', async () => {
+    silenceProvokedErrors('fetch failed')
     server.use(getLegalLinksMockHandler({}), http.get('*/api/session', () => HttpResponse.error()))
     renderApp('/members')
     expect(await screen.findByRole('heading', { level: 1, name: 'Page unavailable' })).toBeTruthy()

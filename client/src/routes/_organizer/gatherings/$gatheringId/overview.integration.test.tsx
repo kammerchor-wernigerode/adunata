@@ -16,7 +16,7 @@ import {
 import type { Gathering, Overview, OverviewRow } from '@/api/generated/model'
 import { createBundle, formatMessage } from '@/l10n/bundle'
 import { LocalizationContext } from '@/l10n/translate'
-import { renderApp, violations } from '@/testing/app'
+import { renderApp, silenceProvokedErrors, violations } from '@/testing/app'
 import { setupApiServer } from '@/testing/server'
 import { DownloadOverview } from './-components/DownloadOverview'
 
@@ -88,6 +88,7 @@ async function actionsOf(name: string): Promise<HTMLElement> {
 
 describe('overview', () => {
   it('recovers from a failed overview once the server answers again', async () => {
+    silenceProvokedErrors('The API answered with status 500')
     let failing = true
     organizerPage()
     server.use(http.get('*/api/gatherings/5/overview', () => (failing ? new HttpResponse(null, { status: 500 }) : HttpResponse.json(overview))))
