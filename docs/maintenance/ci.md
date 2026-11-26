@@ -14,7 +14,7 @@ The job `Verdict` needs every other job and fails if one of them failed or was c
 
 ## Workflow `client-dependencies`
 
-The workflow `client-dependencies` writes the hash of the client dependencies to `client/pnpm-deps.hash` on pull requests of Dependabot, so the flake can fetch them. It pushes with the token of a GitHub App, so the push starts CI on the pull request. It writes only in runs that Dependabot starts, because only those see the secrets of the App. [Dependency updates](dependency-updates.md) describes what a maintainer does with the hash.
+The workflow `client-dependencies` writes the hash of the client dependencies to `client/pnpm-deps.hash` on pull requests of Dependabot, so the flake can fetch them. It pushes with the token of a GitHub App, so the push starts CI on the pull request. [Dependency updates](dependency-updates.md) describes what a maintainer does with the hash.
 
 ## Workflow `advisories`
 
