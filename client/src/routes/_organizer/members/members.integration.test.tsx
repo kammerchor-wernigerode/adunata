@@ -9,7 +9,7 @@ import {
   getListMembersMockHandler,
 } from '@/api/generated/api.msw'
 import type { Member } from '@/api/generated/model'
-import { renderApp, violations } from '@/testing/app'
+import { renderApp, silenceProvokedErrors, violations } from '@/testing/app'
 import { setupApiServer } from '@/testing/server'
 
 const server = setupApiServer()
@@ -179,6 +179,7 @@ describe('member list', () => {
   })
 
   it('names a failed load of the list instead of showing an empty list', async () => {
+    silenceProvokedErrors('The API answered with status 500')
     server.use(getLegalLinksMockHandler({}), getCurrentSessionMockHandler(ada), http.get('*/api/members', () => new HttpResponse(null, { status: 500 })))
     renderApp('/members')
     expect(await screen.findByRole('heading', { level: 1, name: 'Page unavailable' })).toBeTruthy()
