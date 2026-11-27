@@ -334,6 +334,7 @@ export function ResponseForm({
                   inputMode="numeric"
                   min={0}
                   max={8}
+                  required
                   className="w-20"
                   value={freeSeats}
                   onChange={(event) => setFreeSeats(event.target.value)}

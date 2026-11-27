@@ -122,6 +122,8 @@ test('organizer invites and a member answers through the personal link', async (
   await member.getByLabel('Time of arrival').fill('18:00')
   await member.getByRole('radio', { name: 'I offer beds' }).check()
   await member.getByLabel('How many?').fill('2')
+  await member.getByRole('radio', { name: 'Yes, by car' }).check()
+  await member.getByLabel('How many seats are free, not counting you?').fill('3')
   await member.getByRole('button', { name: 'Save response' }).click()
   await expect(member.getByRole('status').filter({ hasText: 'Response saved' })).toContainText('18:00')
 
@@ -134,6 +136,7 @@ test('organizer invites and a member answers through the personal link', async (
   await page.reload()
   await expect(page.getByRole('cell', { name: /Ada Lovelace/ })).toBeVisible()
   await expect(page.getByText('offers 2')).toBeVisible()
+  await expect(page.getByText('3 free seats')).toBeVisible()
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme })
     expect(await violations(page), `overview in ${colorScheme} mode`).toEqual([])
