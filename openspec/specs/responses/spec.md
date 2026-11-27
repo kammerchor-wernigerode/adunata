@@ -107,7 +107,7 @@ Adunata SHALL delete comments 30 days and whole responses 365 days after the las
 - **THEN** the responses of that gathering exist without their comments
 
 ### Requirement: Confirmation
-Adunata SHALL confirm a stored response on the page right away. It SHALL send no mail for a response. The confirmation and the read-only view of a member's own response SHALL show the car with its free seats, or that the member arrives without a car.
+Adunata SHALL confirm a stored response on the page right away. It SHALL send no mail for a response. The confirmation and the read-only view of a member's own response SHALL show the car with its free seats, or that the member arrives without a car. They SHALL show nothing about a car for a response without a statement about a car, such as a decline.
 
 #### Scenario: Save a response
 - **WHEN** a member saves a response
