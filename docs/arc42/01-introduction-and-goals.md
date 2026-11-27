@@ -1,6 +1,6 @@
 # Introduction and goals
 
-Adunata is a web application for choirs and instrumental ensembles. Organizers invite members to gatherings, such as a rehearsal weekend, a rehearsal camp during the week or a concert. Members reply whether and when they attend and whether they need or offer a bed. Ensembles install Adunata on their own servers.
+Adunata is a web application for choirs and instrumental ensembles. Organizers invite members to gatherings, such as a rehearsal weekend, a rehearsal camp during the week or a concert. Members reply whether and when they attend, whether they need or offer a bed and whether they come by car. Ensembles install Adunata on their own servers.
 
 ## Requirements overview
 

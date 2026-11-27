@@ -85,7 +85,7 @@ sequenceDiagram
   invitations->>gatherings: loads the gathering
   responses->>responses: decides from the date of the instance whether the member can answer
   responses-->>Client: gathering, state, stored response and attendees
-  Member->>Client: chooses status, period, beds and comment
+  Member->>Client: chooses status, period, beds, car and comment
   Client->>responses: PUT /api/invitation/response
   responses->>responses: validates against the days of the gathering and stores
   responses-->>Client: 200 with the stored values, announced on the page

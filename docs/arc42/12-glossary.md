@@ -15,7 +15,7 @@
 |Period of presence|When a member who comes arrives and leaves, as wall-clock times of the instance in steps of 30 minutes within the days of a gathering. Without a stated period the member is present for the whole gathering.|
 |Tentative|The status of a member who will probably come but cannot promise it yet. Tentative attendees count separately from those who accepted.|
 |Retention period|The number of days after the last day of a gathering for which Adunata keeps comments or responses. Operators set each period or keep the data.|
-|Response|A member's answer to an invitation, with status, period of presence, beds and comment.|
+|Response|A member's answer to an invitation, with status, period of presence, beds, car and comment.|
 |Project|A term many ensembles use for a series of gatherings that leads to a concert, such as a Christmas project. Adunata does not model projects. A project is never a gathering.|
 |Instance|One installation of Adunata, run by one ensemble.|
 |Operator|The person who installs, configures and updates an instance.|
@@ -26,6 +26,7 @@
 |Revocation|The act of an organizer that makes a personal link invalid without sending a new one.|
 |Deadline for responses|The optional number of days before the first day of a gathering after which a member can only decline.|
 |Beds|Whether a member who comes needs beds, offers beds or needs none, with their number.|
+|Car|Whether a member who comes arrives by car, and with a car the free seats from 0 to 8, not counting the driver. Only organizers see it.|
 |Calendar file|The file in iCalendar format that describes a gathering. Members download it from the response page and receive it with mail about the gathering.|
 |Local mode|The mode of `adunata serve --local` for debug runs on `localhost`, which writes sign-in links to the log.|
 |Mail confinement|The state in which Adunata sends every mail to one redirect address instead of its recipient. Two settings turn it on, and only `adunata serve --dev` accepts them.|
