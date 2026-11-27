@@ -25,6 +25,10 @@ export interface OverviewRow {
   /** @nullable */
   bedCount?: number | null;
   /** @nullable */
+  car?: boolean | null;
+  /** @nullable */
+  freeSeats?: number | null;
+  /** @nullable */
   comment?: string | null;
   changedBy?: ChangedBy | null;
   /**

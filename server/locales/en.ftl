@@ -146,6 +146,8 @@ overview-total-declined = Declined
 overview-total-pending = Pending
 overview-beds-needed = Beds needed
 overview-beds-offered = Beds offered
+overview-cars = Cars
+overview-free-seats-total = Free seats
 overview-bed-even = as many as needed
 overview-bed-surplus = { $count ->
         [one] one more than needed
@@ -181,6 +183,7 @@ overview-column-name = Name
 overview-column-status = Status
 overview-column-period = Period
 overview-column-beds = Beds
+overview-column-car = Car
 overview-column-comment = Comment
 overview-column-actions = Actions
 overview-beds-need = { $count ->
@@ -190,6 +193,11 @@ overview-beds-need = { $count ->
 overview-beds-offer = { $count ->
         [one] offers one
        *[other] offers { $count }
+    }
+overview-car-none = no car
+overview-free-seats = { $count ->
+        [one] one free seat
+       *[other] { $count } free seats
     }
 overview-whole-gathering = whole gathering
 overview-period = { $arrival } to { $departure }
@@ -203,6 +211,7 @@ overview-csv-arrival = Arrival
 overview-csv-departure = Departure
 overview-csv-beds-needed = Beds needed
 overview-csv-beds-offered = Beds offered
+overview-csv-free-seats = Free seats
 overview-csv-comment = Comment
 overview-download = Download CSV
 overview-download-notice = The file holds personal data. Adunata does not delete it, so delete it once you no longer need it.
@@ -230,6 +239,11 @@ response-beds-need = I need a bed
 response-beds-offer = I offer beds
 response-beds-none = Neither
 response-bed-count = How many?
+response-car = Do you come by car?
+response-car-yes = Yes, by car
+response-car-no = No car
+response-free-seats = How many seats are free, not counting you?
+response-car-hint = Only organizers see your car and free seats.
 response-comment = Comment
 response-comment-hint = Only organizers read your comment.
 response-save = Save response
@@ -248,6 +262,8 @@ response-error-deadline-passed = The deadline for responses has passed, so you c
 response-error-beds = Choose whether you need or offer beds.
 response-error-bed-count = State how many beds, from 1 to 20.
 response-error-bed-count-too-large = State at most 20 beds.
+response-error-car = Choose whether you come by car.
+response-error-free-seats = State the free seats, from 0 to 8.
 response-error-comment-too-long = The comment can have at most 2000 characters.
 response-error-departure-before-arrival = Departure cannot lie before arrival.
 response-error-time = Choose a time within the days of the gathering in steps of 30 minutes.

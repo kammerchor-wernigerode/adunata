@@ -74,6 +74,14 @@ export function Overview({ gathering }: { gathering: Gathering }) {
             {bedBalance(translate, totals.bedsOffered - totals.bedsNeeded)}
           </dd>
         </div>
+        <div className="px-3 py-2 shadow-[-1px_0_0_var(--border)]">
+          <dt className="text-sm text-muted-foreground">{translate('overview-cars')}</dt>
+          <dd className="font-heading text-2xl font-semibold tabular-nums">{totals.cars}</dd>
+        </div>
+        <div className="px-3 py-2 shadow-[-1px_0_0_var(--border)]">
+          <dt className="text-sm text-muted-foreground">{translate('overview-free-seats-total')}</dt>
+          <dd className="font-heading text-2xl font-semibold tabular-nums">{totals.freeSeats}</dd>
+        </div>
       </dl>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <ToggleGroup

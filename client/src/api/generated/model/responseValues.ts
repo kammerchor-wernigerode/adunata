@@ -24,6 +24,18 @@ export interface ResponseValues {
      */
   bedCount?: number | null;
   /**
+     * Whether the member comes by car. Null when the response holds no statement.
+     * @nullable
+     */
+  car?: boolean | null;
+  /**
+     * Free seats in the car, not counting the driver.
+     * @minimum 0
+     * @maximum 8
+     * @nullable
+     */
+  freeSeats?: number | null;
+  /**
      * @maxLength 2000
      * @nullable
      */

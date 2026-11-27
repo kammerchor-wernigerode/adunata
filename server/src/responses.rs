@@ -28,6 +28,7 @@ time::serde::format_description!(
 );
 
 const MAX_BEDS: i16 = 20;
+const MAX_FREE_SEATS: i16 = 8;
 const MAX_COMMENT_LENGTH: usize = 2000;
 const STEP_MINUTES: u8 = 30;
 
@@ -76,6 +77,13 @@ pub struct ResponseValues {
     #[serde(default)]
     #[schema(minimum = 1, maximum = 20)]
     pub bed_count: Option<i16>,
+    /// Whether the member comes by car. Null when the response holds no statement.
+    #[serde(default)]
+    pub car: Option<bool>,
+    /// Free seats in the car, not counting the driver.
+    #[serde(default)]
+    #[schema(minimum = 0, maximum = 8)]
+    pub free_seats: Option<i16>,
     #[serde(default)]
     #[schema(max_length = 2000)]
     pub comment: Option<String>,
@@ -95,6 +103,12 @@ impl ResponseValues {
                 None
             } else {
                 self.bed_count
+            },
+            car: if declined { None } else { self.car },
+            free_seats: if declined || self.car != Some(true) {
+                None
+            } else {
+                self.free_seats
             },
             comment: self
                 .comment
@@ -130,6 +144,14 @@ impl ResponseValues {
                     if !(1..=MAX_BEDS).contains(&count) =>
                 {
                     errors.push(field_error("bedCount", ErrorCode::TooLarge));
+                }
+                _ => {}
+            }
+            match (self.car, self.free_seats) {
+                (None, _) => errors.push(field_error("car", ErrorCode::Required)),
+                (Some(true), None) => errors.push(field_error("freeSeats", ErrorCode::Required)),
+                (Some(true), Some(seats)) if !(0..=MAX_FREE_SEATS).contains(&seats) => {
+                    errors.push(field_error("freeSeats", ErrorCode::Invalid));
                 }
                 _ => {}
             }
@@ -201,7 +223,7 @@ async fn store(
     changed_by: ChangedBy,
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
-        "INSERT INTO responses (invitation_id, status, arrival, departure, beds, bed_count, comment, changed_by, changed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now()) ON CONFLICT (invitation_id) DO UPDATE SET status = $2, arrival = $3, departure = $4, beds = $5, bed_count = $6, comment = $7, changed_by = $8, changed_at = now()",
+        "INSERT INTO responses (invitation_id, status, arrival, departure, beds, bed_count, car, free_seats, comment, changed_by, changed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now()) ON CONFLICT (invitation_id) DO UPDATE SET status = $2, arrival = $3, departure = $4, beds = $5, bed_count = $6, car = $7, free_seats = $8, comment = $9, changed_by = $10, changed_at = now()",
     )
     .bind(invitation_id)
     .bind(values.status)
@@ -209,6 +231,8 @@ async fn store(
     .bind(values.departure)
     .bind(values.beds)
     .bind(values.bed_count)
+    .bind(values.car)
+    .bind(values.free_seats)
     .bind(&values.comment)
     .bind(changed_by)
     .execute(connection)
@@ -222,7 +246,7 @@ async fn stored(
     invitation_id: i64,
 ) -> Result<Option<ResponseValues>, sqlx::Error> {
     sqlx::query_as(
-        "SELECT status, arrival, departure, beds, bed_count, comment FROM responses WHERE invitation_id = $1",
+        "SELECT status, arrival, departure, beds, bed_count, car, free_seats, comment FROM responses WHERE invitation_id = $1",
     )
     .bind(invitation_id)
     .fetch_optional(connection)
@@ -287,7 +311,7 @@ pub struct Attendee {
     pub status: ResponseStatus,
 }
 
-/// What invited members see of each other. Names and status for those who come, counts for everyone else, and never a period, beds, comment or mail address.
+/// What invited members see of each other. Names and status for those who come, counts for everyone else, and never a period, beds, car, free seats, comment or mail address.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Attendees {
@@ -355,6 +379,8 @@ pub struct OverviewRow {
     pub departure: Option<PrimitiveDateTime>,
     pub beds: Option<Beds>,
     pub bed_count: Option<i16>,
+    pub car: Option<bool>,
+    pub free_seats: Option<i16>,
     pub comment: Option<String>,
     pub changed_by: Option<ChangedBy>,
     /// When the response changed last, as wall-clock time of the instance.
@@ -367,7 +393,7 @@ pub struct OverviewRow {
     pub mail: Option<MailState>,
 }
 
-/// Counts per status and the beds that attending members need and offer.
+/// Counts per status, the beds that attending members need and offer, and their cars with free seats.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Totals {
@@ -377,6 +403,8 @@ pub struct Totals {
     pub pending: i64,
     pub beds_needed: i64,
     pub beds_offered: i64,
+    pub cars: i64,
+    pub free_seats: i64,
 }
 
 /// Everything organizers plan a gathering with.
@@ -394,6 +422,8 @@ struct StoredResponse {
     departure: Option<PrimitiveDateTime>,
     beds: Option<Beds>,
     bed_count: Option<i16>,
+    car: Option<bool>,
+    free_seats: Option<i16>,
     comment: Option<String>,
     changed_by: ChangedBy,
     changed_at: time::OffsetDateTime,
@@ -432,7 +462,7 @@ async fn build_overview(
     };
     let invitations = invitations::of_gathering(connection, gathering_id).await?;
     let responses: std::collections::HashMap<i64, StoredResponse> = sqlx::query_as::<_, StoredResponse>(
-        "SELECT responses.invitation_id, status, arrival, departure, beds, bed_count, comment, changed_by, changed_at FROM responses JOIN invitations ON invitations.id = responses.invitation_id WHERE invitations.gathering_id = $1",
+        "SELECT responses.invitation_id, status, arrival, departure, beds, bed_count, car, free_seats, comment, changed_by, changed_at FROM responses JOIN invitations ON invitations.id = responses.invitation_id WHERE invitations.gathering_id = $1",
     )
     .bind(gathering_id)
     .fetch_all(connection)
@@ -460,6 +490,8 @@ async fn build_overview(
                 departure: response.and_then(|response| response.departure),
                 beds: response.and_then(|response| response.beds),
                 bed_count: response.and_then(|response| response.bed_count),
+                car: response.and_then(|response| response.car),
+                free_seats: response.and_then(|response| response.free_seats),
                 comment: response.and_then(|response| response.comment.clone()),
                 changed_by: response.map(|response| response.changed_by),
                 changed_at: response
@@ -488,7 +520,7 @@ struct CsvLanguage {
     language: Option<String>,
 }
 
-const CSV_HEADINGS: [&str; 8] = [
+const CSV_HEADINGS: [&str; 9] = [
     "overview-csv-last-name",
     "overview-csv-first-name",
     "overview-csv-status",
@@ -496,6 +528,7 @@ const CSV_HEADINGS: [&str; 8] = [
     "overview-csv-departure",
     "overview-csv-beds-needed",
     "overview-csv-beds-offered",
+    "overview-csv-free-seats",
     "overview-csv-comment",
 ];
 
@@ -566,6 +599,9 @@ fn csv(rows: &[OverviewRow], language: &str) -> String {
                 csv_time(row.departure),
                 beds(Beds::Need),
                 beds(Beds::Offer),
+                row.free_seats
+                    .map(|seats| seats.to_string())
+                    .unwrap_or_default(),
                 row.comment.clone().unwrap_or_default(),
             ],
         );
@@ -592,7 +628,7 @@ fn csv_time(time: Option<PrimitiveDateTime>) -> String {
     .unwrap_or_default()
 }
 
-fn push_record(file: &mut String, cells: [String; 8]) {
+fn push_record(file: &mut String, cells: [String; 9]) {
     let cells = cells.map(|cell| csv_cell(&cell));
     file.push_str(&cells.join(","));
     file.push_str("\r\n");
@@ -654,6 +690,10 @@ fn count(totals: &mut Totals, row: &OverviewRow) {
         Some(Beds::Need) => totals.beds_needed += count,
         Some(Beds::Offer) => totals.beds_offered += count,
         _ => {}
+    }
+    if row.car == Some(true) {
+        totals.cars += 1;
+        totals.free_seats += i64::from(row.free_seats.unwrap_or(0));
     }
 }
 
@@ -870,6 +910,8 @@ mod tests {
             departure: None,
             beds: None,
             bed_count: None,
+            car: None,
+            free_seats: None,
             comment: None,
             changed_by: None,
             changed_at: None,
@@ -895,12 +937,13 @@ mod tests {
             departure: Some(datetime!(2027-03-16 15:00)),
             beds: Some(Beds::Need),
             bed_count: Some(2),
+            car: Some(false),
             comment: Some("vegan".to_owned()),
             ..row("Becker", "Anna")
         };
         assert_eq!(
             records(&[anna], "en")[1],
-            "Becker,Anna,Accepted,2027-03-14 18:00,2027-03-16 15:00,2,,vegan"
+            "Becker,Anna,Accepted,2027-03-14 18:00,2027-03-16 15:00,2,,,vegan"
         );
     }
 
@@ -912,14 +955,26 @@ mod tests {
             bed_count: Some(3),
             ..row("Kraus", "Felix")
         };
-        assert_eq!(records(&[felix], "en")[1], "Kraus,Felix,Accepted,,,,3,");
+        assert_eq!(records(&[felix], "en")[1], "Kraus,Felix,Accepted,,,,3,,");
+    }
+
+    #[test]
+    fn full_car() {
+        let lena = OverviewRow {
+            status: InvitationStatus::Accepted,
+            beds: Some(Beds::None),
+            car: Some(true),
+            free_seats: Some(0),
+            ..row("Vogt", "Lena")
+        };
+        assert_eq!(records(&[lena], "en")[1], "Vogt,Lena,Accepted,,,,,0,");
     }
 
     #[test]
     fn pending_invitation() {
         assert_eq!(
             records(&[row("Graf", "Sophie")], "en")[1],
-            "Graf,Sophie,Pending,,,,,"
+            "Graf,Sophie,Pending,,,,,,"
         );
     }
 
@@ -933,7 +988,7 @@ mod tests {
         };
         assert_eq!(
             records(&[ben], "en")[1],
-            "Kraus,Ben,Accepted,2027-03-14 18:00,,,,"
+            "Kraus,Ben,Accepted,2027-03-14 18:00,,,,,"
         );
     }
 
@@ -946,13 +1001,13 @@ mod tests {
         assert_eq!(
             records(std::slice::from_ref(&accepted), "de"),
             [
-                "Nachname,Vorname,Status,Ankunft,Abreise,Betten gesucht,Betten angeboten,Kommentar",
-                "Becker,Anna,Zugesagt,,,,,"
+                "Nachname,Vorname,Status,Ankunft,Abreise,Betten gesucht,Betten angeboten,Freie Plätze,Kommentar",
+                "Becker,Anna,Zugesagt,,,,,,"
             ]
         );
         let english = [
-            "Last name,First name,Status,Arrival,Departure,Beds needed,Beds offered,Comment",
-            "Becker,Anna,Accepted,,,,,",
+            "Last name,First name,Status,Arrival,Departure,Beds needed,Beds offered,Free seats,Comment",
+            "Becker,Anna,Accepted,,,,,,",
         ];
         assert_eq!(records(std::slice::from_ref(&accepted), "en"), english);
         assert_eq!(records(&[accepted], "fr"), english);
@@ -962,7 +1017,7 @@ mod tests {
     fn byte_order_mark_and_line_ends() {
         let file = csv(&[row("Graf", "Sophie")], "en");
         assert_eq!(&file.as_bytes()[..3], [0xEF, 0xBB, 0xBF]);
-        assert!(file.ends_with("Pending,,,,,\r\n"), "{file}");
+        assert!(file.ends_with("Pending,,,,,,\r\n"), "{file}");
         assert_eq!(file.matches("\r\n").count(), 2);
     }
 
@@ -1097,7 +1152,7 @@ mod integration {
 
     async fn row(pool: &PgPool) -> Value {
         let text: String = sqlx::query_scalar(
-            "SELECT row_to_json(stored)::text FROM (SELECT status, to_char(arrival, 'YYYY-MM-DD\"T\"HH24:MI') AS arrival, to_char(departure, 'YYYY-MM-DD\"T\"HH24:MI') AS departure, beds, bed_count AS \"bedCount\", comment, changed_by AS \"changedBy\" FROM responses) stored",
+            "SELECT row_to_json(stored)::text FROM (SELECT status, to_char(arrival, 'YYYY-MM-DD\"T\"HH24:MI') AS arrival, to_char(departure, 'YYYY-MM-DD\"T\"HH24:MI') AS departure, beds, bed_count AS \"bedCount\", car, free_seats AS \"freeSeats\", comment, changed_by AS \"changedBy\" FROM responses) stored",
         )
         .fetch_one(pool)
         .await
@@ -1117,8 +1172,7 @@ mod integration {
         let pool = database.pool();
         let secret = invited(&pool, 10, 12).await;
         let day = first_day(&pool).await;
-        let body =
-            json!({ "status": "accepted", "arrival": format!("{day}T18:00"), "beds": "none" });
+        let body = json!({ "status": "accepted", "arrival": format!("{day}T18:00"), "beds": "none", "car": false });
         let (status, stored) = answer(&pool, &secret, &body).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(stored["arrival"], format!("{day}T18:00"));
@@ -1132,7 +1186,7 @@ mod integration {
         let pool = database.pool();
         let secret = invited(&pool, 10, 12).await;
         let day = first_day(&pool).await;
-        let body = json!({ "status": "declined", "arrival": format!("{day}T18:00"), "beds": "need", "bedCount": 2 });
+        let body = json!({ "status": "declined", "arrival": format!("{day}T18:00"), "beds": "need", "bedCount": 2, "car": true, "freeSeats": 3 });
         assert_eq!(answer(&pool, &secret, &body).await.0, StatusCode::OK);
         let stored = row(&pool).await;
         assert_eq!(stored["status"], "declined");
@@ -1140,9 +1194,17 @@ mod integration {
             (
                 stored["arrival"].clone(),
                 stored["beds"].clone(),
-                stored["bedCount"].clone()
+                stored["bedCount"].clone(),
+                stored["car"].clone(),
+                stored["freeSeats"].clone()
             ),
-            (Value::Null, Value::Null, Value::Null)
+            (
+                Value::Null,
+                Value::Null,
+                Value::Null,
+                Value::Null,
+                Value::Null
+            )
         );
     }
 
@@ -1158,7 +1220,7 @@ mod integration {
         let errors = rejected(
             &pool,
             &secret,
-            json!({ "status": "accepted", "arrival": format!("{before}T18:00"), "beds": "none" }),
+            json!({ "status": "accepted", "arrival": format!("{before}T18:00"), "beds": "none", "car": false }),
         )
         .await;
         assert_eq!(
@@ -1173,7 +1235,7 @@ mod integration {
         let pool = database.pool();
         let secret = invited(&pool, 10, 12).await;
         let day = first_day(&pool).await;
-        let errors = rejected(&pool, &secret, json!({ "status": "accepted", "arrival": format!("{day}T18:00"), "departure": format!("{day}T17:30"), "beds": "none" })).await;
+        let errors = rejected(&pool, &secret, json!({ "status": "accepted", "arrival": format!("{day}T18:00"), "departure": format!("{day}T17:30"), "beds": "none", "car": false })).await;
         assert_eq!(
             errors,
             json!({ "errors": [{ "field": "departure", "code": "beforeArrival" }] })
@@ -1189,7 +1251,7 @@ mod integration {
         let errors = rejected(
             &pool,
             &secret,
-            json!({ "status": "accepted", "arrival": format!("{day}T18:10"), "beds": "none" }),
+            json!({ "status": "accepted", "arrival": format!("{day}T18:10"), "beds": "none", "car": false }),
         )
         .await;
         assert_eq!(
@@ -1207,7 +1269,7 @@ mod integration {
             answer(
                 &pool,
                 &secret,
-                &json!({ "status": "tentative", "beds": "offer", "bedCount": 2 })
+                &json!({ "status": "tentative", "beds": "offer", "bedCount": 2, "car": false })
             )
             .await
             .0,
@@ -1228,7 +1290,7 @@ mod integration {
         let errors = rejected(
             &pool,
             &secret,
-            json!({ "status": "accepted", "beds": "need" }),
+            json!({ "status": "accepted", "beds": "need", "car": false }),
         )
         .await;
         assert_eq!(
@@ -1245,7 +1307,7 @@ mod integration {
         let errors = rejected(
             &pool,
             &secret,
-            json!({ "status": "accepted", "beds": "offer", "bedCount": 21 }),
+            json!({ "status": "accepted", "beds": "offer", "bedCount": 21, "car": false }),
         )
         .await;
         assert_eq!(
@@ -1287,7 +1349,12 @@ mod integration {
         let database = fresh_database().await;
         let pool = database.pool();
         let secret = invited(&pool, 10, 12).await;
-        let errors = rejected(&pool, &secret, json!({ "status": "accepted" })).await;
+        let errors = rejected(
+            &pool,
+            &secret,
+            json!({ "status": "accepted", "car": false }),
+        )
+        .await;
         assert_eq!(
             errors,
             json!({ "errors": [{ "field": "beds", "code": "required" }] })
@@ -1332,7 +1399,7 @@ mod integration {
         let database = fresh_database().await;
         let pool = database.pool();
         let secret = invited(&pool, 10, 12).await;
-        answer(&pool, &secret, &json!({ "status": "tentative", "beds": "need", "bedCount": 1, "comment": "Vielleicht später" })).await;
+        answer(&pool, &secret, &json!({ "status": "tentative", "beds": "need", "bedCount": 1, "car": false, "comment": "Vielleicht später" })).await;
         let (_, page) = open(&pool, Some(&secret)).await;
         assert_eq!(page["response"]["status"], "tentative");
         assert_eq!(page["response"]["bedCount"], 1);
@@ -1340,7 +1407,7 @@ mod integration {
         let (status, _) = answer(
             &pool,
             &secret,
-            &json!({ "status": "accepted", "beds": "need", "bedCount": 1 }),
+            &json!({ "status": "accepted", "beds": "need", "bedCount": 1, "car": false }),
         )
         .await;
         assert_eq!(status, StatusCode::OK);
@@ -1355,7 +1422,7 @@ mod integration {
         answer(
             &pool,
             &secret,
-            &json!({ "status": "accepted", "beds": "none" }),
+            &json!({ "status": "accepted", "beds": "none", "car": false }),
         )
         .await;
         move_start(&pool, 0, 2).await;
@@ -1375,8 +1442,11 @@ mod integration {
         let pool = database.pool();
         invited(&pool, 10, 12).await;
         move_start(&pool, -1, 1).await;
-        let (status, _) =
-            answer_as_organizer(&pool, &json!({ "status": "accepted", "beds": "none" })).await;
+        let (status, _) = answer_as_organizer(
+            &pool,
+            &json!({ "status": "accepted", "beds": "none", "car": false }),
+        )
+        .await;
         assert_eq!(status, StatusCode::OK);
         let stored = row(&pool).await;
         assert_eq!(
@@ -1392,7 +1462,7 @@ mod integration {
         let secret = invited(&pool, 10, 12).await;
         answer_as_organizer(
             &pool,
-            &json!({ "status": "tentative", "beds": "offer", "bedCount": 3 }),
+            &json!({ "status": "tentative", "beds": "offer", "bedCount": 3, "car": false }),
         )
         .await;
         let (_, page) = open(&pool, Some(&secret)).await;
@@ -1572,10 +1642,10 @@ mod integration {
         assert_eq!(
             records,
             [
-                "\u{feff}Nachname,Vorname,Status,Ankunft,Abreise,Betten gesucht,Betten angeboten,Kommentar",
-                "Tester,Anna,Zugesagt,,,,,",
-                "Tester,Ben,Offen,,,,,",
-                "Tester,Clara,Offen,,,,,",
+                "\u{feff}Nachname,Vorname,Status,Ankunft,Abreise,Betten gesucht,Betten angeboten,Freie Plätze,Kommentar",
+                "Tester,Anna,Zugesagt,,,,,,",
+                "Tester,Ben,Offen,,,,,,",
+                "Tester,Clara,Offen,,,,,,",
             ]
         );
     }
@@ -1589,7 +1659,7 @@ mod integration {
             let (status, _, file) = download(&pool, query, true).await;
             assert_eq!(status, StatusCode::OK);
             assert!(
-                file.starts_with("\u{feff}Last name,First name,Status,Arrival,Departure,Beds needed,Beds offered,Comment\r\n"),
+                file.starts_with("\u{feff}Last name,First name,Status,Arrival,Departure,Beds needed,Beds offered,Free seats,Comment\r\n"),
                 "{query}: {file}"
             );
         }
@@ -1655,7 +1725,7 @@ mod integration {
         let overview = overview_of(&pool).await;
         assert_eq!(
             overview["totals"],
-            json!({ "accepted": 3, "tentative": 0, "declined": 1, "pending": 1, "bedsNeeded": 2, "bedsOffered": 3 })
+            json!({ "accepted": 3, "tentative": 0, "declined": 1, "pending": 1, "bedsNeeded": 2, "bedsOffered": 3, "cars": 0, "freeSeats": 0 })
         );
         let anna = overview["rows"]
             .as_array()
@@ -1677,6 +1747,224 @@ mod integration {
     }
 
     #[tokio::test]
+    async fn plan_rides() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        gathering_with(
+            &pool,
+            &[
+                ("Anna", None, None),
+                ("Ben", None, None),
+                ("Felix", None, None),
+                ("Moritz", Some("accepted"), None),
+            ],
+        )
+        .await;
+        for (name, car, seats) in [
+            ("Anna", true, Some(3_i16)),
+            ("Ben", true, Some(0)),
+            ("Felix", false, None),
+        ] {
+            sqlx::query("INSERT INTO responses (invitation_id, status, beds, car, free_seats, changed_by) SELECT invitations.id, 'accepted', 'none', $2, $3, 'member' FROM invitations JOIN members ON members.id = invitations.member_id WHERE members.first_name = $1")
+                .bind(name)
+                .bind(car)
+                .bind(seats)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let overview = overview_of(&pool).await;
+        assert_eq!(
+            (
+                overview["totals"]["cars"].clone(),
+                overview["totals"]["freeSeats"].clone()
+            ),
+            (json!(2), json!(3))
+        );
+        let car_of = |name: &str| {
+            let row = overview["rows"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["firstName"] == name)
+                .unwrap();
+            (row["car"].clone(), row["freeSeats"].clone())
+        };
+        assert_eq!(car_of("Anna"), (json!(true), json!(3)));
+        assert_eq!(car_of("Ben"), (json!(true), json!(0)));
+        assert_eq!(car_of("Felix"), (json!(false), Value::Null));
+        assert_eq!(car_of("Moritz"), (Value::Null, Value::Null));
+    }
+
+    #[tokio::test]
+    async fn car_of_another_member() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = gathering_with(&pool, &[("Anna", None, None)]).await;
+        sqlx::query("INSERT INTO responses (invitation_id, status, beds, car, free_seats, changed_by) SELECT invitations.id, 'accepted', 'none', true, 4, 'member' FROM invitations JOIN members ON members.id = invitations.member_id WHERE members.first_name = 'Anna'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let (_, page) = open(&pool, Some(&secret)).await;
+        let attendees = page["attendees"].to_string();
+        assert!(!attendees.contains("car"), "{attendees}");
+        assert!(!attendees.contains("freeSeats"), "{attendees}");
+        assert_eq!(page["response"], Value::Null);
+    }
+
+    #[tokio::test]
+    async fn car_with_free_seats() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        for (status, seats) in [("accepted", 3), ("tentative", 0)] {
+            let body = json!({ "status": status, "beds": "none", "car": true, "freeSeats": seats });
+            assert_eq!(answer(&pool, &secret, &body).await.0, StatusCode::OK);
+            let stored = row(&pool).await;
+            assert_eq!(
+                (stored["car"].clone(), stored["freeSeats"].clone()),
+                (json!(true), json!(seats))
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn no_car_drops_the_count() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        let body = json!({ "status": "accepted", "beds": "none", "car": false, "freeSeats": 2 });
+        assert_eq!(answer(&pool, &secret, &body).await.0, StatusCode::OK);
+        let stored = row(&pool).await;
+        assert_eq!(
+            (stored["car"].clone(), stored["freeSeats"].clone()),
+            (json!(false), Value::Null)
+        );
+    }
+
+    #[tokio::test]
+    async fn coming_without_a_car_answer() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        let errors = rejected(
+            &pool,
+            &secret,
+            json!({ "status": "accepted", "beds": "none" }),
+        )
+        .await;
+        assert_eq!(
+            errors,
+            json!({ "errors": [{ "field": "car", "code": "required" }] })
+        );
+    }
+
+    #[tokio::test]
+    async fn car_without_a_count() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        let errors = rejected(
+            &pool,
+            &secret,
+            json!({ "status": "accepted", "beds": "none", "car": true }),
+        )
+        .await;
+        assert_eq!(
+            errors,
+            json!({ "errors": [{ "field": "freeSeats", "code": "required" }] })
+        );
+    }
+
+    #[tokio::test]
+    async fn count_out_of_range() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        for seats in [9, -1] {
+            let errors = rejected(
+                &pool,
+                &secret,
+                json!({ "status": "accepted", "beds": "none", "car": true, "freeSeats": seats }),
+            )
+            .await;
+            assert_eq!(
+                errors,
+                json!({ "errors": [{ "field": "freeSeats", "code": "invalid" }] })
+            );
+        }
+        let stored: i64 = sqlx::query_scalar("SELECT count(*) FROM responses")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(stored, 0);
+    }
+
+    #[tokio::test]
+    async fn response_from_before_the_change() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        let secret = invited(&pool, 10, 12).await;
+        sqlx::query("INSERT INTO responses (invitation_id, status, beds, changed_by) SELECT id, 'accepted', 'none', 'member' FROM invitations")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let (_, page) = open(&pool, Some(&secret)).await;
+        assert_eq!(page["response"]["car"], Value::Null);
+        let errors = rejected(
+            &pool,
+            &secret,
+            json!({ "status": "accepted", "beds": "none" }),
+        )
+        .await;
+        assert_eq!(
+            errors,
+            json!({ "errors": [{ "field": "car", "code": "required" }] })
+        );
+    }
+
+    #[tokio::test]
+    async fn organizer_states_the_car() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        invited(&pool, 10, 12).await;
+        let (status, _) = answer_as_organizer(
+            &pool,
+            &json!({ "status": "accepted", "beds": "none", "car": true, "freeSeats": 2 }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let stored = row(&pool).await;
+        assert_eq!(
+            (stored["car"].clone(), stored["freeSeats"].clone()),
+            (json!(true), json!(2))
+        );
+    }
+
+    #[tokio::test]
+    async fn database_refuses_a_car_that_contradicts_the_response() {
+        let database = fresh_database().await;
+        let pool = database.pool();
+        invited(&pool, 10, 12).await;
+        for (status, beds, car, seats) in [
+            ("declined", None, Some(true), Some(2_i16)),
+            ("declined", None, Some(false), None),
+            ("accepted", Some("none"), Some(false), Some(2)),
+            ("accepted", Some("none"), Some(true), None),
+            ("accepted", Some("none"), Some(true), Some(9)),
+        ] {
+            let result = sqlx::query("INSERT INTO responses (invitation_id, status, beds, car, free_seats, changed_by) SELECT id, $1, $2, $3, $4, 'member' FROM invitations")
+                .bind(status)
+                .bind(beds)
+                .bind(car)
+                .bind(seats)
+                .execute(&pool)
+                .await;
+            assert!(result.is_err(), "{status} {car:?} {seats:?}");
+        }
+    }
+
+    #[tokio::test]
     async fn no_period_stated() {
         let database = fresh_database().await;
         let pool = database.pool();
@@ -1684,7 +1972,7 @@ mod integration {
         answer(
             &pool,
             &secret,
-            &json!({ "status": "accepted", "beds": "none" }),
+            &json!({ "status": "accepted", "beds": "none", "car": false }),
         )
         .await;
         let overview = overview_of(&pool).await;
@@ -1708,7 +1996,7 @@ mod integration {
         answer(
             &pool,
             &secret,
-            &json!({ "status": "accepted", "arrival": format!("{day}T18:00"), "beds": "none" }),
+            &json!({ "status": "accepted", "arrival": format!("{day}T18:00"), "beds": "none", "car": false }),
         )
         .await;
         let organizer: i64 = sqlx::query_scalar("SELECT id FROM members WHERE organizer")
@@ -1987,7 +2275,7 @@ mod integration {
         let body = if status == "declined" {
             json!({ "status": status })
         } else {
-            json!({ "status": status, "beds": "none" })
+            json!({ "status": status, "beds": "none", "car": false })
         };
         assert_eq!(answer(pool, secret, &body).await.0, StatusCode::OK);
     }
@@ -2173,7 +2461,7 @@ mod integration {
         let (status, _) = answer(
             &pool,
             &secret,
-            &json!({ "status": "accepted", "beds": "none" }),
+            &json!({ "status": "accepted", "beds": "none", "car": false }),
         )
         .await;
         assert_eq!(status, StatusCode::OK);
@@ -2188,7 +2476,7 @@ mod integration {
         answer(
             &pool,
             &secret,
-            &json!({ "status": "accepted", "beds": "none" }),
+            &json!({ "status": "accepted", "beds": "none", "car": false }),
         )
         .await;
         set_deadline(&pool, 10).await;
@@ -2206,7 +2494,7 @@ mod integration {
         answer(
             &pool,
             &secret,
-            &json!({ "status": "accepted", "beds": "none" }),
+            &json!({ "status": "accepted", "beds": "none", "car": true, "freeSeats": 3 }),
         )
         .await;
         set_deadline(&pool, 10).await;
@@ -2222,9 +2510,17 @@ mod integration {
             (
                 stored["status"].clone(),
                 stored["comment"].clone(),
-                stored["changedBy"].clone()
+                stored["changedBy"].clone(),
+                stored["car"].clone(),
+                stored["freeSeats"].clone()
             ),
-            (json!("declined"), json!("Krank"), json!("member"))
+            (
+                json!("declined"),
+                json!("Krank"),
+                json!("member"),
+                Value::Null,
+                Value::Null
+            )
         );
     }
 
@@ -2247,8 +2543,12 @@ mod integration {
         answer(&pool, &secret, &json!({ "status": "declined" })).await;
         set_deadline(&pool, 10).await;
         for status in ["accepted", "tentative"] {
-            let errors =
-                rejected(&pool, &secret, json!({ "status": status, "beds": "none" })).await;
+            let errors = rejected(
+                &pool,
+                &secret,
+                json!({ "status": status, "beds": "none", "car": false }),
+            )
+            .await;
             assert_eq!(errors, deadline_passed());
         }
         assert_eq!(row(&pool).await["status"], "declined");
@@ -2289,8 +2589,11 @@ mod integration {
         let pool = database.pool();
         invited(&pool, 10, 12).await;
         set_deadline(&pool, 10).await;
-        let (status, _) =
-            answer_as_organizer(&pool, &json!({ "status": "accepted", "beds": "none" })).await;
+        let (status, _) = answer_as_organizer(
+            &pool,
+            &json!({ "status": "accepted", "beds": "none", "car": false }),
+        )
+        .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(row(&pool).await["status"], "accepted");
     }

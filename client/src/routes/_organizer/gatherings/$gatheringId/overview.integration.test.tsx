@@ -15,7 +15,8 @@ import {
 } from '@/api/generated/api.msw'
 import type { Gathering, Overview, OverviewRow } from '@/api/generated/model'
 import { createBundle, formatMessage } from '@/l10n/bundle'
-import { LocalizationContext } from '@/l10n/translate'
+import { LocalizationContext, type Translate } from '@/l10n/translate'
+import { carSummary } from '@/lib/car'
 import { renderApp, silenceProvokedErrors, violations } from '@/testing/app'
 import { setupApiServer } from '@/testing/server'
 import { DownloadOverview } from './-components/DownloadOverview'
@@ -43,6 +44,8 @@ const base: OverviewRow = {
   departure: null,
   beds: 'need',
   bedCount: 1,
+  car: true,
+  freeSeats: 3,
   comment: null,
   changedBy: 'member',
   changedAt: '2027-02-20T09:30',
@@ -52,14 +55,14 @@ const base: OverviewRow = {
 }
 const rows: OverviewRow[] = [
   base,
-  { ...base, invitationId: 2, firstName: 'Ben', lastName: 'Kraus', beds: 'need', bedCount: 1, arrival: '2027-03-12T18:00', departure: '2027-03-14T15:00' },
-  { ...base, invitationId: 3, firstName: 'Lena', lastName: 'Wolf', beds: 'offer', bedCount: 3, comment: 'Brings scores for the altos', arrival: '2027-03-11T18:00', outsideSpan: true },
-  { ...base, invitationId: 4, firstName: 'Moritz', lastName: 'Lange', status: 'declined', beds: null, bedCount: null, comment: 'Holiday' },
-  { ...base, invitationId: 5, firstName: 'Sophie', lastName: 'Graf', status: 'pending', beds: null, bedCount: null, changedBy: null, changedAt: null, mail: 'failed' },
+  { ...base, invitationId: 2, firstName: 'Ben', lastName: 'Kraus', beds: 'need', bedCount: 1, freeSeats: 0, arrival: '2027-03-12T18:00', departure: '2027-03-14T15:00' },
+  { ...base, invitationId: 3, firstName: 'Lena', lastName: 'Wolf', beds: 'offer', bedCount: 3, car: false, freeSeats: null, comment: 'Brings scores for the altos', arrival: '2027-03-11T18:00', outsideSpan: true },
+  { ...base, invitationId: 4, firstName: 'Moritz', lastName: 'Lange', status: 'declined', beds: null, bedCount: null, car: null, freeSeats: null, comment: 'Holiday' },
+  { ...base, invitationId: 5, firstName: 'Sophie', lastName: 'Graf', status: 'pending', beds: null, bedCount: null, car: null, freeSeats: null, changedBy: null, changedAt: null, mail: 'failed' },
 ]
 const overview: Overview = {
   rows,
-  totals: { accepted: 3, tentative: 0, declined: 1, pending: 1, bedsNeeded: 2, bedsOffered: 3 },
+  totals: { accepted: 3, tentative: 0, declined: 1, pending: 1, bedsNeeded: 2, bedsOffered: 3, cars: 2, freeSeats: 3 },
 }
 
 function organizerPage(gathering: Gathering = weekend, shown: Overview = overview) {
@@ -106,6 +109,27 @@ describe('overview', () => {
     expect(within(offered).getByText('one more than needed')).toBeTruthy()
     expect(within(screen.getByText('Beds needed').parentElement!).getByText('2')).toBeTruthy()
     expect(await violations(container)).toEqual([])
+  })
+
+  it('plans rides with cars, free seats and a dash without a statement', async () => {
+    const noStatement: OverviewRow = { ...base, invitationId: 6, firstName: 'Paul', lastName: 'Roth', car: null, freeSeats: null }
+    organizerPage(weekend, { ...overview, rows: [...rows, noStatement] })
+    const table = await screen.findByRole('table')
+    const carColumn = within(table).getAllByRole('columnheader').findIndex((header) => header.textContent === 'Car')
+    const cars = within(table)
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => within(row).getAllByRole('cell')[carColumn]!.lastElementChild?.textContent)
+    expect(cars).toEqual(['3 free seats', '0 free seats', 'no car', '–', '–', '–'])
+    expect(within(screen.getByText('Cars').parentElement!).getByText('2')).toBeTruthy()
+    expect(within(screen.getByText('Free seats').parentElement!).getByText('3')).toBeTruthy()
+  })
+
+  it('reads kein Auto for a member without a car in German', () => {
+    const german = createBundle('de', readFileSync(path.join(import.meta.dirname, '../../../../../../server/locales/de.ftl'), 'utf8'))
+    const translate: Translate = (id, args) => formatMessage([german], id, args)
+    expect(carSummary(translate, { car: false, freeSeats: null })).toBe('kein Auto')
+    expect(carSummary(translate, { car: true, freeSeats: 1 })).toBe('ein freier Platz')
   })
 
   it('filters by status', async () => {
@@ -166,7 +190,7 @@ describe('overview', () => {
       .getAllByRole('row')
       .slice(1)
       .map((row) => within(row).getAllByRole('cell'))
-    const columns = ['Name', 'Status', 'Period', 'Beds', 'Comment']
+    const columns = ['Name', 'Status', 'Period', 'Beds', 'Car', 'Comment']
     expect(cells.map((row) => row.map((cell) => cell.firstElementChild?.textContent))).toEqual([
       ...Array.from({ length: 4 }, () => [...columns, undefined]),
       [...columns, 'Actions'],
@@ -204,7 +228,7 @@ function remindCalls(status = 201) {
 }
 
 describe('remind pending members', () => {
-  const pending = { ...base, status: 'pending' as const, beds: null, bedCount: null, changedBy: null, changedAt: null }
+  const pending = { ...base, status: 'pending' as const, beds: null, bedCount: null, car: null, freeSeats: null, changedBy: null, changedAt: null }
   const remindRows: OverviewRow[] = [
     base,
     { ...pending, invitationId: 7, firstName: 'Clara', lastName: 'Schmidt' },

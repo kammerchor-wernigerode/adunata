@@ -927,7 +927,7 @@
       },
       "Attendees": {
         "type": "object",
-        "description": "What invited members see of each other. Names and status for those who come, counts for everyone else, and never a period, beds, comment or mail address.",
+        "description": "What invited members see of each other. Names and status for those who come, counts for everyone else, and never a period, beds, car, free seats, comment or mail address.",
         "required": [
           "coming",
           "declined",
@@ -1546,6 +1546,19 @@
             ],
             "format": "int32"
           },
+          "car": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "freeSeats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
           "comment": {
             "type": [
               "string",
@@ -1641,6 +1654,23 @@
             "maximum": 20,
             "minimum": 1
           },
+          "car": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the member comes by car. Null when the response holds no statement."
+          },
+          "freeSeats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Free seats in the car, not counting the driver.",
+            "maximum": 8,
+            "minimum": 0
+          },
           "comment": {
             "type": [
               "string",
@@ -1671,14 +1701,16 @@
       },
       "Totals": {
         "type": "object",
-        "description": "Counts per status and the beds that attending members need and offer.",
+        "description": "Counts per status, the beds that attending members need and offer, and their cars with free seats.",
         "required": [
           "accepted",
           "tentative",
           "declined",
           "pending",
           "bedsNeeded",
-          "bedsOffered"
+          "bedsOffered",
+          "cars",
+          "freeSeats"
         ],
         "properties": {
           "accepted": {
@@ -1702,6 +1734,14 @@
             "format": "int64"
           },
           "bedsOffered": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cars": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "freeSeats": {
             "type": "integer",
             "format": "int64"
           }

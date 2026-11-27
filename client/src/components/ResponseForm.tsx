@@ -8,11 +8,15 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { formatWallClock, wallClock } from '@/l10n/dates'
 import { useLocale, useTranslate, type Translate } from '@/l10n/translate'
+import { carSummary } from '@/lib/car'
 import { orFallback } from '@/lib/succeeded'
 
-const formFields = ['status', 'arrival', 'departure', 'beds', 'bedCount', 'comment']
+const formFields = ['status', 'arrival', 'departure', 'beds', 'bedCount', 'car', 'freeSeats', 'comment']
 const statuses: Status[] = ['accepted', 'tentative', 'declined']
 const bedChoices: Beds[] = ['need', 'offer', 'none']
+const carChoices = ['yes', 'no'] as const
+
+type Car = (typeof carChoices)[number]
 
 export type SaveResult = { status: 'saved'; values: ResponseValues } | { status: 'invalid'; errors: ServerFieldError[] } | { status: 'failed' }
 
@@ -30,10 +34,30 @@ function combined({ day, time }: Moment): string | null {
   return day && time ? `${day}T${time}` : null
 }
 
+function carChoice(car: boolean | null | undefined): Car | '' {
+  if (car === true) return 'yes'
+  if (car === false) return 'no'
+  return ''
+}
+
+function requiredMessage(field: string): string {
+  switch (field) {
+    case 'bedCount':
+      return 'response-error-bed-count'
+    case 'car':
+      return 'response-error-car'
+    case 'freeSeats':
+      return 'response-error-free-seats'
+    default:
+      return 'response-error-beds'
+  }
+}
+
 function message(translate: Translate, error: ServerFieldError): string {
+  if (error.field === 'freeSeats' && error.code === 'invalid') return translate('response-error-free-seats')
   switch (error.code) {
     case 'required':
-      return translate(error.field === 'bedCount' ? 'response-error-bed-count' : 'response-error-beds')
+      return translate(requiredMessage(error.field))
     case 'tooLarge':
       return translate('response-error-bed-count-too-large')
     case 'tooLong':
@@ -55,7 +79,7 @@ function message(translate: Translate, error: ServerFieldError): string {
   }
 }
 
-/** The questions of a response in their order: status, arrival and departure, beds with their count and comment. With `declineOnly` it offers only the status declined and the comment. */
+/** The questions of a response in their order: status, arrival and departure, beds with their count, car with its free seats and comment. With `declineOnly` it offers only the status declined and the comment. */
 export function ResponseForm({
   question,
   firstDay,
@@ -81,6 +105,8 @@ export function ResponseForm({
   const [departure, setDeparture] = useState<Moment>(moment(initial?.departure))
   const [beds, setBeds] = useState<Beds | ''>(initial?.beds ?? '')
   const [bedCount, setBedCount] = useState(initial?.bedCount ? String(initial.bedCount) : '')
+  const [car, setCar] = useState<Car | ''>(carChoice(initial?.car))
+  const [freeSeats, setFreeSeats] = useState(typeof initial?.freeSeats === 'number' ? String(initial.freeSeats) : '')
   const [comment, setComment] = useState(initial?.comment ?? '')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState<ResponseValues | null>(null)
@@ -98,6 +124,8 @@ export function ResponseForm({
     if ((beds === 'need' || beds === 'offer') && !/^(?:[1-9]|1\d|20)$/.test(bedCount.trim())) {
       found.bedCount = translate('response-error-bed-count')
     }
+    if (car === '') found.car = translate('response-error-car')
+    if (car === 'yes' && !/^[0-8]$/.test(freeSeats.trim())) found.freeSeats = translate('response-error-free-seats')
     return found
   }
 
@@ -113,6 +141,8 @@ export function ResponseForm({
         departure: coming ? combined(departure) : null,
         beds: coming && beds !== '' ? beds : null,
         bedCount: coming && (beds === 'need' || beds === 'offer') ? Number(bedCount) : null,
+        car: coming && car !== '' ? car === 'yes' : null,
+        freeSeats: coming && car === 'yes' ? Number(freeSeats) : null,
         comment: comment.trim() === '' ? null : comment,
       }
       const result = await orFallback(() => onSave(values), { status: 'failed' })
@@ -269,6 +299,53 @@ export function ResponseForm({
           </FieldSet>
         )}
 
+        {coming && (
+          <FieldSet data-invalid={errors.car ? true : undefined}>
+            <FieldLegend className="text-base font-semibold">{translate('response-car')}</FieldLegend>
+            <FieldDescription id={`${id}-car-hint`}>{translate('response-car-hint')}</FieldDescription>
+            <RadioGroup
+              id={`${id}-car`}
+              value={car}
+              onValueChange={(value) => setCar(value as Car)}
+              {...described('car', `${id}-car-hint`)}
+            >
+              {carChoices.map((option) => (
+                <FieldLabel key={option} htmlFor={`${id}-car-${option}`} className={rowClass}>
+                  <Field orientation="horizontal">
+                    <RadioGroupItem
+                      id={`${id}-car-${option}`}
+                      value={option}
+                      aria-labelledby={`${id}-car-${option}-label`}
+                    />
+                    <span id={`${id}-car-${option}-label`} className="font-semibold">
+                      {translate(`response-car-${option}`)}
+                    </span>
+                  </Field>
+                </FieldLabel>
+              ))}
+            </RadioGroup>
+            {error('car')}
+            {car === 'yes' && (
+              <Field orientation="horizontal" data-invalid={errors.freeSeats ? true : undefined}>
+                <FieldLabel htmlFor={`${id}-freeSeats`}>{translate('response-free-seats')}</FieldLabel>
+                <Input
+                  id={`${id}-freeSeats`}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={8}
+                  required
+                  className="w-20"
+                  value={freeSeats}
+                  onChange={(event) => setFreeSeats(event.target.value)}
+                  {...described('freeSeats')}
+                />
+              </Field>
+            )}
+            {error('freeSeats')}
+          </FieldSet>
+        )}
+
         <Field data-invalid={errors.comment ? true : undefined}>
           <FieldLabel htmlFor={`${id}-comment`}>{translate('response-comment')}</FieldLabel>
           <FieldDescription id={`${id}-comment-hint`}>{translate('response-comment-hint')}</FieldDescription>
@@ -297,6 +374,7 @@ export function ResponseForm({
                 {saved.beds === 'need' || saved.beds === 'offer'
                   ? `, ${translate(`overview-beds-${saved.beds}`, { count: saved.bedCount ?? 0 })}`
                   : ''}
+                {typeof saved.car === 'boolean' ? `, ${carSummary(translate, saved)}` : ''}
               </p>
             </>
           )}

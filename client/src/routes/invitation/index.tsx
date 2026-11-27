@@ -6,6 +6,7 @@ import { PageTitle } from '@/components/PageTitle'
 import { ResponseForm, type SaveResult } from '@/components/ResponseForm'
 import { formatDay } from '@/l10n/dates'
 import { useLocale, useTranslate } from '@/l10n/translate'
+import { carSummary } from '@/lib/car'
 import { dataOf } from '@/lib/dataOf'
 import { Attendees } from './-components/Attendees'
 import { CalendarDownload } from './-components/CalendarDownload'
@@ -51,6 +52,7 @@ function ResponsePage() {
       response && (
         <p className="mt-2">
           {translate('response-yours')}: {translate(`response-status-${response.status}`)}
+          {typeof response.car === 'boolean' && `, ${carSummary(translate, response)}`}
         </p>
       )
     )
