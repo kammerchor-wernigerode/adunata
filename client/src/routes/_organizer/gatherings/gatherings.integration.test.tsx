@@ -42,7 +42,7 @@ const summer2025: Gathering = { ...march, id: 13, title: 'Summer tour', firstDay
 const autumn2024: Gathering = { ...march, id: 14, title: 'Autumn camp 2024', firstDay: '2024-10-03', lastDay: '2024-10-06', begun: true, ended: true }
 const pastYears = [spring2026, newYear, summer2025, autumn2024]
 const pastWithoutCurrentYear = [newYear, summer2025, autumn2024]
-const emptyOverview = { rows: [], totals: { accepted: 0, tentative: 0, declined: 0, pending: 0, bedsNeeded: 0, bedsOffered: 0 } }
+const emptyOverview = { rows: [], totals: { accepted: 0, tentative: 0, declined: 0, pending: 0, bedsNeeded: 0, bedsOffered: 0, cars: 0, freeSeats: 0 } }
 
 /** Asserts that the page action follows the main heading outside of it, before any other control. */
 function expectPageAction(heading: HTMLElement, action: HTMLElement) {

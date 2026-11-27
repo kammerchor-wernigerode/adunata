@@ -143,6 +143,8 @@ overview-total-declined = Absagen
 overview-total-pending = Offen
 overview-beds-needed = Betten gesucht
 overview-beds-offered = Betten angeboten
+overview-cars = Autos
+overview-free-seats-total = Freie Plätze
 overview-bed-even = so viele wie gesucht
 overview-bed-surplus = { $count ->
         [one] eins mehr als gesucht
@@ -178,6 +180,7 @@ overview-column-name = Name
 overview-column-status = Status
 overview-column-period = Zeitraum
 overview-column-beds = Betten
+overview-column-car = Auto
 overview-column-comment = Kommentar
 overview-column-actions = Aktionen
 overview-beds-need = { $count ->
@@ -187,6 +190,11 @@ overview-beds-need = { $count ->
 overview-beds-offer = { $count ->
         [one] bietet eins
        *[other] bietet { $count }
+    }
+overview-car-none = kein Auto
+overview-free-seats = { $count ->
+        [one] ein freier Platz
+       *[other] { $count } freie Plätze
     }
 overview-whole-gathering = ganzes Treffen
 overview-period = { $arrival } bis { $departure }
@@ -200,6 +208,7 @@ overview-csv-arrival = Ankunft
 overview-csv-departure = Abreise
 overview-csv-beds-needed = Betten gesucht
 overview-csv-beds-offered = Betten angeboten
+overview-csv-free-seats = Freie Plätze
 overview-csv-comment = Kommentar
 overview-download = CSV herunterladen
 overview-download-notice = Die Datei enthält personenbezogene Daten. Adunata löscht sie nicht, also lösche sie, sobald du sie nicht mehr brauchst.
@@ -227,6 +236,11 @@ response-beds-need = Ich brauche ein Bett
 response-beds-offer = Ich biete Betten an
 response-beds-none = Nichts davon
 response-bed-count = Wie viele?
+response-car = Kommst du mit dem Auto?
+response-car-yes = Ja, mit dem Auto
+response-car-no = Kein Auto
+response-free-seats = Wie viele Plätze sind frei, ohne dich?
+response-car-hint = Nur Organisatoren sehen dein Auto und die freien Plätze.
 response-comment = Kommentar
 response-comment-hint = Nur Organisatoren lesen deinen Kommentar.
 response-save = Antwort speichern
@@ -245,6 +259,8 @@ response-error-deadline-passed = Die Frist für Antworten ist abgelaufen, du kan
 response-error-beds = Wähle, ob du Betten brauchst oder anbietest.
 response-error-bed-count = Gib an, wie viele Betten, von 1 bis 20.
 response-error-bed-count-too-large = Gib höchstens 20 Betten an.
+response-error-car = Wähle, ob du mit dem Auto kommst.
+response-error-free-seats = Gib die freien Plätze an, von 0 bis 8.
 response-error-comment-too-long = Der Kommentar darf höchstens 2000 Zeichen haben.
 response-error-departure-before-arrival = Die Abreise kann nicht vor der Anreise liegen.
 response-error-time = Wähle eine Uhrzeit innerhalb der Tage des Treffens in Schritten von 30 Minuten.

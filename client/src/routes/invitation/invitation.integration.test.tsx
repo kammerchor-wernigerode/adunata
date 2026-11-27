@@ -132,7 +132,7 @@ describe('response page', () => {
     server.use(
       http.put('*/api/invitation/response', async ({ request }) => {
         sent = await request.json()
-        return HttpResponse.json({ status: 'accepted', arrival: '2027-03-12T18:00', departure: null, beds: 'offer', bedCount: 2, comment: null })
+        return HttpResponse.json({ status: 'accepted', arrival: '2027-03-12T18:00', departure: null, beds: 'offer', bedCount: 2, car: true, freeSeats: 3, comment: null })
       }),
     )
     await userEvent.click(await screen.findByRole('button', { name: 'Day of arrival Choose a day' }))
@@ -140,10 +140,13 @@ describe('response page', () => {
     await userEvent.type(screen.getByLabelText('Time of arrival'), '18:00')
     await userEvent.click(screen.getByRole('radio', { name: 'I offer beds' }))
     await userEvent.type(screen.getByLabelText('How many?'), '2')
+    await userEvent.click(screen.getByRole('radio', { name: 'Yes, by car' }))
+    await userEvent.type(screen.getByLabelText('How many seats are free, not counting you?'), '3')
     await userEvent.click(screen.getByRole('button', { name: 'Save response' }))
     const status = await screen.findByText(/Response saved/)
     expect(status.closest('[role="status"]')?.textContent).toContain('Arrival Fri 18:00')
-    expect(sent).toEqual({ status: 'accepted', arrival: '2027-03-12T18:00', departure: null, beds: 'offer', bedCount: 2, comment: null })
+    expect(status.closest('[role="status"]')?.textContent).toContain('3 free seats')
+    expect(sent).toEqual({ status: 'accepted', arrival: '2027-03-12T18:00', departure: null, beds: 'offer', bedCount: 2, car: true, freeSeats: 3, comment: null })
   })
 
   it('shows times of the instance whatever time zone the browser uses', async () => {
@@ -212,7 +215,7 @@ describe('response page', () => {
     server.use(
       http.put('*/api/invitation/response', async ({ request }) => {
         sent = await request.json()
-        return HttpResponse.json({ status: 'declined', arrival: null, departure: null, beds: null, bedCount: null, comment: 'Krank' })
+        return HttpResponse.json({ status: 'declined', arrival: null, departure: null, beds: null, bedCount: null, car: null, freeSeats: null, comment: 'Krank' })
       }),
     )
     expect(await screen.findByText('The deadline for responses passed on Mar 6, 2027. You can still decline.')).toBeTruthy()
@@ -224,7 +227,7 @@ describe('response page', () => {
     await userEvent.type(screen.getByLabelText('Comment'), 'Krank')
     await userEvent.click(screen.getByRole('button', { name: 'Save response' }))
     await screen.findByText('Response saved.')
-    expect(sent).toEqual({ status: 'declined', arrival: null, departure: null, beds: null, bedCount: null, comment: 'Krank' })
+    expect(sent).toEqual({ status: 'declined', arrival: null, departure: null, beds: null, bedCount: null, car: null, freeSeats: null, comment: 'Krank' })
     expect(await violations(container)).toEqual([])
   })
 
@@ -245,5 +248,67 @@ describe('response page', () => {
     const count = screen.getByLabelText('How many?')
     expect(count.getAttribute('aria-invalid')).toBe('true')
     expect(document.activeElement).toBe(count)
+  })
+
+  it('tells at the car question that only organizers see the car', async () => {
+    const { container } = openLink(() => HttpResponse.json(page))
+    const question = (await screen.findByText('Do you come by car?')).closest('fieldset')!
+    expect(within(question).getByText('Only organizers see your car and free seats.')).toBeTruthy()
+    expect(screen.getByRole('radiogroup', { description: /Only organizers see your car/ })).toBeTruthy()
+    expect(await violations(container)).toEqual([])
+  })
+
+  it('opens a response without a statement about a car with the question unanswered', async () => {
+    let sent = false
+    openLink(() =>
+      HttpResponse.json({ ...page, response: { status: 'accepted', arrival: null, departure: null, beds: 'none', bedCount: null, comment: null } }),
+    )
+    server.use(
+      http.put('*/api/invitation/response', () => {
+        sent = true
+        return new HttpResponse(null, { status: 500 })
+      }),
+    )
+    const yes = await screen.findByRole('radio', { name: 'Yes, by car' })
+    expect(yes.getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByRole('radio', { name: 'No car' }).getAttribute('aria-checked')).toBe('false')
+    await userEvent.click(screen.getByRole('button', { name: 'Save response' }))
+    expect(await screen.findByText('Choose whether you come by car.')).toBeTruthy()
+    expect(sent).toBe(false)
+  })
+
+  it('marks the car question when the server requires an answer', async () => {
+    openLink(() => HttpResponse.json(page))
+    server.use(
+      http.put('*/api/invitation/response', () =>
+        HttpResponse.json({ errors: [{ field: 'freeSeats', code: 'invalid' }] }, { status: 422 }),
+      ),
+    )
+    await userEvent.click(await screen.findByRole('radio', { name: 'Neither' }))
+    await userEvent.click(screen.getByRole('radio', { name: 'Yes, by car' }))
+    await userEvent.type(screen.getByLabelText('How many seats are free, not counting you?'), '8')
+    await userEvent.click(screen.getByRole('button', { name: 'Save response' }))
+    expect(await screen.findByText('State the free seats, from 0 to 8.')).toBeTruthy()
+    expect(screen.getByLabelText('How many seats are free, not counting you?').getAttribute('aria-invalid')).toBe('true')
+  })
+
+  it('rejects free seats outside 0 to 8 in the form', async () => {
+    openLink(() => HttpResponse.json(page))
+    await userEvent.click(await screen.findByRole('radio', { name: 'Yes, by car' }))
+    await userEvent.type(screen.getByLabelText('How many seats are free, not counting you?'), '9')
+    await userEvent.click(screen.getByRole('button', { name: 'Save response' }))
+    const seats = screen.getByLabelText('How many seats are free, not counting you?')
+    expect(seats.getAttribute('aria-invalid')).toBe('true')
+  })
+
+  it('names the car in the read-only view after the gathering has begun', async () => {
+    openLink(() =>
+      HttpResponse.json({
+        ...page,
+        state: 'begun',
+        response: { status: 'accepted', arrival: null, departure: null, beds: 'none', bedCount: null, car: true, freeSeats: 2, comment: null },
+      }),
+    )
+    expect((await screen.findByText(/^Your response:/)).textContent).toBe('Your response: Yes, 2 free seats')
   })
 })

@@ -178,6 +178,8 @@ export const OverviewResponse = zod.object({
   "departure": zod.string().nullish(),
   "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
   "bedCount": zod.int().nullish(),
+  "car": zod.boolean().nullish(),
+  "freeSeats": zod.int().nullish(),
   "comment": zod.string().nullish(),
   "changedBy": zod.union([zod.enum(['member', 'organizer']).describe('Who changed a response last.'),zod.null()]).optional(),
   "changedAt": zod.string().nullish().describe('When the response changed last, as wall-clock time of the instance.'),
@@ -191,8 +193,10 @@ export const OverviewResponse = zod.object({
   "declined": zod.int(),
   "pending": zod.int(),
   "bedsNeeded": zod.int(),
-  "bedsOffered": zod.int()
-}).describe('Counts per status and the beds that attending members need and offer.')
+  "bedsOffered": zod.int(),
+  "cars": zod.int(),
+  "freeSeats": zod.int()
+}).describe('Counts per status, the beds that attending members need and offer, and their cars with free seats.')
 }).describe('Everything organizers plan a gathering with.')
 
 
@@ -231,6 +235,9 @@ export const HealthResponse = zod.object({
  */
 export const invitationPageResponseResponseOneBedCountMax = 20;
 
+export const invitationPageResponseResponseOneFreeSeatsMin = 0;
+export const invitationPageResponseResponseOneFreeSeatsMax = 8;
+
 export const invitationPageResponseResponseOneCommentMax = 2000;
 
 
@@ -252,6 +259,8 @@ export const InvitationPageResponse = zod.object({
   "departure": zod.string().nullish(),
   "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
   "bedCount": zod.int().min(1).max(invitationPageResponseResponseOneBedCountMax).nullish(),
+  "car": zod.boolean().nullish().describe('Whether the member comes by car. Null when the response holds no statement.'),
+  "freeSeats": zod.int().min(invitationPageResponseResponseOneFreeSeatsMin).max(invitationPageResponseResponseOneFreeSeatsMax).nullish().describe('Free seats in the car, not counting the driver.'),
   "comment": zod.string().max(invitationPageResponseResponseOneCommentMax).nullish()
 }).describe('The member\'s stored response, which the form shows again.'),zod.null()]).optional(),
   "attendees": zod.union([zod.object({
@@ -277,6 +286,9 @@ export const CalendarFileResponse = zod.unknown()
  */
 export const answerBodyBedCountMax = 20;
 
+export const answerBodyFreeSeatsMin = 0;
+export const answerBodyFreeSeatsMax = 8;
+
 export const answerBodyCommentMax = 2000;
 
 
@@ -287,10 +299,15 @@ export const AnswerBody = zod.object({
   "departure": zod.string().nullish(),
   "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
   "bedCount": zod.int().min(1).max(answerBodyBedCountMax).nullish(),
+  "car": zod.boolean().nullish().describe('Whether the member comes by car. Null when the response holds no statement.'),
+  "freeSeats": zod.int().min(answerBodyFreeSeatsMin).max(answerBodyFreeSeatsMax).nullish().describe('Free seats in the car, not counting the driver.'),
   "comment": zod.string().max(answerBodyCommentMax).nullish()
 }).describe('The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.')
 
 export const answerResponseBedCountMax = 20;
+
+export const answerResponseFreeSeatsMin = 0;
+export const answerResponseFreeSeatsMax = 8;
 
 export const answerResponseCommentMax = 2000;
 
@@ -302,6 +319,8 @@ export const AnswerResponse = zod.object({
   "departure": zod.string().nullish(),
   "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
   "bedCount": zod.int().min(1).max(answerResponseBedCountMax).nullish(),
+  "car": zod.boolean().nullish().describe('Whether the member comes by car. Null when the response holds no statement.'),
+  "freeSeats": zod.int().min(answerResponseFreeSeatsMin).max(answerResponseFreeSeatsMax).nullish().describe('Free seats in the car, not counting the driver.'),
   "comment": zod.string().max(answerResponseCommentMax).nullish()
 }).describe('The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.')
 
@@ -319,6 +338,9 @@ export const AnswerForMemberParams = zod.object({
 
 export const answerForMemberBodyBedCountMax = 20;
 
+export const answerForMemberBodyFreeSeatsMin = 0;
+export const answerForMemberBodyFreeSeatsMax = 8;
+
 export const answerForMemberBodyCommentMax = 2000;
 
 
@@ -329,10 +351,15 @@ export const AnswerForMemberBody = zod.object({
   "departure": zod.string().nullish(),
   "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
   "bedCount": zod.int().min(1).max(answerForMemberBodyBedCountMax).nullish(),
+  "car": zod.boolean().nullish().describe('Whether the member comes by car. Null when the response holds no statement.'),
+  "freeSeats": zod.int().min(answerForMemberBodyFreeSeatsMin).max(answerForMemberBodyFreeSeatsMax).nullish().describe('Free seats in the car, not counting the driver.'),
   "comment": zod.string().max(answerForMemberBodyCommentMax).nullish()
 }).describe('The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.')
 
 export const answerForMemberResponseBedCountMax = 20;
+
+export const answerForMemberResponseFreeSeatsMin = 0;
+export const answerForMemberResponseFreeSeatsMax = 8;
 
 export const answerForMemberResponseCommentMax = 2000;
 
@@ -344,6 +371,8 @@ export const AnswerForMemberResponse = zod.object({
   "departure": zod.string().nullish(),
   "beds": zod.union([zod.enum(['need', 'offer', 'none']).describe('Whether a member who comes needs beds, offers beds or needs none.'),zod.null()]).optional(),
   "bedCount": zod.int().min(1).max(answerForMemberResponseBedCountMax).nullish(),
+  "car": zod.boolean().nullish().describe('Whether the member comes by car. Null when the response holds no statement.'),
+  "freeSeats": zod.int().min(answerForMemberResponseFreeSeatsMin).max(answerForMemberResponseFreeSeatsMax).nullish().describe('Free seats in the car, not counting the driver.'),
   "comment": zod.string().max(answerForMemberResponseCommentMax).nullish()
 }).describe('The answer to an invitation. Times are wall-clock times of the instance without an offset, such as 2027-03-14T18:00.')
 

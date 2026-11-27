@@ -3,6 +3,7 @@ import type { Gathering, OverviewRow } from '@/api/generated/model'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useTranslate, type Translate } from '@/l10n/translate'
+import { carSummary } from '@/lib/car'
 import { MailNotice } from './MailNotice'
 import { Period } from './Period'
 
@@ -17,7 +18,7 @@ function beds(translate: Translate, row: OverviewRow): string {
 
 export function OverviewTable({ gathering, rows }: { gathering: Gathering; rows: OverviewRow[] }) {
   const translate = useTranslate()
-  const columns = ['name', 'status', 'period', 'beds', 'comment', 'actions'] as const
+  const columns = ['name', 'status', 'period', 'beds', 'car', 'comment', 'actions'] as const
   return (
     <div className="@container">
       <Table className="overflow-hidden rounded-lg border border-border bg-card @max-[40rem]:block">
@@ -54,6 +55,10 @@ export function OverviewTable({ gathering, rows }: { gathering: Gathering; rows:
               <TableCell className={cell}>
                 <span className={label}>{translate('overview-column-beds')}</span>
                 <span>{beds(translate, row)}</span>
+              </TableCell>
+              <TableCell className={cell}>
+                <span className={label}>{translate('overview-column-car')}</span>
+                <span>{carSummary(translate, row)}</span>
               </TableCell>
               <TableCell className={`${cell} text-muted-foreground`}>
                 <span className={label}>{translate('overview-column-comment')}</span>

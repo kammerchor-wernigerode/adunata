@@ -7,7 +7,7 @@
 import type { Attendee } from './attendee';
 
 /**
- * What invited members see of each other. Names and status for those who come, counts for everyone else, and never a period, beds, comment or mail address.
+ * What invited members see of each other. Names and status for those who come, counts for everyone else, and never a period, beds, car, free seats, comment or mail address.
  */
 export interface Attendees {
   coming: Attendee[];

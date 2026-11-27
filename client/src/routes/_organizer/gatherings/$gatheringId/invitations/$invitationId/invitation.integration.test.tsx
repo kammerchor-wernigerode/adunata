@@ -50,7 +50,7 @@ function invitationPage() {
     }),
     getOverviewMockHandler({
       rows: [sophie],
-      totals: { accepted: 0, tentative: 0, declined: 0, pending: 1, bedsNeeded: 0, bedsOffered: 0 },
+      totals: { accepted: 0, tentative: 0, declined: 0, pending: 1, bedsNeeded: 0, bedsOffered: 0, cars: 0, freeSeats: 0 },
     }),
   )
   return renderApp('/gatherings/5/invitations/40')
@@ -71,7 +71,7 @@ describe('invitation page for organizers', () => {
     await userEvent.click(screen.getByRole('radio', { name: 'No' }))
     await userEvent.click(screen.getByRole('button', { name: 'Save response' }))
     expect(await screen.findByText('Response of Sophie Graf saved.')).toBeTruthy()
-    expect(sent).toEqual({ status: 'declined', arrival: null, departure: null, beds: null, bedCount: null, comment: null })
+    expect(sent).toEqual({ status: 'declined', arrival: null, departure: null, beds: null, bedCount: null, car: null, freeSeats: null, comment: null })
     expect(await violations(container)).toEqual([])
   })
 

@@ -6,7 +6,7 @@
  */
 
 /**
- * Counts per status and the beds that attending members need and offer.
+ * Counts per status, the beds that attending members need and offer, and their cars with free seats.
  */
 export interface Totals {
   accepted: number;
@@ -15,4 +15,6 @@ export interface Totals {
   pending: number;
   bedsNeeded: number;
   bedsOffered: number;
+  cars: number;
+  freeSeats: number;
 }

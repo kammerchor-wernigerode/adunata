@@ -41,7 +41,7 @@ function organizerPage(invitations: Invitation[] = [adaInvited]) {
     getGetGatheringMockHandler(weekend),
     getListMembersMockHandler([ada, clara, johannes]),
     getListInvitationsMockHandler(invitations),
-    getOverviewMockHandler({ rows: [], totals: { accepted: 0, tentative: 0, declined: 0, pending: 0, bedsNeeded: 0, bedsOffered: 0 } }),
+    getOverviewMockHandler({ rows: [], totals: { accepted: 0, tentative: 0, declined: 0, pending: 0, bedsNeeded: 0, bedsOffered: 0, cars: 0, freeSeats: 0 } }),
   )
   return renderApp('/gatherings/5')
 }
